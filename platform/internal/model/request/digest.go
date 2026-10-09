@@ -60,8 +60,8 @@ type digestContentSet struct {
 	Expectation digestExpectation `json:"expectation"`
 }
 
-// digestDecision 是策略判定的摘要视图：记录时间统一取 UTC，同一时刻换时区表示不改变摘要；
-// 空的 Reasons 与 nil 等价。
+// digestDecision 是策略判定的摘要视图：记录时间统一取 UTC 并截到微秒，
+// 同一时刻换时区表示、或经过只保存到微秒的存储往返，都不改变摘要；空的 Reasons 与 nil 等价。
 type digestDecision struct {
 	Mode          string    `json:"mode"`
 	Layer         string    `json:"layer"`
@@ -154,7 +154,7 @@ func (r *ExecutionRequest) FreezeDigest() (ids.Digest, error) {
 			AllowAuto:     d.AllowAuto,
 			PolicyVersion: d.PolicyVersion,
 			Reasons:       append([]string{}, d.Reasons...),
-			At:            d.At.UTC(),
+			At:            d.At.UTC().Truncate(time.Microsecond),
 		}
 	}
 	return ids.DigestOf(f)

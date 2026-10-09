@@ -240,7 +240,7 @@ stateDiagram-v2
 ### 7.2 冻结
 
 - 冻结摘要覆盖规范化后的：Content、Params、SecretKeys（只含 K）、Scope、Expectation、Fingerprint 值、PolicyDecision、Revision。
-- PolicyDecision 整体进入摘要，包括模式、层、`allow_auto`、策略版本、原因和判定时间 `At`。`At` 按 UTC 取值，同一时刻换时区表示不改变摘要。SelfReview 及其时间不进入摘要。
+- PolicyDecision 整体进入摘要，包括模式、层、`allow_auto`、策略版本、原因和判定时间 `At`。`At` 按 UTC 取值并截到微秒。同一时刻换时区表示，或经过只保存到微秒的存储往返，都不改变摘要。SelfReview 及其时间不进入摘要。
 - 规范化格式：字段排序后的 JSON，再取 SHA-256。规范化函数单独测试并做 fuzz。
 - 任何字符串（含对象键）不是合法 UTF-8 时，规范化返回 `core.canonical_unsupported`。否则不同的非法字节会被换成同一个 U+FFFD，摘要对这类改动失效（K-13、K-15）。
 - 人工 ▶ 绑定当时的 Revision 和 Digest；冻结时校验二者未变。

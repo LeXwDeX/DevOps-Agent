@@ -259,6 +259,20 @@ func TestFreezeDigestIgnoresTimeZone(t *testing.T) {
 	}
 }
 
+func TestFreezeDigestIgnoresSubMicrosecond(t *testing.T) {
+	r := sample()
+	r.Checks.Policy.At = t0.Add(123 * time.Microsecond)
+	_, base := digests(t, r)
+	r.Checks.Policy.At = t0.Add(123*time.Microsecond + 456*time.Nanosecond)
+	if _, got := digests(t, r); got != base {
+		t.Fatal("freeze digest depends on sub-microsecond policy time")
+	}
+	r.Checks.Policy.At = t0.Add(124 * time.Microsecond)
+	if _, got := digests(t, r); got == base {
+		t.Fatal("freeze digest ignores a microsecond change in policy time")
+	}
+}
+
 func TestDigestRejectsUnsupportedParams(t *testing.T) {
 	r := sample()
 	r.Content.Params["bad"] = make(chan int)
