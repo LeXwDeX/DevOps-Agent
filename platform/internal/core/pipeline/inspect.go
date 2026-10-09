@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/LeXwDeX/DevOps-Agent/platform/internal/core/events"
 	"github.com/LeXwDeX/DevOps-Agent/platform/internal/core/policy"
@@ -82,7 +83,7 @@ func (s *Service) Inspect(ctx context.Context, id ids.CallID) (*request.Executio
 	// 步骤 3 至 6：预演、指纹、自审、dcg
 	s.runPreview(ctx, t)
 	s.runFingerprint(ctx, t, sc.unit)
-	s.recordSelfReview(r)
+	s.recordSelfReview(r, s.d.Clock.Now())
 	s.runDCG(ctx, t)
 	data := revData(r)
 	data["preview"] = string(r.Checks.Preview.Status)
@@ -251,13 +252,15 @@ func (s *Service) runFingerprint(ctx context.Context, t *txn, unit *ports.UnitIn
 }
 
 // recordSelfReview 是步骤 5：既定任务步骤记 not_applicable，其余照抄提交时附带的自审；缺失保持 nil（按风险处理）。
-func (s *Service) recordSelfReview(r *request.ExecutionRequest) {
+// 记录的自审一律带 now 作为时间，提交时附带的时间不采用。
+func (s *Service) recordSelfReview(r *request.ExecutionRequest, now time.Time) {
 	if r.Source == consts.SourceTaskStep {
-		r.Checks.SelfReview = &request.SelfReview{Verdict: consts.VerdictNotApplicable}
+		r.Checks.SelfReview = &request.SelfReview{Verdict: consts.VerdictNotApplicable, At: now}
 		return
 	}
 	if sr := r.Submission.SelfReview; sr != nil {
 		c := *sr
+		c.At = now
 		r.Checks.SelfReview = &c
 	}
 }
@@ -322,7 +325,9 @@ func (s *Service) decide(ctx context.Context, t *txn, sc scopeResult) error {
 	r.Versions.PolicyVersion, r.Versions.PolicyLayer = dec.PolicyVersion, dec.Layer
 
 	flags := policy.FlagsFrom(r)
+	now := s.d.Clock.Now()
 	final := policy.Escalate(dec, flags)
+	final.At = now
 	r.Checks.Policy = &final
 	r.Checks.Escalations = flags.Reasons()
 
@@ -334,7 +339,6 @@ func (s *Service) decide(ctx context.Context, t *txn, sc scopeResult) error {
 	data["reasons"] = append([]string(nil), final.Reasons...)
 	data["escalations"] = flags.Reasons()
 
-	now := s.d.Clock.Now()
 	switch final.Mode {
 	case consts.PolicyForbid:
 		if err := corereq.Reject(r, consts.RejectedByPolicy, "", strings.Join(final.Reasons, "; "), now); err != nil {

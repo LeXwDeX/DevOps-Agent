@@ -3,6 +3,7 @@ package coretest
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -359,15 +360,15 @@ func NewFakeDCG() *FakeDCG {
 }
 
 // Push 排队一个结果（或错误）。
-func (d *FakeDCG) Push(res request.DCGCheck, err error) { d.q.push(res, err) }
+func (d *FakeDCG) Push(res request.DCGCheck, err error) { d.q.push(cloneDCG(res), err) }
 
 // PushResult 排队一个指定结论，可带命中的规则 ID。
 func (d *FakeDCG) PushResult(result consts.DCGResult, ruleIDs ...string) {
-	d.q.push(request.DCGCheck{Result: result, RuleIDs: ruleIDs, RulesetVersion: "fake-1"}, nil)
+	d.q.push(cloneDCG(request.DCGCheck{Result: result, RuleIDs: ruleIDs, RulesetVersion: "fake-1"}), nil)
 }
 
 // SetDefault 设定队列取完后的默认结果。
-func (d *FakeDCG) SetDefault(res request.DCGCheck) { d.q.setDefault(res) }
+func (d *FakeDCG) SetDefault(res request.DCGCheck) { d.q.setDefault(cloneDCG(res)) }
 
 func (d *FakeDCG) Calls() int { return d.CallCount("Check") }
 
@@ -379,10 +380,16 @@ func (d *FakeDCG) Check(ctx context.Context, r *request.ExecutionRequest) (reque
 	if err != nil {
 		return request.DCGCheck{}, err
 	}
+	res = cloneDCG(res) // 队列里的结果每次调用都返回副本，调用方改动不影响后面的调用
 	if res.At.IsZero() {
 		res.At = stamp(d.Clock)
 	}
 	return res, nil
+}
+
+func cloneDCG(c request.DCGCheck) request.DCGCheck {
+	c.RuleIDs = slices.Clone(c.RuleIDs)
+	return c
 }
 
 // ---- ExecutorPort ----

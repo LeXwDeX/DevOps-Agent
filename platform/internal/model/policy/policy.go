@@ -5,6 +5,7 @@ package policy
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/LeXwDeX/DevOps-Agent/platform/internal/schema/consts"
 	"github.com/LeXwDeX/DevOps-Agent/platform/internal/schema/errcode"
@@ -134,13 +135,15 @@ type Query struct {
 	Source      consts.RequestSource
 }
 
-// Decision 是解析输出。
+// Decision 是解析输出。At 是检验流水线记录判定的时间；纯函数 Resolve 和 Escalate 不读时钟，At 保持零值，
+// 由流水线用 Clock.Now() 填写。Decision 进入冻结摘要（61 第 7.2 节），At 也在内。
 type Decision struct {
 	Mode          consts.PolicyMode  `json:"mode"`
 	Layer         consts.PolicyLayer `json:"layer"`      // 给出 Mode 的层
 	AllowAuto     bool               `json:"allow_auto"` // 任一匹配规则 allow_auto:false 时为 false
 	PolicyVersion string             `json:"policy_version"`
 	Reasons       []string           `json:"reasons,omitempty"`
+	At            time.Time          `json:"at"`
 }
 
 // Clone 深拷贝。

@@ -91,6 +91,8 @@ ExecutionRequest
 | SelfReview 结论 | `no_risk`、`risk`、`not_applicable`（只用于既定任务步骤）；缺失按 `risk` |
 | DCG 结果 | `pass`、`hit`、`forbid`、`unavailable`，附规则 ID 和规则包版本 |
 
+Checks 里每一项（Preview、SelfReview、DCG、PolicyDecision）的 `At` 都是流水线记录它的时间，取 `Clock.Now()`。端口返回的 Preview 和 DCG 结果若自带时间，保留；没有就由流水线补。SelfReview 和 PolicyDecision 的时间一律由流水线写：提交时附带的 `Submission.SelfReview` 不带时间，既定任务步骤记的 `not_applicable` 自审也有时间。纯函数 `policy.Resolve` 和 `Escalate` 不读时钟，返回的 `Decision.At` 为零值，由流水线填写。
+
 Harness 和执行器的实现版本由装配层填写，不在 core 里。
 
 ### 3.2 执行预期
@@ -152,7 +154,7 @@ stateDiagram-v2
 
 规则：
 
-- 状态转换只能经 `core/request` 的转换函数，每个转换校验当前状态和前置条件。不在表里的转换返回 `core.invalid_transition`。
+- 状态转换只能经 `core/request` 的转换函数，每个转换校验当前状态和前置条件。从终态发起的任何转换返回 `core.terminal_state`；终态以外、不在表里的转换返回 `core.invalid_transition`。
 - 终态：`rejected`、`succeeded`、`mismatched`、`failed`、`unknown`、`stopped`。终态不再转换。
 - `unknown` 没有出口。人工核对的结论另记一条审核记录，不改状态。要重做就发起新的申请（新 CallID，13 第 2.2 节）。
 - 申请创建时为 `draft`，产生 `devops.call.proposed`。
@@ -238,6 +240,7 @@ stateDiagram-v2
 ### 7.2 冻结
 
 - 冻结摘要覆盖规范化后的：Content、Params、SecretKeys（只含 K）、Scope、Expectation、Fingerprint 值、PolicyDecision、Revision。
+- PolicyDecision 整体进入摘要，包括模式、层、`allow_auto`、策略版本、原因和判定时间 `At`。`At` 按 UTC 取值，同一时刻换时区表示不改变摘要。SelfReview 及其时间不进入摘要。
 - 规范化格式：字段排序后的 JSON，再取 SHA-256。规范化函数单独测试并做 fuzz。
 - 任何字符串（含对象键）不是合法 UTF-8 时，规范化返回 `core.canonical_unsupported`。否则不同的非法字节会被换成同一个 U+FFFD，摘要对这类改动失效（K-13、K-15）。
 - 人工 ▶ 绑定当时的 Revision 和 Digest；冻结时校验二者未变。
@@ -323,11 +326,13 @@ stateDiagram-v2
 
 每个端口在 `coretest` 里有内存实现，可注入故障（超时、返回错误、返回不一致的指纹）。
 
+每个端口在 `coretest` 里还有契约测试，是导出函数 `XxxContract(t, 工厂)`。需要预置数据的端口（策略、登记表、范围），工厂收到契约定义的种子，provider 的测试把种子写进真实存储后返回端口。内存替身和 provider 跑同一套。契约至少覆盖：`core.not_found`、返回值不与调用方或后续调用共享内存、入参申请不被修改、已取消的 ctx 返回错误、审计保持追加顺序、时钟返回非零时间。
+
 ## 9. 测试清单
 
 | 类别 | 内容 |
 |---|---|
-| 状态机 | 表中每个转换的正例；每个不在表中的转换返回 `core.invalid_transition`；终态不可转换 |
+| 状态机 | 表中每个转换的正例；终态以外、不在表中的转换返回 `core.invalid_transition`；从终态发起的转换返回 `core.terminal_state` |
 | 策略解析 | 表驱动覆盖：四层命中顺序、环境覆盖、`allow_auto: false`、forbid 优先、手工模式、系统兜底 |
 | 转人工 | K-08 每个条件单独触发；组合触发；forbid 不被降级 |
 | 修订 | 冻结后修订被拒绝；修订后 Checks 和人工批准作废；修订来源只允许两种；旧修订进日志 |

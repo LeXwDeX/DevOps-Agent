@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/LeXwDeX/DevOps-Agent/platform/internal/core/coretest"
 	"github.com/LeXwDeX/DevOps-Agent/platform/internal/core/events"
@@ -150,6 +151,43 @@ func TestInspectRecordsVersionsAndChecks(t *testing.T) {
 	}
 	if got := f.get(r.CallID); !reflect.DeepEqual(got, r) {
 		t.Error("returned request differs from stored")
+	}
+}
+
+// Checks 里的自审和策略判定都带记录时间（61 第 3.1 节）：取检验时的 Clock.Now()，不取提交时附带的时间。
+func TestInspectRecordsSelfReviewAndPolicyTimes(t *testing.T) {
+	f := newFixture(t)
+	in := input()
+	in.Submission.SelfReview = &request.SelfReview{Verdict: consts.VerdictNoRisk, Reason: "ok", At: coretest.Epoch.Add(-time.Hour)}
+	r := f.submit(in)
+	f.env.Clock.Advance(5 * time.Minute)
+	want := f.env.Clock.Now()
+	out, err := f.svc.Inspect(bg, r.CallID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sr := out.Checks.SelfReview; sr == nil || !sr.At.Equal(want) || sr.Reason != "ok" {
+		t.Errorf("self review = %+v, want At %v", sr, want)
+	}
+	if p := out.Checks.Policy; p == nil || !p.At.Equal(want) {
+		t.Errorf("policy = %+v, want At %v", p, want)
+	}
+	if out.Checks.Preview == nil || !out.Checks.Preview.At.Equal(want) || out.Checks.DCG == nil || !out.Checks.DCG.At.Equal(want) {
+		t.Errorf("preview/dcg time = %+v / %+v", out.Checks.Preview, out.Checks.DCG)
+	}
+	// 提交时附带的自审不被改写。
+	if sr := f.get(out.CallID).Submission.SelfReview; sr == nil || !sr.At.Equal(in.Submission.SelfReview.At) {
+		t.Errorf("submission self review changed: %+v", sr)
+	}
+	// 转人工和禁止的判定同样带时间。
+	for _, mode := range []consts.PolicyMode{consts.PolicyManual, consts.PolicyForbid} {
+		g := newFixture(t)
+		g.setPolicy(mode)
+		g.env.Clock.Advance(time.Minute)
+		o := g.inspect(input())
+		if o.Checks.Policy == nil || !o.Checks.Policy.At.Equal(g.env.Clock.Now()) {
+			t.Errorf("%s: policy = %+v", mode, o.Checks.Policy)
+		}
 	}
 }
 
@@ -539,7 +577,7 @@ func TestTaskStepSelfReviewNotApplicable(t *testing.T) {
 		t.Fatalf("Inspect: %v", err)
 	}
 	wantState(t, r, consts.RequestFrozen) // not_applicable 不算缺失
-	if r.Checks.SelfReview == nil || r.Checks.SelfReview.Verdict != consts.VerdictNotApplicable {
+	if r.Checks.SelfReview == nil || r.Checks.SelfReview.Verdict != consts.VerdictNotApplicable || !r.Checks.SelfReview.At.Equal(f.env.Clock.Now()) {
 		t.Errorf("self review = %+v", r.Checks.SelfReview)
 	}
 	if e, _ := hasType(f.env.Requests.Events(), events.InspectionPassed); e.Data["self_review"] != "not_applicable" || e.RunID != "run-1" {

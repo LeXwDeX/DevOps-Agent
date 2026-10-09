@@ -1,8 +1,9 @@
 package request
 
 import (
+	"time"
+
 	"github.com/LeXwDeX/DevOps-Agent/platform/internal/model/ids"
-	"github.com/LeXwDeX/DevOps-Agent/platform/internal/model/policy"
 )
 
 // 摘要用专门的结构体：字段名固定，不随存储结构的 json 标签变化。
@@ -59,12 +60,23 @@ type digestContentSet struct {
 	Expectation digestExpectation `json:"expectation"`
 }
 
+// digestDecision 是策略判定的摘要视图：记录时间统一取 UTC，同一时刻换时区表示不改变摘要；
+// 空的 Reasons 与 nil 等价。
+type digestDecision struct {
+	Mode          string    `json:"mode"`
+	Layer         string    `json:"layer"`
+	AllowAuto     bool      `json:"allow_auto"`
+	PolicyVersion string    `json:"policy_version"`
+	Reasons       []string  `json:"reasons"`
+	At            time.Time `json:"at"`
+}
+
 type digestFreeze struct {
 	Content          digestContent     `json:"content"`
 	Scope            digestScope       `json:"scope"`
 	Expectation      digestExpectation `json:"expectation"`
 	FingerprintValue string            `json:"fingerprint_value"`
-	Policy           *policy.Decision  `json:"policy"`
+	Policy           *digestDecision   `json:"policy"`
 	Revision         ids.Revision      `json:"revision"`
 }
 
@@ -122,7 +134,7 @@ func (r *ExecutionRequest) ContentDigest() (ids.Digest, error) {
 }
 
 // FreezeDigest 返回冻结摘要，覆盖 61 第 7.2 节列出的字段：
-// Content（含 Params 和 SecretKeys）、Scope、Expectation、指纹值、策略判定、Revision。
+// Content（含 Params 和 SecretKeys）、Scope、Expectation、指纹值、策略判定（含判定时间）、Revision。
 // 其他字段（人工记录、时间戳、检验中的其他结果）不进入摘要。
 func (r *ExecutionRequest) FreezeDigest() (ids.Digest, error) {
 	f := digestFreeze{
@@ -135,8 +147,15 @@ func (r *ExecutionRequest) FreezeDigest() (ids.Digest, error) {
 		f.FingerprintValue = r.Fingerprint.Value
 	}
 	if r.Checks.Policy != nil {
-		d := r.Checks.Policy.Clone()
-		f.Policy = &d
+		d := r.Checks.Policy
+		f.Policy = &digestDecision{
+			Mode:          string(d.Mode),
+			Layer:         string(d.Layer),
+			AllowAuto:     d.AllowAuto,
+			PolicyVersion: d.PolicyVersion,
+			Reasons:       append([]string{}, d.Reasons...),
+			At:            d.At.UTC(),
+		}
 	}
 	return ids.DigestOf(f)
 }

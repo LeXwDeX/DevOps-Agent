@@ -53,6 +53,7 @@ type TaskStore interface {
 
 // PolicySource 读取已登记的策略层。
 type PolicySource interface {
+	// Load 返回当前策略集。每次返回独立的副本（含规则里的指针），调用方随意改动不影响端口和后面的调用。
 	Load(ctx context.Context) (policy.Set, error)
 }
 
@@ -74,6 +75,7 @@ type Registry interface {
 	// Unit 返回指定版本的登记信息；不存在返回 core.not_found。
 	Unit(ctx context.Context, id string, version int64) (UnitInfo, error)
 	// RenderStep 按任务参数和前序步骤输出（键为步骤 ID）生成步骤的内容和执行预期。
+	// 不修改入参；返回值不与入参、端口内部状态或后面的调用共享内存。
 	RenderStep(ctx context.Context, def *task.Definition, step task.Step, params map[string]any, outputs map[string]map[string]any) (request.Content, request.Expectation, error)
 }
 
@@ -88,7 +90,8 @@ type SessionInfo struct {
 type ScopeSource interface {
 	// Session 返回会话信息；不存在返回 core.not_found。
 	Session(ctx context.Context, sessionID string) (SessionInfo, error)
-	// OutsideScope 返回不属于该项目和环境的目标（稳定 ID）；都在范围内返回空。
+	// OutsideScope 返回不属于该项目和环境的目标（稳定 ID），保持 targets 的顺序；都在范围内返回空。
+	// 项目或环境没有登记过，所有目标都算范围外。不修改入参，返回值不与入参共享内存。
 	OutsideScope(ctx context.Context, project, env string, targets []string) ([]string, error)
 }
 
@@ -102,21 +105,27 @@ type SecretKeys interface {
 
 // PreviewPort 运行原生预演。
 type PreviewPort interface {
+	// Preview 不修改传入的申请。ctx 已取消时返回错误。
 	Preview(ctx context.Context, r *request.ExecutionRequest) (request.PreviewResult, error)
 }
 
 // FingerprintPort 采集目标指纹。采集不到时，实现可返回 Status 为 unavailable 的结果，也可返回错误。
 type FingerprintPort interface {
+	// Collect 不修改传入的申请。Status 为 collected 时 Value 非空；目标没有变化时，连续采集得到相同的 Value（K-04）。
+	// ctx 已取消时返回错误。
 	Collect(ctx context.Context, r *request.ExecutionRequest) (request.Fingerprint, error)
 }
 
 // DCGPort 检查最终内容。返回错误时，调用方按"不可用"处理。
 type DCGPort interface {
+	// Check 不修改传入的申请；返回值（含 RuleIDs）不与端口内部状态或后面的调用共享内存。ctx 已取消时返回错误。
 	Check(ctx context.Context, r *request.ExecutionRequest) (request.DCGCheck, error)
 }
 
 // ExecutorPort 提交冻结后的申请并取回结果。
 type ExecutorPort interface {
+	// Execute 不修改传入的申请；返回值（含 ExitCode 和 Output）不与端口内部状态或后面的调用共享内存。
+	// ctx 已取消时返回错误，不执行。
 	Execute(ctx context.Context, r *request.ExecutionRequest) (request.ExecutionResult, error)
 }
 
@@ -138,11 +147,13 @@ type AuditRecord struct {
 
 // AuditSink 追加审计记录。
 type AuditSink interface {
+	// Append 追加一条记录，保持追加顺序；不与调用方共享 Detail 的内存。ctx 已取消时返回错误，什么都不记。
 	Append(ctx context.Context, rec AuditRecord) error
 }
 
 // Clock 提供时间。
 type Clock interface {
+	// Now 返回非零时间。同一个实现上，后一次调用不早于前一次；可并发调用。
 	Now() time.Time
 }
 

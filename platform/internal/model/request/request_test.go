@@ -44,9 +44,9 @@ func sample() *ExecutionRequest {
 		Fingerprint: &Fingerprint{Method: "m", MethodVersion: "1", CollectedAt: t0, Status: consts.FingerprintCollected, Value: "fp-1"},
 		Checks: Checks{
 			Preview:     &PreviewResult{Status: consts.PreviewPassed, At: t0},
-			SelfReview:  &SelfReview{Verdict: consts.VerdictNoRisk},
+			SelfReview:  &SelfReview{Verdict: consts.VerdictNoRisk, At: t0},
 			DCG:         &DCGCheck{Result: consts.DCGPass, RuleIDs: []string{"r1"}, At: t0},
-			Policy:      &policy.Decision{Mode: consts.PolicyManual, Layer: consts.LayerSystem, PolicyVersion: "v1", Reasons: []string{"r"}},
+			Policy:      &policy.Decision{Mode: consts.PolicyManual, Layer: consts.LayerSystem, PolicyVersion: "v1", Reasons: []string{"r"}, At: t0},
 			Escalations: []string{"e"},
 		},
 		Reviews:   []ReviewEntry{{Action: consts.ActionComment, Actor: "u", At: t0, Revision: 1}},
@@ -211,6 +211,8 @@ func TestDigestFieldSensitivity(t *testing.T) {
 		{"policy allow_auto", func(r *ExecutionRequest) { r.Checks.Policy.AllowAuto = !r.Checks.Policy.AllowAuto }, false, true},
 		{"policy reasons changed", func(r *ExecutionRequest) { r.Checks.Policy.Reasons[0] = "other" }, false, true},
 		{"policy reasons added", func(r *ExecutionRequest) { r.Checks.Policy.Reasons = append(r.Checks.Policy.Reasons, "more") }, false, true},
+		{"policy at", func(r *ExecutionRequest) { r.Checks.Policy.At = t0.Add(time.Second) }, false, true},
+		{"policy at zero", func(r *ExecutionRequest) { r.Checks.Policy.At = time.Time{} }, false, true},
 		{"policy nil", func(r *ExecutionRequest) { r.Checks.Policy = nil }, false, true},
 		{"revision", func(r *ExecutionRequest) { r.Revision = 2 }, false, true},
 		// 不在冻结摘要内的字段
@@ -222,6 +224,7 @@ func TestDigestFieldSensitivity(t *testing.T) {
 		{"fingerprint time", func(r *ExecutionRequest) { r.Fingerprint.CollectedAt = t0.Add(time.Hour) }, false, false},
 		{"checks preview", func(r *ExecutionRequest) { r.Checks.Preview = nil }, false, false},
 		{"checks dcg", func(r *ExecutionRequest) { r.Checks.DCG = nil }, false, false},
+		{"checks selfreview at", func(r *ExecutionRequest) { r.Checks.SelfReview.At = t0.Add(time.Hour) }, false, false},
 		{"checks selfreview", func(r *ExecutionRequest) { r.Checks.SelfReview = nil }, false, false},
 		{"escalations", func(r *ExecutionRequest) { r.Checks.Escalations = nil }, false, false},
 		{"submission", func(r *ExecutionRequest) { r.Submission.HookRequireManual = true }, false, false},
@@ -240,6 +243,19 @@ func TestDigestFieldSensitivity(t *testing.T) {
 		if (gf != baseF) != c.inFreeze {
 			t.Errorf("%s: freeze digest changed = %v, want %v", c.name, gf != baseF, c.inFreeze)
 		}
+	}
+}
+
+// 同一时刻用不同时区表示（例如数据库按会话时区返回），冻结摘要不变。
+func TestFreezeDigestIgnoresTimeZone(t *testing.T) {
+	_, base := digests(t, sample())
+	r := sample()
+	r.Checks.Policy.At = t0.In(time.FixedZone("UTC+8", 8*3600))
+	if r.Checks.Policy.At.Format(time.RFC3339) == t0.Format(time.RFC3339) {
+		t.Fatal("test setup: zone did not change the text form")
+	}
+	if _, got := digests(t, r); got != base {
+		t.Fatal("freeze digest depends on the time zone of the policy time")
 	}
 }
 

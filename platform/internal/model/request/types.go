@@ -41,10 +41,12 @@ type Submission struct {
 	AnalysisReason    string      `json:"analysis_reason,omitempty"`
 }
 
-// SelfReview 是自审结论。
+// SelfReview 是自审结论。At 是检验流水线记录它的时间（Checks.SelfReview.At，用 Clock.Now()）；
+// 提交时附带的 Submission.SelfReview 不带时间，流水线记录时一律覆盖。
 type SelfReview struct {
 	Verdict consts.SelfReviewVerdict `json:"verdict"`
 	Reason  string                   `json:"reason,omitempty"`
+	At      time.Time                `json:"at"`
 }
 
 // Fingerprint 是目标状态指纹（K-04）。

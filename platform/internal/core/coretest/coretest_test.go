@@ -41,6 +41,79 @@ func TestIDGenContract(t *testing.T) {
 	IDGenContract(t, func() ports.IDGen { return NewSeqIDGen() })
 }
 
+func TestPolicySourceContract(t *testing.T) {
+	PolicySourceContract(t, func(seed policy.Set) ports.PolicySource { return NewFakePolicySource(seed) })
+}
+
+func TestRegistryContract(t *testing.T) {
+	RegistryContract(t, func(seed RegistrySeed) ports.Registry {
+		r := NewFakeRegistry()
+		for _, u := range seed.Units {
+			r.AddUnit(u)
+		}
+		r.SetStep(seed.Step.ID, seed.Content, seed.Expectation)
+		return r
+	})
+}
+
+func TestScopeSourceContract(t *testing.T) {
+	ScopeSourceContract(t, func(seed ScopeSeed) ports.ScopeSource {
+		s := NewFakeScopeSource()
+		for id, info := range seed.Sessions {
+			s.AddSession(id, info)
+		}
+		for _, tg := range seed.Targets {
+			s.AddTargets(tg.Project, tg.Environment, tg.Targets...)
+		}
+		return s
+	})
+}
+
+func TestPreviewPortContract(t *testing.T) {
+	PreviewPortContract(t, func() ports.PreviewPort { return NewFakePreview() })
+}
+
+func TestFingerprintPortContract(t *testing.T) {
+	FingerprintPortContract(t, func() ports.FingerprintPort { return NewFakeFingerprint() })
+}
+
+func TestDCGPortContract(t *testing.T) {
+	t.Run("default", func(t *testing.T) {
+		DCGPortContract(t, func() ports.DCGPort { return NewFakeDCG() })
+	})
+	t.Run("hit with rule ids", func(t *testing.T) {
+		DCGPortContract(t, func() ports.DCGPort {
+			d := NewFakeDCG()
+			d.SetDefault(request.DCGCheck{Result: consts.DCGHit, RuleIDs: []string{"r1", "r2"}, RulesetVersion: "fake-1"})
+			return d
+		})
+	})
+}
+
+func TestExecutorPortContract(t *testing.T) {
+	t.Run("default", func(t *testing.T) {
+		ExecutorPortContract(t, func() ports.ExecutorPort { return NewFakeExecutor() })
+	})
+	t.Run("structured output", func(t *testing.T) {
+		ExecutorPortContract(t, func() ports.ExecutorPort {
+			e := NewFakeExecutor()
+			zero := 0
+			e.SetDefault(request.ExecutionResult{ExitCode: &zero, Output: map[string]any{"n": []any{1, map[string]any{"k": "v"}}}})
+			return e
+		})
+	})
+}
+
+func TestAuditSinkContract(t *testing.T) {
+	AuditSinkContract(t,
+		func() ports.AuditSink { return NewMemAuditSink() },
+		func(s ports.AuditSink) []ports.AuditRecord { return s.(*MemAuditSink).Records() })
+}
+
+func TestClockContract(t *testing.T) {
+	ClockContract(t, func() ports.Clock { return NewFixedClock(time.Time{}) })
+}
+
 func TestFaultInjection(t *testing.T) {
 	s := NewMemRequestStore()
 	if err := s.Create(bg, SampleRequest("c1"), nil); err != nil {

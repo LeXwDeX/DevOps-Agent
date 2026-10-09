@@ -7,10 +7,12 @@ import (
 	"sort"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/LeXwDeX/DevOps-Agent/platform/internal/core/events"
 	"github.com/LeXwDeX/DevOps-Agent/platform/internal/core/ports"
 	"github.com/LeXwDeX/DevOps-Agent/platform/internal/model/ids"
+	"github.com/LeXwDeX/DevOps-Agent/platform/internal/model/policy"
 	"github.com/LeXwDeX/DevOps-Agent/platform/internal/model/request"
 	"github.com/LeXwDeX/DevOps-Agent/platform/internal/model/task"
 	"github.com/LeXwDeX/DevOps-Agent/platform/internal/schema/consts"
@@ -770,5 +772,627 @@ func SecretKeysContract(t *testing.T, newPort func() ports.SecretKeys) {
 		if err == nil && len(got) == 0 {
 			t.Fatal("cancelled context answered \"nothing missing\"")
 		}
+	})
+}
+
+// ---- 其余端口的契约测试 ----
+//
+// 需要预置数据的端口，工厂接收一份由契约定义的种子（Sample...Seed 或参数），
+// provider 的测试把种子写进真实存储后返回端口。
+
+func canceledCtx() context.Context {
+	ctx, cancel := context.WithCancel(bg)
+	cancel()
+	return ctx
+}
+
+// samplePolicySet 返回覆盖四层、带指针字段的合法策略集。
+func samplePolicySet() policy.Set {
+	return policy.Set{Version: "p-v1", Rules: []policy.Rule{
+		{Layer: consts.LayerAction, Subject: "svc", Action: "restart", Environment: "prod", Mode: policy.ModePtr(consts.PolicyManual), AllowAuto: policy.BoolPtr(false)},
+		{Layer: consts.LayerZone, Subject: "svc", Zone: consts.ZoneWrite, Mode: policy.ModePtr(consts.PolicyAuto)},
+		{Layer: consts.LayerGlobal, Subject: "svc", Mode: policy.ModePtr(consts.PolicyManual)},
+		{Layer: consts.LayerSystem, Mode: policy.ModePtr(consts.PolicyManual), AllowAuto: policy.BoolPtr(true)},
+	}}
+}
+
+// PolicySourceContract 检查 ports.PolicySource。newPort 收到种子策略集，返回 Load 能读到它的端口。
+// 检查：读到的与种子相等；改种子、改 Load 的返回值都不影响后面的 Load；空策略集可读；已取消的 ctx 返回错误。
+func PolicySourceContract(t *testing.T, newPort func(seed policy.Set) ports.PolicySource) {
+	t.Run("load returns the seeded set", func(t *testing.T) {
+		got, err := newPort(samplePolicySet()).Load(bg)
+		if err != nil || !reflect.DeepEqual(got, samplePolicySet()) {
+			t.Fatalf("got %+v, %v", got, err)
+		}
+	})
+
+	t.Run("changing the seed afterwards changes nothing", func(t *testing.T) {
+		seed := samplePolicySet()
+		p := newPort(seed)
+		*seed.Rules[0].Mode = consts.PolicyForbid
+		*seed.Rules[0].AllowAuto = true
+		seed.Rules[1].Subject = "changed"
+		seed.Version = "changed"
+		got, err := p.Load(bg)
+		if err != nil || !reflect.DeepEqual(got, samplePolicySet()) {
+			t.Fatalf("source aliases the seed: %+v, %v", got, err)
+		}
+	})
+
+	t.Run("results share no memory with each other or later calls", func(t *testing.T) {
+		p := newPort(samplePolicySet())
+		a, err := p.Load(bg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, err := p.Load(bg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		*a.Rules[0].Mode = consts.PolicyForbid
+		*a.Rules[0].AllowAuto = true
+		a.Rules[1].Subject = "changed"
+		a.Rules[2] = policy.Rule{}
+		a.Rules = append(a.Rules[:1], a.Rules[2:]...)
+		a.Version = "changed"
+		if !reflect.DeepEqual(b, samplePolicySet()) {
+			t.Fatalf("two results share memory: %+v", b)
+		}
+		again, err := p.Load(bg)
+		if err != nil || !reflect.DeepEqual(again, samplePolicySet()) {
+			t.Fatalf("later Load changed: %+v, %v", again, err)
+		}
+	})
+
+	t.Run("an empty set loads", func(t *testing.T) {
+		got, err := newPort(policy.Set{}).Load(bg)
+		if err != nil || len(got.Rules) != 0 {
+			t.Fatalf("got %+v, %v", got, err)
+		}
+	})
+
+	t.Run("a cancelled context is an error", func(t *testing.T) {
+		if _, err := newPort(samplePolicySet()).Load(canceledCtx()); err == nil {
+			t.Fatal("Load with cancelled context succeeded")
+		}
+	})
+}
+
+// RegistrySeed 是 RegistryContract 的种子：已登记单元，以及一次 RenderStep 的输入和应得结果。
+// provider 的测试要让 RenderStep(Def, Step, Params, Outputs) 返回 Content 和 Expectation。
+type RegistrySeed struct {
+	Units       []ports.UnitInfo
+	Def         *task.Definition
+	Step        task.Step
+	Params      map[string]any
+	Outputs     map[string]map[string]any
+	Content     request.Content
+	Expectation request.Expectation
+}
+
+// SampleRegistrySeed 返回契约使用的种子。
+func SampleRegistrySeed() RegistrySeed {
+	def := SampleDefinition("deploy", 2)
+	sample := SampleRequest("seed")
+	return RegistrySeed{
+		Units: []ports.UnitInfo{
+			{
+				Ref:     request.UnitRef{ID: "unit-1", Version: 1, Digest: ids.Digest("1111111111111111111111111111111111111111111111111111111111111111")},
+				Subject: "svc", Action: "restart", Zone: consts.ZoneWrite, Category: consts.CategoryStartStop,
+				Reversible: consts.Reversible, HasPreview: true, FingerprintMethod: "fake", FingerprintMethodVersion: "v1",
+			},
+			{
+				Ref:     request.UnitRef{ID: "unit-1", Version: 2, Digest: ids.Digest("2222222222222222222222222222222222222222222222222222222222222222")},
+				Subject: "svc", Action: "stop", Zone: consts.ZoneWrite, Category: consts.CategoryStartStop,
+				Reversible: consts.Irreversible,
+			},
+		},
+		Def:         def,
+		Step:        def.Steps[1],
+		Params:      map[string]any{"svc": "nginx", "hosts": []any{"a", map[string]any{"k": "v"}}},
+		Outputs:     map[string]map[string]any{"A": {"exit_code": 0, "items": []any{"x", map[string]any{"n": 1}}}},
+		Content:     sample.Content,
+		Expectation: sample.Expectation,
+	}
+}
+
+func cloneOutputs(o map[string]map[string]any) map[string]map[string]any {
+	if o == nil {
+		return nil
+	}
+	out := make(map[string]map[string]any, len(o))
+	for k, v := range o {
+		out[k] = request.CloneMap(v)
+	}
+	return out
+}
+
+// scrambleContent 改动 c 里每一处引用类字段。
+func scrambleContent(c *request.Content) {
+	c.Rendered = "changed"
+	c.Params["svc"] = "changed"
+	c.Params["opts"].([]any)[1].(map[string]any)["k"] = "changed"
+	c.SecretKeys[0] = "changed"
+	c.Unit.ID = "changed"
+}
+
+func scrambleExpectation(e *request.Expectation) {
+	e.Intent = "changed"
+	e.Targets[0] = "changed"
+	e.SuccessCriteria[0].Expr = "changed"
+	*e.ExpectedChange.Ranges[0].Min = 99
+}
+
+// RegistryContract 检查 ports.Registry。newPort 收到种子，返回已登记这些单元、能渲染种子步骤的端口。
+// 检查：登记信息一致；不存在返回 core.not_found；RenderStep 返回种子里的结果，结果不与后面的调用共享内存，
+// 不修改入参；已取消的 ctx 返回错误。
+func RegistryContract(t *testing.T, newPort func(seed RegistrySeed) ports.Registry) {
+	seed := SampleRegistrySeed()
+
+	t.Run("registered units come back as registered", func(t *testing.T) {
+		p := newPort(seed)
+		for _, want := range seed.Units {
+			got, err := p.Unit(bg, want.Ref.ID, want.Ref.Version)
+			if err != nil || !reflect.DeepEqual(got, want) {
+				t.Fatalf("unit %s@%d: got %+v, %v", want.Ref.ID, want.Ref.Version, got, err)
+			}
+		}
+	})
+
+	t.Run("unknown unit or version is not_found", func(t *testing.T) {
+		p := newPort(seed)
+		_, err := p.Unit(bg, "nope", 1)
+		wantCode(t, err, errcode.NotFound)
+		_, err = p.Unit(bg, "unit-1", 99)
+		wantCode(t, err, errcode.NotFound)
+	})
+
+	t.Run("render step returns the seeded content and expectation", func(t *testing.T) {
+		c, e, err := newPort(seed).RenderStep(bg, seed.Def, seed.Step, seed.Params, seed.Outputs)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(c, seed.Content) || !reflect.DeepEqual(e, seed.Expectation) {
+			t.Fatalf("got %+v / %+v", c, e)
+		}
+	})
+
+	t.Run("render step results share no memory with later calls", func(t *testing.T) {
+		p := newPort(seed)
+		c1, e1, err := p.RenderStep(bg, seed.Def, seed.Step, seed.Params, seed.Outputs)
+		if err != nil {
+			t.Fatal(err)
+		}
+		c2, e2, err := p.RenderStep(bg, seed.Def, seed.Step, seed.Params, seed.Outputs)
+		if err != nil {
+			t.Fatal(err)
+		}
+		scrambleContent(&c1)
+		scrambleExpectation(&e1)
+		if !reflect.DeepEqual(c2, seed.Content) || !reflect.DeepEqual(e2, seed.Expectation) {
+			t.Fatal("two results share memory")
+		}
+		c3, e3, err := p.RenderStep(bg, seed.Def, seed.Step, seed.Params, seed.Outputs)
+		if err != nil || !reflect.DeepEqual(c3, seed.Content) || !reflect.DeepEqual(e3, seed.Expectation) {
+			t.Fatalf("later call changed: %+v / %+v, %v", c3, e3, err)
+		}
+	})
+
+	t.Run("render step does not modify its inputs", func(t *testing.T) {
+		def, params, outputs := seed.Def.Clone(), request.CloneMap(seed.Params), cloneOutputs(seed.Outputs)
+		step := def.Steps[1]
+		if _, _, err := newPort(seed).RenderStep(bg, def, step, params, outputs); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(def, seed.Def) || !reflect.DeepEqual(params, seed.Params) || !reflect.DeepEqual(outputs, seed.Outputs) {
+			t.Fatal("RenderStep modified its inputs")
+		}
+	})
+
+	t.Run("a cancelled context is an error", func(t *testing.T) {
+		p := newPort(seed)
+		if _, err := p.Unit(canceledCtx(), "unit-1", 1); err == nil {
+			t.Fatal("Unit with cancelled context succeeded")
+		}
+		if _, _, err := p.RenderStep(canceledCtx(), seed.Def, seed.Step, seed.Params, seed.Outputs); err == nil {
+			t.Fatal("RenderStep with cancelled context succeeded")
+		}
+	})
+}
+
+// ScopeTargets 是属于某个项目和环境的目标（稳定 ID）。
+type ScopeTargets struct {
+	Project, Environment string
+	Targets              []string
+}
+
+// ScopeSeed 是 ScopeSourceContract 的种子。
+type ScopeSeed struct {
+	Sessions map[string]ports.SessionInfo
+	Targets  []ScopeTargets
+}
+
+// SampleScopeSeed 返回契约使用的种子：session-1 属于 proj/prod，session-2 属于 proj/dev。
+func SampleScopeSeed() ScopeSeed {
+	return ScopeSeed{
+		Sessions: map[string]ports.SessionInfo{
+			"session-1": {Project: "proj", Environment: "prod", Mode: consts.SessionAuto},
+			"session-2": {Project: "proj", Environment: "dev", Mode: consts.SessionManual},
+		},
+		Targets: []ScopeTargets{
+			{Project: "proj", Environment: "prod", Targets: []string{"host-a", "host-b"}},
+			{Project: "proj", Environment: "dev", Targets: []string{"host-dev"}},
+		},
+	}
+}
+
+// ScopeSourceContract 检查 ports.ScopeSource。newPort 收到种子，返回已登记这些会话和目标的端口。
+// 检查：会话信息一致；不存在返回 core.not_found；范围外的目标按传入顺序返回，项目或环境不同都算范围外；
+// 不修改入参，返回值不与入参共享；已取消的 ctx 返回错误。
+func ScopeSourceContract(t *testing.T, newPort func(seed ScopeSeed) ports.ScopeSource) {
+	seed := SampleScopeSeed()
+
+	t.Run("session info comes back as registered", func(t *testing.T) {
+		p := newPort(seed)
+		for id, want := range seed.Sessions {
+			got, err := p.Session(bg, id)
+			if err != nil || got != want {
+				t.Fatalf("session %s: got %+v, %v", id, got, err)
+			}
+		}
+	})
+
+	t.Run("unknown session is not_found", func(t *testing.T) {
+		_, err := newPort(seed).Session(bg, "nope")
+		wantCode(t, err, errcode.NotFound)
+	})
+
+	t.Run("targets in scope give an empty answer", func(t *testing.T) {
+		got, err := newPort(seed).OutsideScope(bg, "proj", "prod", []string{"host-b", "host-a"})
+		if err != nil || len(got) != 0 {
+			t.Fatalf("got %v, %v", got, err)
+		}
+		got, err = newPort(seed).OutsideScope(bg, "proj", "prod", nil)
+		if err != nil || len(got) != 0 {
+			t.Fatalf("no targets: got %v, %v", got, err)
+		}
+	})
+
+	t.Run("targets outside come back in the asked order", func(t *testing.T) {
+		got, err := newPort(seed).OutsideScope(bg, "proj", "prod", []string{"zed", "host-a", "alpha", "host-dev"})
+		if err != nil || !reflect.DeepEqual(got, []string{"zed", "alpha", "host-dev"}) {
+			t.Fatalf("got %v, %v", got, err)
+		}
+	})
+
+	t.Run("another environment, project or an unknown scope is outside", func(t *testing.T) {
+		p := newPort(seed)
+		for _, sc := range [][2]string{{"proj", "dev"}, {"other", "prod"}, {"proj", "nowhere"}} {
+			got, err := p.OutsideScope(bg, sc[0], sc[1], []string{"host-a"})
+			if err != nil || !reflect.DeepEqual(got, []string{"host-a"}) {
+				t.Fatalf("%v: got %v, %v", sc, got, err)
+			}
+		}
+		got, err := p.OutsideScope(bg, "proj", "dev", []string{"host-dev"})
+		if err != nil || len(got) != 0 {
+			t.Fatalf("own target in dev: got %v, %v", got, err)
+		}
+	})
+
+	t.Run("input is not modified and the result is not shared", func(t *testing.T) {
+		p := newPort(seed)
+		asked := []string{"zed", "host-a", "alpha"}
+		got, err := p.OutsideScope(bg, "proj", "prod", asked)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(asked, []string{"zed", "host-a", "alpha"}) {
+			t.Fatalf("input was modified: %v", asked)
+		}
+		for i := range got {
+			got[i] = "changed"
+		}
+		if !reflect.DeepEqual(asked, []string{"zed", "host-a", "alpha"}) {
+			t.Fatalf("result shares memory with the input: %v", asked)
+		}
+		again, err := p.OutsideScope(bg, "proj", "prod", asked)
+		if err != nil || !reflect.DeepEqual(again, []string{"zed", "alpha"}) {
+			t.Fatalf("later call: got %v, %v", again, err)
+		}
+	})
+
+	t.Run("a cancelled context is an error", func(t *testing.T) {
+		p := newPort(seed)
+		if _, err := p.Session(canceledCtx(), "session-1"); err == nil {
+			t.Fatal("Session with cancelled context succeeded")
+		}
+		if _, err := p.OutsideScope(canceledCtx(), "proj", "prod", []string{"zed"}); err == nil {
+			t.Fatal("OutsideScope with cancelled context succeeded")
+		}
+	})
+}
+
+// requestUntouched 检查调用没有改动传入的申请：深比较和两个摘要都不变。
+func requestUntouched(t *testing.T, r, before *request.ExecutionRequest, cd, fd ids.Digest) {
+	t.Helper()
+	if !reflect.DeepEqual(r, before) {
+		t.Fatalf("the port modified the request:\n got %+v\nwant %+v", r, before)
+	}
+	cd2, err1 := r.ContentDigest()
+	fd2, err2 := r.FreezeDigest()
+	if err1 != nil || err2 != nil || cd2 != cd || fd2 != fd {
+		t.Fatalf("the port changed a digest: content %s -> %s, freeze %s -> %s (%v, %v)", cd, cd2, fd, fd2, err1, err2)
+	}
+}
+
+// checkingSample 是检验中的申请，用于预演、指纹和 dcg。
+func checkingSample() *request.ExecutionRequest {
+	r := SampleRequest("c1")
+	r.State = consts.RequestChecking
+	return r
+}
+
+// frozenSample 是已冻结的申请，用于执行器。
+func frozenSample() *request.ExecutionRequest {
+	r := SampleRequest("c1")
+	r.State = consts.RequestFrozen
+	fd, _ := r.FreezeDigest()
+	r.Frozen = &request.Frozen{Digest: fd, At: Epoch}
+	return r
+}
+
+// requestPortContract 是四个"收申请、回结果"的端口共用的检查：不改申请；已取消的 ctx 返回错误。
+func requestPortContract(t *testing.T, mk func() *request.ExecutionRequest, call func(ctx context.Context, r *request.ExecutionRequest) error) {
+	t.Run("the request is not modified", func(t *testing.T) {
+		r := mk()
+		before := r.Clone()
+		cd, _ := r.ContentDigest()
+		fd, _ := r.FreezeDigest()
+		if err := call(bg, r); err != nil {
+			t.Fatal(err)
+		}
+		requestUntouched(t, r, before, cd, fd)
+	})
+	t.Run("a cancelled context is an error and the request stays untouched", func(t *testing.T) {
+		r := mk()
+		before := r.Clone()
+		cd, _ := r.ContentDigest()
+		fd, _ := r.FreezeDigest()
+		if err := call(canceledCtx(), r); err == nil {
+			t.Fatal("call with cancelled context succeeded")
+		}
+		requestUntouched(t, r, before, cd, fd)
+	})
+}
+
+// PreviewPortContract 检查 ports.PreviewPort：结果状态合法；不改申请；已取消的 ctx 返回错误。
+func PreviewPortContract(t *testing.T, newPort func() ports.PreviewPort) {
+	t.Run("the result status is valid", func(t *testing.T) {
+		res, err := newPort().Preview(bg, checkingSample())
+		if err != nil || !res.Status.Valid() {
+			t.Fatalf("got %+v, %v", res, err)
+		}
+	})
+	p := newPort()
+	requestPortContract(t, checkingSample, func(ctx context.Context, r *request.ExecutionRequest) error {
+		_, err := p.Preview(ctx, r)
+		return err
+	})
+}
+
+// FingerprintPortContract 检查 ports.FingerprintPort：状态合法；状态为 collected 时值非空；
+// 目标没变时连续采集的值相同；不改申请；已取消的 ctx 返回错误。
+func FingerprintPortContract(t *testing.T, newPort func() ports.FingerprintPort) {
+	t.Run("the result is valid; collected has a value", func(t *testing.T) {
+		fp, err := newPort().Collect(bg, checkingSample())
+		if err != nil || !fp.Status.Valid() {
+			t.Fatalf("got %+v, %v", fp, err)
+		}
+		if fp.Status == consts.FingerprintCollected && fp.Value == "" {
+			t.Fatalf("collected fingerprint has no value: %+v", fp)
+		}
+	})
+	t.Run("an unchanged target gives the same value", func(t *testing.T) {
+		p := newPort()
+		a, err := p.Collect(bg, checkingSample())
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, err := p.Collect(bg, checkingSample())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if a.Status == consts.FingerprintCollected && b.Status == consts.FingerprintCollected && a.Value != b.Value {
+			t.Fatalf("values differ: %q vs %q", a.Value, b.Value)
+		}
+	})
+	p := newPort()
+	requestPortContract(t, checkingSample, func(ctx context.Context, r *request.ExecutionRequest) error {
+		_, err := p.Collect(ctx, r)
+		return err
+	})
+}
+
+// DCGPortContract 检查 ports.DCGPort：结论合法；结果之间不共享内存；不改申请；已取消的 ctx 返回错误。
+// "不共享内存"只在结果带规则 ID 时有内容可检查。
+func DCGPortContract(t *testing.T, newPort func() ports.DCGPort) {
+	t.Run("the result is valid", func(t *testing.T) {
+		res, err := newPort().Check(bg, checkingSample())
+		if err != nil || !res.Result.Valid() {
+			t.Fatalf("got %+v, %v", res, err)
+		}
+	})
+	t.Run("results share no memory", func(t *testing.T) {
+		p := newPort()
+		a, err := p.Check(bg, checkingSample())
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, err := p.Check(bg, checkingSample())
+		if err != nil {
+			t.Fatal(err)
+		}
+		snapshot := append([]string(nil), b.RuleIDs...)
+		for i := range a.RuleIDs {
+			a.RuleIDs[i] = "changed"
+		}
+		if !reflect.DeepEqual(append([]string(nil), b.RuleIDs...), snapshot) {
+			t.Fatalf("two results share memory: %v", b.RuleIDs)
+		}
+	})
+	p := newPort()
+	requestPortContract(t, checkingSample, func(ctx context.Context, r *request.ExecutionRequest) error {
+		_, err := p.Check(ctx, r)
+		return err
+	})
+}
+
+// ExecutorPortContract 检查 ports.ExecutorPort：结果的结束时间不早于开始时间；结果之间不共享内存；
+// 不改申请；已取消的 ctx 返回错误。申请是已冻结的样例，实现应能无害地执行它。
+func ExecutorPortContract(t *testing.T, newPort func() ports.ExecutorPort) {
+	t.Run("the result times are in order", func(t *testing.T) {
+		res, err := newPort().Execute(bg, frozenSample())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !res.StartedAt.IsZero() && !res.EndedAt.IsZero() && res.EndedAt.Before(res.StartedAt) {
+			t.Fatalf("ended %v before started %v", res.EndedAt, res.StartedAt)
+		}
+	})
+	t.Run("results share no memory", func(t *testing.T) {
+		p := newPort()
+		a, err := p.Execute(bg, frozenSample())
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, err := p.Execute(bg, frozenSample())
+		if err != nil {
+			t.Fatal(err)
+		}
+		snapshot := b.Clone()
+		if a.ExitCode != nil {
+			*a.ExitCode = 99
+		}
+		for k := range a.Output {
+			a.Output[k] = "changed"
+		}
+		if a.Output != nil {
+			a.Output["added"] = "changed"
+		}
+		if !reflect.DeepEqual(&b, snapshot) {
+			t.Fatalf("two results share memory: %+v", b)
+		}
+	})
+	p := newPort()
+	requestPortContract(t, frozenSample, func(ctx context.Context, r *request.ExecutionRequest) error {
+		_, err := p.Execute(ctx, r)
+		return err
+	})
+}
+
+// AuditSinkContract 检查 ports.AuditSink。records 读出该端口已记录的全部审计记录（按记录顺序）；
+// 内存替身用 MemAuditSink.Records，provider 用自己的读取方式。
+// 检查：按追加顺序保存且内容一致；不与入参、读出的记录共享内存；已取消的 ctx 返回错误且什么都不记；并发追加不丢。
+func AuditSinkContract(t *testing.T, newPort func() ports.AuditSink, records func(ports.AuditSink) []ports.AuditRecord) {
+	rec := func(i int) ports.AuditRecord {
+		return ports.AuditRecord{
+			At: Epoch.Add(time.Duration(i) * time.Second), Actor: "u", Action: "act-" + string(rune('a'+i)),
+			CallID: "c1", Revision: ids.FirstRevision, RunID: "run-1",
+			Detail: map[string]any{"k": []any{"v", map[string]any{"n": i}}},
+		}
+	}
+
+	t.Run("records keep the append order", func(t *testing.T) {
+		s := newPort()
+		var want []ports.AuditRecord
+		for i := 0; i < 6; i++ {
+			want = append(want, rec(i))
+			if err := s.Append(bg, rec(i)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if got := records(s); !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %+v\nwant %+v", got, want)
+		}
+	})
+
+	t.Run("no aliasing in either direction", func(t *testing.T) {
+		s := newPort()
+		r := rec(0)
+		if err := s.Append(bg, r); err != nil {
+			t.Fatal(err)
+		}
+		r.Detail["k"].([]any)[0] = "changed"
+		r.Detail["added"] = true
+		got := records(s)
+		if len(got) != 1 || !reflect.DeepEqual(got[0], rec(0)) {
+			t.Fatalf("sink aliases the appended record: %+v", got)
+		}
+		got[0].Detail["k"].([]any)[1].(map[string]any)["n"] = 99
+		if again := records(s); !reflect.DeepEqual(again, []ports.AuditRecord{rec(0)}) {
+			t.Fatalf("records returns aliased data: %+v", again)
+		}
+	})
+
+	t.Run("a cancelled context is an error and records nothing", func(t *testing.T) {
+		s := newPort()
+		if err := s.Append(canceledCtx(), rec(0)); err == nil {
+			t.Fatal("Append with cancelled context succeeded")
+		}
+		if got := records(s); len(got) != 0 {
+			t.Fatalf("recorded %d records", len(got))
+		}
+	})
+
+	t.Run("concurrent appends are all kept", func(t *testing.T) {
+		s := newPort()
+		var wg sync.WaitGroup
+		for i := 0; i < 16; i++ {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				_ = s.Append(bg, rec(i%6))
+			}(i)
+		}
+		wg.Wait()
+		if got := records(s); len(got) != 16 {
+			t.Fatalf("recorded %d records, want 16", len(got))
+		}
+	})
+}
+
+// ClockContract 检查 ports.Clock：时间非零；连续读取不倒退；并发读取安全。
+func ClockContract(t *testing.T, newClock func() ports.Clock) {
+	t.Run("now is not zero", func(t *testing.T) {
+		if now := newClock().Now(); now.IsZero() {
+			t.Fatal("Now returned the zero time")
+		}
+	})
+	t.Run("time does not go backwards", func(t *testing.T) {
+		c := newClock()
+		prev := c.Now()
+		for i := 0; i < 100; i++ {
+			now := c.Now()
+			if now.Before(prev) {
+				t.Fatalf("time went backwards: %v after %v", now, prev)
+			}
+			prev = now
+		}
+	})
+	t.Run("concurrent reads are safe", func(t *testing.T) {
+		c := newClock()
+		var wg sync.WaitGroup
+		for i := 0; i < 8; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for j := 0; j < 50; j++ {
+					if c.Now().IsZero() {
+						t.Error("Now returned the zero time")
+					}
+				}
+			}()
+		}
+		wg.Wait()
 	})
 }
