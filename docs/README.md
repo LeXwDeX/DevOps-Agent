@@ -46,7 +46,7 @@ depends_on: []
 | [23-harness-tasks](20-execution/23-harness-tasks.md) | Harness 职责、既定任务、分支、命令模板、规程包 | 编排、规程包、定时任务 | 已定 |
 | [24-sql](20-execution/24-sql.md) | SQL 解析分类、预期、指纹、组件 SQL 边界 | 任何发出 SQL 的功能 | 已定 |
 | [25-secrets](20-execution/25-secrets.md) | 密钥 K→V、注入、mask 规则 | 凭证、执行器、日志、模型输入 | 已定 / 存储待设计 |
-| [26-tool-wrapping](20-execution/26-tool-wrapping.md) | 工具包装形式、工具 schema、登记 | 新增或登记工具 | 已定 |
+| [26-tool-wrapping](20-execution/26-tool-wrapping.md) | 工具包装形式、工具 schema、登记、MCP 定位 | 新增或登记工具 | 已定 |
 | **30 功能** | | | |
 | [31-project-workbench](30-features/31-project-workbench.md) | 项目、用户流程、项目 Agent 生成 | 工作台与项目功能 | 已定 |
 | [32-project-deployment](30-features/32-project-deployment.md) | 部署规程包、OSS 到系统服务的流程 | 项目部署 | 已定 |
@@ -56,6 +56,7 @@ depends_on: []
 | [36-monitoring](30-features/36-monitoring.md) | 监控旁路、采集组件、自研模块与派生解析器 | 监控与告警 | 已定 |
 | [37-ops-entrypoints](30-features/37-ops-entrypoints.md) | 运维入口、发起方式、人类终端、无破窗通道 | 入口与终端 | 已定 |
 | [38-platform-admin](30-features/38-platform-admin.md) | 平台管理模块、SSO/MFA 预留、审计页面 | 管理功能 | 结构预留 |
+| [39-console-views](30-features/39-console-views.md) | 侧边栏三个入口：逻辑拓扑地图、当前资源、Harness 流程（SOP）列表与版本回滚 | 前端页面、TopologyView、SOP 版本 | 已定 |
 | **40 SDK** | | | |
 | [41-sdk-overview](40-sdk/41-sdk-overview.md) | GoAgent SDK 边界、宿主端口、模型角色 | 任何 SDK 开发 | 已定 |
 | [42-llm-protocols](40-sdk/42-llm-protocols.md) | 四种基础协议、厂商派生适配器、请求与流式管理 | 模型访问 | 已定 |
@@ -85,6 +86,7 @@ depends_on: []
 | 开发项目部署流程 | 32、23、21、25、13 |
 | 开发运维表格 | 34、23、24、13 |
 | 开发事实地图 | 33、35、36 |
+| 开发工作台前端（拓扑地图、资源、SOP 列表） | 39、33、23、31 |
 | 接入一个云厂商 | 35、26、22、21 |
 | 开发监控旁路或自研监控模块 | 36、33、12 |
 | 开发 GoAgent SDK | 41、42、43、44、45、52 |

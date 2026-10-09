@@ -21,7 +21,7 @@ depends_on: [KERNEL, SDK-OVERVIEW, EXEC-MODEL, REVIEW-POLICY, TOOL-WRAPPING]
 |---|---|---|
 | 内建基础工具 | 结构化数据处理、内容摘要、已授权资料检索、受限工作区读取、列出 K | 定义在 SDK 内，读取实现和权限由宿主提供。 |
 | 平台受控工具 | Bash 脚本、Python 脚本、命令模板、SQL、Docker、云 API、文件写入、既定任务触发 | 平台登记，执行器实现（见 [工具包装](../20-execution/26-tool-wrapping.md)）。 |
-| 外部登记工具 | 已编译 Go 模块、HTTP / RPC 适配器、MCP 适配器 | 可信宿主登记，执行在宿主执行器侧。 |
+| 外部登记工具 | 已编译 Go 模块、HTTP / RPC 适配器、MCP 适配器 | 可信宿主登记，执行在宿主执行器侧。本平台的 MCP 只用 CLI 通信、无状态、只支持协议 v2，定位为插件（见 [工具包装](../20-execution/26-tool-wrapping.md) 第 6 节）。SDK 不直接连接 MCP 服务。 |
 
 - "内建"和"外部"只是来源类别，不是免检级别。
 - K 的增、删、改不提供给 Agent（K-16）。Agent 只能列出 K 并在申请中引用。
