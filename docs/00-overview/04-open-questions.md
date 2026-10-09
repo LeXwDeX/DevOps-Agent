@@ -58,9 +58,3 @@ depends_on: [KERNEL]
 | Q21 | 运维表格的写入路径。 | 维护脚本只输出结构化记录；Harness 写入口用平台固定 SQL 写入（构建期分析）；写入口的"只校验不写入"模式作为原生预演；指纹为记录版本加 schema 版本。 | [运维表格](../30-features/34-ops-tables.md) 第 5 节 |
 | Q22 | 监控观测怎样进入事实地图？ | 核心的事实服务经只读接口拉取旁路结果；旁路不直接写事实库。 | [事实地图](../30-features/33-fact-map.md)、[监控旁路](../30-features/36-monitoring.md) |
 | Q26 | 数据库 exporter 对项目目标库的固定只读查询，是否走组件准入，而不是逐次检验？ | 是。固定版本、只读专用账号（如 pg_monitor、MySQL 的 PROCESS 权限）、查询集随版本审核。 | K-23、[监控旁路](../30-features/36-monitoring.md) 第 3.1 节 |
-
-## 仓库与文档
-
-| 编号 | 问题 | 当前默认 | 相关文档 |
-|---|---|---|---|
-| Q13 | README 写"MIT（继承上游 hermes-agent 许可，见 LICENSE）"，但根目录 LICENSE 已删除，且本项目不复用 Hermes 代码。许可证如何写？ | 未定，需用户决定。 | 仓库根目录 README.md |

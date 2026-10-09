@@ -25,4 +25,4 @@
 
 ## License
 
-MIT（继承上游 hermes-agent 许可，见 LICENSE）
+MIT。LICENSE 文件后续直接使用 GitHub 提供的 MIT 模板添加。
