@@ -30,7 +30,7 @@ depends_on: [KERNEL, EXEC-MODEL, REVIEW-POLICY, HARNESS-TASKS, STATE-RECOVERY, S
 ```text
 internal/
   schema/
-    core/                 # 执行申请、执行预期、策略、任务定义的契约结构与校验（Go 编写）
+    core/                 # SchemaID 常量；对外契约结构在有边界的块里加入
     consts/               # 状态、读写类别、策略模式等枚举
     errcode/              # 错误码
   model/
@@ -43,14 +43,15 @@ internal/
     pipeline/             # 检验流水线
     policy/               # 策略解析与转人工判断
     review/               # 人工审核动作与冻结
-    orchestrator/         # 既定任务编排引擎与条件表达式
+    orchestrator/         # 既定任务编排引擎
+      expr/               # 条件表达式（分支条件与成功判据共用）
     recovery/             # 恢复即停止
     events/               # devops.* 事件构造
     ports/                # 全部端口接口
     coretest/             # 每个端口的内存测试替身
 ```
 
-依赖：`core/*` 只导入 `model`、`schema` 和标准库。`core` 内部子包之间单向依赖，`pipeline` 和 `orchestrator` 在最上层。
+依赖：`core/*` 只导入 `model`、`schema` 和标准库。`core` 内部子包之间单向依赖，`pipeline` 和 `orchestrator` 在最上层。指纹的采集和比对放在 `pipeline`，不单设 `fingerprint` 包。`devops.*` 事件常量放在 `core/events`。
 
 ## 3. 核心类型（model 层）
 
@@ -60,19 +61,35 @@ internal/
 ExecutionRequest
   CallID        稳定编号
   Revision      修订号，从 1 开始
-  Digest        当前修订的内容摘要
-  Source        来源：task_step / registered_tool / task_launch / adhoc_command / preauth / human_terminal
-  Scope         Project、Environment、Targets（稳定 ID 列表）
+  Digest        当前修订的内容摘要（覆盖 Content、Scope、Expectation）
+  Source        来源：task_step / registered_tool / task_launch / ad_hoc / pre_authorized / human_terminal
+  SessionID     会话 ID
+  Task          任务运行 ID、步骤 ID（来源为 task_step 时必填）
+  Scope         Project、Environment、Targets（稳定 ID 列表，排序去重）
   Content       UnitRef（已登记单元的 ID、版本、摘要；独立命令为空）、Rendered（展开后的完整内容）、Params、SecretKeys（K 列表）
   Expectation   执行预期（3.2）
-  Fingerprint   采集方法、采集时间、值
+  Submission    提交时附带的输入：SelfReview、Before Hook 是否要求人工及原因、内容是否无法分析及原因
+  Fingerprint   采集方法与方法版本、采集时间、状态（collected / unavailable）、值
   Checks        Preview、SelfReview、DCG、PolicyDecision（各自带结论和时间）
-  Review        人工动作列表（动作、点评、人、时间、对应 Revision）
+  Versions      执行申请 SchemaID、策略版本与命中层、dcg 规则包版本、指纹方法版本
+  Review        人工动作列表（动作、点评、人、时间、对应 Revision 和 Digest）
+  Rejection     拒绝来源（human / policy_forbid / dcg_forbid / inspection_failed）、错误码、原因
+  Stop          停止原因（cancelled_by_human / recovery_interrupted）
   Frozen        冻结摘要、冻结时间（未冻结为空）
-  Execution     开始、结束、退出状态、输出引用、对比结论
+  Execution     开始、结束、退出状态、输出引用、结构化输出、对比结论
   State         状态（第 4 节）
   Version       乐观锁版本号（CAS 用）
 ```
+
+各子结构的取值：
+
+| 字段 | 取值 |
+|---|---|
+| Preview 状态 | `none` 单元未声明预演、`passed` 预演成功、`failed` 预演失败 |
+| SelfReview 结论 | `no_risk`、`risk`、`not_applicable`（只用于既定任务步骤）；缺失按 `risk` |
+| DCG 结果 | `pass`、`hit`、`forbid`、`unavailable`，附规则 ID 和规则包版本 |
+
+Harness 和执行器的实现版本由装配层填写，不在 core 里。
 
 ### 3.2 执行预期
 
@@ -80,21 +97,23 @@ ExecutionRequest
 Expectation
   Intent          一句话意图
   Targets         稳定 ID
-  Category        read / write / delete / permission / start_stop / billing / unknown
+  Category        read_only / write / delete / permission_change / start_stop / billing / unknown
   ExpectedChange  预期变更（文字 + 可选的结构化范围，例如影响行数区间）
   ExpectedOutput  预期输出
   SuccessCriteria 成功判据（结构化，见 3.3）
-  Reversible      true / false / unknown
+  Reversible      reversible / irreversible / unknown
   Rollback        可逆时的回退方法
-  Preview         有无原生预演；有则引用预演结果
+  Preview         单元是否声明原生预演；结果记在 Checks.Preview
   RiskNote        风险自评
 ```
 
 `Category` 和 `Reversible` 以登记声明为准：已登记单元用登记值；独立命令用 dcg 和解析器的结论；都没有就是 `unknown`。
 
+必填字段：Intent、Targets、Category、ExpectedChange、ExpectedOutput、SuccessCriteria（至少一项）、Reversible。Reversible 为 `reversible` 时 Rollback 必填。Expectation.Targets 必须与 Scope.Targets 是同一个集合。
+
 ### 3.3 成功判据
 
-结构化的判据列表，每项是一个条件表达式（与第 7.3 节分支条件同一种表达式），作用在执行结果的结构化输出上，例如 `exit_code == 0`、`rows_affected <= 120`。写不成表达式的判据保留为文字，这类结果对比交给人工，结论记为 `unknown`。
+结构化的判据列表，每项是一个条件表达式（与第 7.3 节分支条件同一种表达式），作用在本次执行结果的结构化输出上，不加前缀，例如 `exit_code == 0`、`rows_affected <= 120`。写不成表达式的判据保留为文字，这类结果对比交给人工，结论记为 `unknown`。运行时判据引用的字段不存在，结论也记为 `unknown`。
 
 ## 4. 执行申请状态机
 
@@ -112,6 +131,7 @@ stateDiagram-v2
     awaiting_review --> awaiting_revision: 点评
     awaiting_revision --> checking: 新修订提交
     checking --> checking: 自审产生新修订
+    checking --> awaiting_revision: 执行预期不合格
     frozen --> target_changed: 执行前指纹不一致
     target_changed --> checking: 新修订提交
     frozen --> executing: 指纹一致, 开始执行
@@ -124,6 +144,7 @@ stateDiagram-v2
     awaiting_review --> stopped: 取消 / 恢复中断
     awaiting_revision --> stopped: 取消 / 恢复中断
     frozen --> stopped: 取消 / 恢复中断
+    target_changed --> stopped: 取消 / 恢复中断
     executing --> unknown: 恢复中断
 ```
 
@@ -131,6 +152,8 @@ stateDiagram-v2
 
 - 状态转换只能经 `core/request` 的转换函数，每个转换校验当前状态和前置条件。不在表里的转换返回 `core.invalid_transition`。
 - 终态：`rejected`、`succeeded`、`mismatched`、`failed`、`unknown`、`stopped`。终态不再转换。
+- `unknown` 没有出口。人工核对的结论另记一条审核记录，不改状态。要重做就发起新的申请（新 CallID，13 第 2.2 节）。
+- 申请创建时为 `draft`，产生 `devops.call.proposed`。
 - 每次转换写入新的 `Version`，存储端口用 CAS 提交（见 [状态与恢复](../10-architecture/13-state-and-recovery.md) 第 3 节）。
 - 转换成功并持久保存后才产生事件。
 
@@ -140,17 +163,19 @@ stateDiagram-v2
 
 | 步骤 | 做什么 | 结果 |
 |---|---|---|
-| 1 范围校验 | 目标在会话的项目和环境范围内；已登记单元的版本和摘要与登记一致 | 不符 → `rejected`，原因 `core.scope_violation` / `core.unit_mismatch` |
-| 2 执行预期校验 | 必填字段齐全；Category、Reversible 按登记值覆盖 | 缺字段 → 退回 Agent 修订 |
+| 1 范围校验 | 目标在会话的项目和环境范围内；已登记单元的版本和摘要与登记一致 | 不符 → `rejected`，拒绝来源 `inspection_failed`，错误码 `core.scope_violation` / `core.unit_mismatch`，产生 `devops.inspection.failed` |
+| 2 执行预期校验 | 必填字段齐全（3.2）；Category、Reversible 按登记值覆盖 | 不合格 → `awaiting_revision`，错误码 `core.expectation_invalid` |
 | 3 原生预演 | 单元声明有预演时，经 `PreviewPort` 运行并保存结果 | 预演失败 → 转人工，附预演输出 |
 | 4 采集指纹 | 经 `FingerprintPort` 采集并保存 | 采集不到 → 标记，转人工 |
-| 5 自审结论 | 接收提交时附带的 `SelfReview`；既定任务步骤跳过；缺失按"有风险" | — |
+| 5 自审结论 | 接收提交时附带的 `SelfReview`；既定任务步骤记为 `not_applicable`；其余来源缺失按 `risk` | — |
 | 6 dcg | 经 `DCGPort` 检查最终内容 | 命中 / 不可用 → 标记；禁止规则 → `rejected` |
 | 7 策略判定 | `policy.Resolve`（第 6 节） | auto / manual / forbid |
 | 8 转人工判断 | `policy.Escalate`：按 K-08 汇总第 3 至 7 步的标记 | 最终 auto / manual / forbid |
 | 9 去向 | auto → 冻结；manual → `awaiting_review`；forbid → `rejected` | — |
 
-执行前的最后核验 `pipeline.PreExecute(request)` 由执行器所在进程调用：核对冻结摘要、重新采集指纹并比对。不一致 → `target_changed`，不执行。
+事件：开始时 `devops.inspection.started`；第 6 步后 `devops.inspection.passed`；第 8 步后 `devops.policy.decided`；然后按去向产生 `devops.call.frozen`、`devops.review.requested` 或无额外事件（禁止时 `policy.decided` 已说明结束为已拒绝）。
+
+执行前的最后核验 `pipeline.PreExecute(request)` 由执行器所在进程调用：核对冻结摘要、重新采集指纹并比对。摘要不一致 → 返回 `core.digest_mismatch`，不执行；指纹不一致或采集不到 → `target_changed`（`core.fingerprint_changed`），不执行。一致时先持久保存 `executing`（即"开始执行"记录，产生 `devops.execution.started`），再调用 `ExecutorPort`。哪个二进制调用这些函数，在装配时决定。
 
 执行后 `pipeline.Compare(request, result)`：按成功判据和预期给出 `succeeded` / `mismatched` / `failed` / `unknown`。
 
@@ -166,20 +191,26 @@ stateDiagram-v2
 ### 6.2 算法
 
 1. 从细到粗依次查找：具体功能 → 权限区 → provider 或工具全局 → 系统全局兜底（K-07）。每一层先查当前环境的配置，再查不分环境的配置。第一个命中的规则给出 Mode。
-2. 沿途任何一层出现 `allow_auto: false`，则 Mode 为 auto 时改为 manual。
-3. 任何一层出现 forbid，结果为 forbid（禁止优先于一切）。
+2. 与请求匹配的所有层（包括第一个命中层以下的粗层）中，任何一条出现 `allow_auto: false`，则 Mode 为 auto 时改为 manual。
+3. 与请求匹配的所有层中，任何一条为 forbid，结果为 forbid（禁止优先于一切）。
 4. 会话为手工模式时，auto 改为 manual（预授权来源除外）。
 5. 系统兜底出厂值为 manual。
+
+规则的匹配键：`action` 层按 provider 或工具加功能名；`zone` 层按 provider 或工具加权限区；`global` 层按 provider 或工具；`system` 层不带键。一条规则可以只写 `allow_auto` 不写 Mode，它不给出 Mode，只参与第 2 步。
+
+读写类别到权限区：`read_only` → `read`；其余类别和 `unknown` → `write`。
 
 ### 6.3 转人工判断 `Escalate`
 
 输入策略结果和流水线标记，输出最终 Mode。forbid 保持 forbid；否则下列任一成立就变成 manual（K-08）：
 
-- 自审有风险或缺失（既定任务步骤除外）
+- 自审有风险或缺失（既定任务步骤记为 `not_applicable`，不算缺失）
+- 原生预演失败
 - dcg 命中或不可用
 - 无法采集指纹
 - Category 为 unknown
-- Reversible 为 false 且没有原生预演
+- Reversible 为 `irreversible` 或 `unknown`，且没有原生预演（未知按不可逆处理）
+- 内容无法分析（例如 SQL 方言不支持或解析失败，由以后的 SQL 块设置这个标记）
 - Before Hook 要求人工
 - 来源是独立命令（K-10）
 
@@ -207,9 +238,33 @@ stateDiagram-v2
 - 输入：已登记的 `TaskDefinition`（步骤、分支、参数 schema），以及当时的启用版本。
 - 每一步生成一个执行申请（Source = task_step），送进流水线；等待它进入终态。
 - 步骤成功后，按分支条件选下一步。条件表达式是一个小的类型化表达式：支持字段访问、`==` `!=` `<` `<=` `>` `>=`、`&&` `||` `!`、`in`、字符串和数字字面量；只读当前任务的参数和已完成步骤的结构化输出。不支持函数调用、循环和赋值。
+- 命名：分支条件里，步骤输出用步骤 ID 作前缀（`D.exit_code`），任务参数用 `params.` 前缀；成功判据不加前缀（3.3）。
+- 字面量支持字符串、数字、`true`、`false`；不支持 `null`。`in` 的右边是列表字面量（`["a", "b"]`）或列表类型的字段。
+- 运行时字段不存在：分支条件按"运行停止"处理，成功判据按 `unknown` 处理。不按"假"处理。
 - 表达式在登记时做语法和类型检查，运行时不再解析新表达式。
-- 没有分支匹配，或步骤终态不是 succeeded：运行停止，记录停止的步骤和原因（[既定任务](../20-execution/23-harness-tasks.md) 第 2.6 节的运行状态）。
+- 没有分支匹配，或步骤终态不是 succeeded：运行停止，记录停止的步骤和原因（[既定任务](../20-execution/23-harness-tasks.md) 第 2.6 节的运行状态）。没有分支匹配就是兜底分支：停止并等人工。
+- 任务步骤进入 `target_changed` 时，运行停止。登记过的步骤不由 Agent 修订。
 - 运行开始时绑定任务版本，之后不变（第 2.7 节）。
+- 步骤的内容和执行预期由 `Registry` 端口按任务参数和前序输出生成，core 不实现模板语法。
+
+### 7.4 任务运行状态
+
+运行状态取 23 第 2.6 节的 8 个值：`pending`、`running`、`awaiting_review`、`awaiting_input`、`completed`、`stopped`、`cancelled`、`recovery_interrupted`。终态：`completed`、`stopped`、`cancelled`、`recovery_interrupted`。
+
+| 当前步骤或事件 | 运行状态 |
+|---|---|
+| 运行已创建，必需参数齐全 | `pending` |
+| 缺必需参数或 K | `awaiting_input`；补齐后回到 `pending` |
+| 当前步骤在 `draft`、`checking`、`frozen`、`executing` | `running` |
+| 当前步骤在 `awaiting_review`、`awaiting_revision` | `awaiting_review` |
+| 最后一步 `succeeded`，没有后续 | `completed` |
+| 步骤终态不是 `succeeded`，或进入 `target_changed`，或没有分支匹配 | `stopped` |
+| 用户取消 | `cancelled` |
+| 恢复 | `recovery_interrupted` |
+
+停止原因（运行和申请共用一张表）：`mismatched`、`unknown`、`failed`、`rejected`、`target_changed`、`no_branch_matched`、`cancelled_by_human`、`recovery_interrupted`。
+
+登记校验：步骤 ID 唯一；分支去向存在；步骤图无环；每个条件按参数 schema 和各步骤的输出 schema 通过类型检查。
 
 ## 8. 恢复、事件与端口
 
@@ -217,24 +272,28 @@ stateDiagram-v2
 
 `recovery.OnStartup(store)`：
 
-- 所有非终态的执行申请：`executing` → `unknown`，其余 → `stopped`，原因 `recovery_interrupted`。
+- 开始时经 `EventSink` 产生 `devops.recovery.started`，结束时产生 `devops.recovery.completed`。
+- 所有非终态的执行申请：`executing` → `unknown`（产生 `devops.execution.unknown`），其余 → `stopped`（产生 `devops.call.stopped`），原因 `recovery_interrupted`。
 - 所有非终态的任务运行 → `已停止（恢复中断）`。
-- 返回恢复报告数据（停止的申请和运行列表、结果未知列表），供页面展示。
+- 返回恢复报告数据（停止的申请和运行列表、结果未知列表），供页面展示。暂停的计划由持久调度服务加入报告。
 - 调度计划的暂停由持久调度服务处理，不在 core 内。
 
 ### 8.2 事件
 
-core 在状态转换持久保存后，经 `EventSink` 产生 `devops.*` 事件。事件名以 [事件与 Hook](../40-sdk/45-events-and-hooks.md) 的平台事件总表为准。事件不触发执行。
+状态转换和它的事件一起交给存储端口：`RequestStore` 和 `TaskStore` 的保存方法同时接收新状态和待发事件，由 provider 在同一事务里写入（outbox）。`EventSink` 只用于不伴随状态保存的事件，例如恢复开始和结束。事件名以 [事件与 Hook](../40-sdk/45-events-and-hooks.md) 的平台事件总表为准。事件不触发执行。
+
+事件信封按 45 第 2 节的公共字段：SchemaVersion、EventID、EventType、StreamID 与 Sequence（执行申请以 CallID 为流，任务运行以 RunID 为流）、OccurredAt、SourceKind（`HostConfirmed`）、关联 ID、范围引用、Data。`Producer` 由装配它的二进制填写。
 
 ### 8.3 端口清单
 
 | 端口 | 用途 | 首批 provider |
 |---|---|---|
-| `RequestStore` | 执行申请的读写，按 Version 做 CAS | PostgreSQL |
+| `RequestStore` | 执行申请的读写；保存时按 Version 做 CAS，并在同一事务写入待发事件 | PostgreSQL |
 | `RevisionLog` | 修订日志，追加写 | PostgreSQL |
-| `TaskStore` | 任务定义（含版本与启用指针）和任务运行 | PostgreSQL |
+| `TaskStore` | 任务定义（含版本与启用指针）和任务运行；保存运行时按 Version 做 CAS，并在同一事务写入待发事件 | PostgreSQL |
 | `PolicySource` | 读取已登记的策略层 | PostgreSQL |
-| `Registry` | 查询已登记单元的版本、摘要、读写声明、预演和指纹方法 | PostgreSQL |
+| `Registry` | 查询已登记单元的版本、摘要、读写声明、预演和指纹方法；按任务参数和前序输出生成步骤的内容和执行预期 | PostgreSQL |
+| `ScopeSource` | 查询会话的项目、环境、会话模式，以及目标稳定 ID 是否属于该项目和环境 | PostgreSQL |
 | `PreviewPort` | 运行原生预演 | 执行通道 |
 | `FingerprintPort` | 采集目标指纹 | 执行通道 |
 | `DCGPort` | 检查内容，返回放行 / 命中（规则 ID）/ 不可用 | dcg |
@@ -263,6 +322,8 @@ core 在状态转换持久保存后，经 `EventSink` 产生 `devops.*` 事件�
 | 恢复 | 非终态全部按规则改写；终态不受影响；重复执行 OnStartup 结果相同 |
 | 并发 | CAS 冲突返回明确错误；`go test -race` 通过 |
 | 依赖方向 | CI 检查 core 不导入 provider、module 和任何外部库 |
+| 文档与常量 | 52 第 4 节的枚举表与代码常量一致（52 第 6.2 节） |
+| 事件 | 每个转换产生 45 第 6 节规定的事件，并与状态在同一次保存中交给存储端口 |
 
 ## 10. 审核清单
 
@@ -283,4 +344,15 @@ core 在状态转换持久保存后，经 `EventSink` 产生 `devops.*` 事件�
 | schema 层 | 常量体和配置定义的集合，直接用 Go 编写，不依赖代码生成 |
 | 摘要算法与规范化 | 字段排序 JSON + SHA-256 |
 | 条件表达式 | 用第 7.3 节的最小语法，自己实现小型解析器，不引入通用脚本引擎 |
-| 预授权 | 不在本块，放到编排之后的块 |
+| 预授权 | 不在本块，放到编排之后的块。`pre_authorized` 来源的值先定义，流水线暂不接受这个来源 |
+| 枚举取值 | 用 52 的命名风格，补齐 61 需要的值（申请来源 6 个；读写类别、可逆性加 `unknown`），52 同步修改 |
+| 策略的禁止与 `allow_auto` | 第一个命中层给出 Mode；所有匹配层里的 forbid 和 `allow_auto: false` 都生效（第 6.2 节） |
+| 补充的转换 | `checking → awaiting_revision`、`target_changed → stopped`；`unknown` 保持终态 |
+| 范围校验失败 | `rejected`，拒绝来源 `inspection_failed` |
+| SQL 转人工 | core 只有通用的"内容无法分析"标记，SQL 块以后设置它 |
+| 事件与状态 | 存储端口在同一事务保存状态和待发事件 |
+| 补充字段 | 会话 ID、任务运行与步骤 ID、拒绝来源与原因、定义版本 |
+| 包结构 | 以本文第 2 节为准，53 和 52 同步修改 |
+| 任务运行 | 第 7.4 节；任务步骤 `target_changed` 时运行停止 |
+| 条件表达式 | 第 7.3 节的命名和缺失字段规则 |
+| 本块不做 | 预授权、步骤超时与重试、补偿步骤、Worker 租约、迟到结果去重、断点崩溃注入、审计内容、mask、独立审核模型（K-12）的输入 |

@@ -57,29 +57,33 @@ Go 代码实现状态转换和业务算法。适合声明的结构用 schema 描
 
 | 分组 | 语义来源 | 建议取值 | 代码位置 |
 |---|---|---|---|
-| EventType | [事件与 Hook](../40-sdk/45-events-and-hooks.md) 第 5 节（`goagent.*`）、第 6 节（`devops.*` 平台事件总表的唯一定义源） | SDK 用 `goagent.*`，平台用 `devops.*` | SDK：`sdk/agent` 的事件文件；平台：`platform/internal/events` |
+| EventType | [事件与 Hook](../40-sdk/45-events-and-hooks.md) 第 5 节（`goagent.*`）、第 6 节（`devops.*` 平台事件总表的唯一定义源） | SDK 用 `goagent.*`，平台用 `devops.*` | SDK：`sdk/agent` 的事件文件；平台：`platform/internal/core/events` |
 | ModelRole | [SDK 概览](../40-sdk/41-sdk-overview.md) 第 8.2 节 | 见 41 | `sdk/agent` |
 | HookPoint | [事件与 Hook](../40-sdk/45-events-and-hooks.md) 第 8 节 | 见 45 | `sdk/agent` |
 | 执行申请状态 | [执行模型](../20-execution/21-execution-model.md) 第 8 节 | `draft` 草稿、`checking` 检验中、`awaiting_review` 待人工、`rejected` 已拒绝、`awaiting_revision` 待修订、`frozen` 已冻结、`target_changed` 目标已变化、`executing` 执行中、`succeeded` 成功、`mismatched` 与预期不符、`failed` 失败、`unknown` 结果未知、`stopped` 已停止 | 平台 contracts |
 | ToolRequestStatus | [SDK 工具目录](../40-sdk/44-tool-catalog.md) 第 6 节 | 与执行申请状态一一对应 | `sdk/agent`（SDK 自持） |
 | 既定任务运行状态 | [既定任务](../20-execution/23-harness-tasks.md) 第 2.6 节 | `pending` 待开始、`running` 运行中、`awaiting_review` 等待人工、`awaiting_input` 等待输入、`completed` 已完成、`stopped` 已停止、`cancelled` 已取消、`recovery_interrupted` 已停止（恢复中断）；每步状态沿用执行申请状态 | 平台 contracts |
-| 停止原因 | [状态与恢复](../10-architecture/13-state-and-recovery.md) 第 2 节 | `cancelled_by_human`、`recovery_interrupted` | 平台 contracts |
-| 拒绝来源 | [执行模型](../20-execution/21-execution-model.md) 第 8 节 | `human`、`policy_forbid`、`dcg_forbid` | 平台 contracts |
-| 申请来源 | [执行模型](../20-execution/21-execution-model.md) 第 3 节 | `task` 既定任务、`ad_hoc` 独立命令、`pre_authorized` 预授权、`human_terminal` 人工终端 | 平台 contracts |
+| 停止原因 | [既定任务](../20-execution/23-harness-tasks.md) 第 2.6 节、[core 层详细设计](../60-design/61-core-layer.md) 第 7.4 节 | `mismatched` 与预期不符、`unknown` 结果未知、`failed` 失败、`rejected` 已拒绝、`target_changed` 目标已变化、`no_branch_matched` 没有分支匹配、`cancelled_by_human` 人工取消、`recovery_interrupted` 恢复中断 | 平台 contracts |
+| 拒绝来源 | [执行模型](../20-execution/21-execution-model.md) 第 8 节 | `human`、`policy_forbid`、`dcg_forbid`、`inspection_failed` 检验不合格 | 平台 contracts |
+| 申请来源 | [执行模型](../20-execution/21-execution-model.md) 第 3 节 | `task_step` 既定任务步骤、`registered_tool` 已登记工具或命令模板、`task_launch` Agent 发起既定任务、`ad_hoc` 独立命令、`pre_authorized` 预授权、`human_terminal` 人工终端 | 平台 contracts |
 | 策略模式 | [审核与策略](../20-execution/22-review-and-policy.md) 第 2.3、4 节 | `auto` 自动、`manual` 人工、`forbid` 禁止；另有布尔项 `allow_auto` | 平台 contracts |
 | 策略层级 | K-07 | `action` 具体功能、`zone` 权限区、`global` provider 或工具全局、`system` 系统兜底 | 平台 contracts |
 | 权限区 | [审核与策略](../20-execution/22-review-and-policy.md) 第 4 节 | `read`、`write` | 平台 contracts |
-| 读写类别 | [执行模型](../20-execution/21-execution-model.md) 第 4 节 | `read_only` 只读、`write` 写入、`delete` 删除、`permission_change` 权限变更、`start_stop` 启停、`billing` 计费 | 平台 contracts |
-| 可逆性 | [执行模型](../20-execution/21-execution-model.md) 第 4 节 | `reversible`、`irreversible` | 平台 contracts |
-| 自审结论 | [审核与策略](../20-execution/22-review-and-policy.md) 第 2.1 节；SelfReview 结构见 [SDK 概览](../40-sdk/41-sdk-overview.md) 第 9 节 | `no_risk`、`risk`；缺失或"未完成"按 `risk` 处理 | SDK 与平台各持一份，见第 5 节 |
-| dcg 结果 | [审核与策略](../20-execution/22-review-and-policy.md) 第 2.2 节 | `pass`、`hit`、`forbid`，附规则 ID | 平台 contracts |
+| 读写类别 | [执行模型](../20-execution/21-execution-model.md) 第 4 节 | `read_only` 只读、`write` 写入、`delete` 删除、`permission_change` 权限变更、`start_stop` 启停、`billing` 计费、`unknown` 无法确定（转人工，K-08） | 平台 contracts |
+| 可逆性 | [执行模型](../20-execution/21-execution-model.md) 第 4 节 | `reversible`、`irreversible`、`unknown` 未知（按不可逆处理） | 平台 contracts |
+| 自审结论 | [审核与策略](../20-execution/22-review-and-policy.md) 第 2.1 节；SelfReview 结构见 [SDK 概览](../40-sdk/41-sdk-overview.md) 第 9 节 | `no_risk`、`risk`、`not_applicable` 不适用（只用于既定任务步骤）；缺失或"未完成"按 `risk` 处理 | SDK 与平台各持一份，见第 5 节 |
+| dcg 结果 | [审核与策略](../20-execution/22-review-and-policy.md) 第 2.2 节 | `pass`、`hit`、`forbid`、`unavailable` 不可用，附规则 ID 和规则包版本 | 平台 contracts |
+| 原生预演状态 | [core 层详细设计](../60-design/61-core-layer.md) 第 3.1 节 | `none` 未声明预演、`passed` 成功、`failed` 失败 | 平台 contracts |
+| 指纹状态 | [core 层详细设计](../60-design/61-core-layer.md) 第 3.1 节 | `collected` 已采集、`unavailable` 采集不到 | 平台 contracts |
 | 人工动作 | K-09 | `execute` ▶ 执行、`reject` ✕ 拒绝、`comment` 点评 | 平台 contracts |
 | 会话模式 | [审核与策略](../20-execution/22-review-and-policy.md) 第 3 节 | `manual` 手工、`auto` 自动 | 平台 contracts |
 | 包装形式 | [工具包装](../20-execution/26-tool-wrapping.md) 第 1 节 | `bash`、`python`、`tool_call` | 平台 contracts |
 | 目标类型 | [工具包装](../20-execution/26-tool-wrapping.md) 第 2 节 | `host`、`container`、`database`、`cloud_resource`、`file` | 平台 contracts |
 | 事实核验状态 | [事实地图](../30-features/33-fact-map.md) | 见 33 | 平台 contracts |
-| 错误码 | 本文第 4.1 节 | `<模块>.<原因>`，例如 `harness.fingerprint_mismatch`、`executor.digest_mismatch`、`sql.parse_failed` | 各模块 contracts |
+| 错误码 | 本文第 4.1 节 | `<模块>.<原因>`，例如 `harness.fingerprint_mismatch`、`executor.digest_mismatch`、`sql.parse_failed` | `platform/internal/schema/errcode` |
 | 保留命名空间 | [术语表](../00-overview/02-glossary.md) | `goagent.`、`devops.` | SDK、平台各一处 |
+
+表中"平台 contracts"指 `platform/internal/schema/consts`。
 
 ### 4.1 错误码
 

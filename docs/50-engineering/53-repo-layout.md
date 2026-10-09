@@ -72,10 +72,12 @@ platform/
     substrate/  monitor-worker/  migrate/
   internal/
     schema/                # 常量、枚举、错误码、配置结构、对外契约
+      consts/  errcode/  core/
     model/                 # 领域数据模型
-    core/                  # 内核与端口
-      request/  pipeline/  policy/  review/  fingerprint/  orchestrator/
-      recovery/  events/  ports/
+      request/  policy/  task/  ids/
+    core/                  # 内核与端口，包结构以 61 第 2 节为准
+      request/  pipeline/  policy/  review/  orchestrator/（含 expr/）
+      recovery/  events/  ports/  coretest/
     provider/              # 端口实现与外部对接
       storage/  dcg/  vault/  modelgw/  exec/  cloud/  sqldialect/
       docker/  sandbox/  transport/  monitoring/
