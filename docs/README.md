@@ -72,6 +72,7 @@ depends_on: []
 | [56-bootstrap-guide](50-engineering/56-bootstrap-guide.md) | 起底开发指引：第一步做什么 | 开始写代码前 | 已定 |
 | **60 详细设计** | | | |
 | [61-core-layer](60-design/61-core-layer.md) | core 层详细设计：状态机、检验流水线、策略解析、修订冻结、编排引擎、端口与测试 | 开发或审核 core 层 | 已定 |
+| [62-provider-storage-modelgw](60-design/62-provider-storage-modelgw.md) | provider 第一块：PostgreSQL 存储、outbox、审计、系统时钟与 ID、模型出口代理 | 开发或审核存储、模型出口代理 | 已定 |
 
 ## 任务路由
 
@@ -81,6 +82,7 @@ depends_on: []
 |---|---|
 | 开始项目起底开发 | 56、53、54、11、51 |
 | 开发 core 层 | 61、21、22、23、53、52 |
+| 开发 provider 存储或模型出口代理 | 62、61、11、13、25、51 |
 | 开发 Harness 门禁 | 21、22、23、13、11 |
 | 开发执行器 | 21、25、24、26、11 |
 | 开发审核界面与策略配置 | 22、21、38 |
