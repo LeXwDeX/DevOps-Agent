@@ -11,8 +11,8 @@ depends_on: [INDEX, KERNEL, OPEN-QUESTIONS, REPO-LAYOUT, PHASES, SCHEMA-CONST, G
 
 ## 1. 什么时候可以写代码
 
-- 只有用户明确要求实现后，才开始写源码（K-30）。在那之前只维护设计文档。
-- 用户要求实现时，只做用户要求的范围。范围不清楚时先问。
+- 只有用户明确要求实现后，才开始写源码（K-30）。用户已要求实现 1.0，按 [阶段交付](54-phases-and-acceptance.md) 第 1.1 节一块一块做。
+- 只做当前块的范围。范围有不清楚的地方，按第 6 节自己会审，采用推荐做法。
 - 实现从 P0 开始，按 [阶段交付](54-phases-and-acceptance.md) 的顺序推进。不跳阶段。
 - 文档里写的是设计，不代表已经实现。不要根据文档假设某个模块已经存在。
 
@@ -50,13 +50,13 @@ flowchart LR
 |---|---|
 | 模块导入路径 | 已定：`github.com/LeXwDeX/DevOps-Agent/sdk/agent` 与 `github.com/LeXwDeX/DevOps-Agent/platform`（[53](53-repo-layout.md) 第 1 节） |
 | schema 层形式 | 已定：直接用 Go 编写常量、配置和契约结构，不依赖代码生成（[52](52-schema-and-constants.md) 第 6.1 节） |
-| P1 的模型 API key | 已定：P1 只用一个模型 API key（测试环境用 DeepSeek），作为第一个 K 放在 runtime 挂载的 `data/vault/` 下，由模型出口代理读取（[11](../10-architecture/11-components-and-boundaries.md) 第 5.3 节）。凭证库完整设计（Q10）在 P2 接入资产凭证前完成 |
+| 模型端点和 API key | 已定：由模型接入变量 `DEVOPS_LLM_BASE_URL` 和 `DEVOPS_LLM_API_KEY` 传给 runtime 容器，只有模型出口代理使用。接口格式为 OpenAI Chat Completions。key 登记为 K `DEVOPS_LLM_API_KEY`，不进凭证库（[11](../10-architecture/11-components-and-boundaries.md) 第 5.4 节）。凭证库完整设计（Q10）在 P2 接入资产凭证前完成 |
 | Q11 dcg 核实 | 已选定 destructive_command_guard。核实许可证、机器可读调用方式和 SQL 覆盖（第五步），结论提给用户 |
 | 底座门禁形态 | 已定：底座内置最小门禁，首版每步人工确认（[12](../10-architecture/12-deployment-substrate.md) 第 6.1 节） |
 
 **第二步：建目录**
 
-按 [53](53-repo-layout.md) 建立 `sdk/agent/` 和 `platform/` 的目录骨架：`cmd/` 下九个入口目录、`internal/` 下 `schema`、`model`、`core`、`provider`、`module` 五层，以及 `assets/`、`migrations/`、`deploy/`、`test/`。之后按 [54](54-phases-and-acceptance.md) 第 1.1 节，从 core 开始一块一块做，每块先出详细设计，开发完审核通过再进下一块。只有用户明确要求后才创建 `go.mod`。
+按 [53](53-repo-layout.md) 建立 `sdk/agent/` 和 `platform/` 的目录骨架：`cmd/` 下九个入口目录、`internal/` 下 `schema`、`model`、`core`、`provider`、`module` 五层，以及 `assets/`、`migrations/`、`deploy/`、`test/`。之后按 [54](54-phases-and-acceptance.md) 第 1.1 节，从 core 开始一块一块做，每块先出详细设计，开发完审核通过再进下一块。建 core 块时创建 `platform/go.mod`；`sdk/agent/go.mod` 在开始 SDK 块时创建。
 
 **第三步：定义首批 schema（按顺序）**
 
@@ -105,7 +105,7 @@ P0 验收通过后再开始。建议顺序：
 1. 底座最小版：单 VM、supervisord、节点代理、部署包模板，按固定 digest 部署平台组件（[12](../10-architecture/12-deployment-substrate.md)）。
 2. PostgreSQL 和平台库迁移：迁移文件构建期分析，由底座作为受控执行运行。
 3. 审计存储骨架：追加写。
-4. 凭证库最小实现与模型出口代理：模型 API key 以 K 引用。
+4. 凭证库最小实现与模型出口代理：代理从模型接入变量取端点和 key，按 Chat Completions 格式转发；key 以 K 引用（[11](../10-architecture/11-components-and-boundaries.md) 第 5.4 节）。
 5. 核心控制服务骨架：项目、会话、对话、任务状态；平台管理的身份与模型配置最小版。
 6. mask：输入侧 mask 与自动转 K。
 7. 任务队列协议与 Agent Worker。
@@ -161,8 +161,8 @@ P1 的验收条件见 [54](54-phases-and-acceptance.md)。
 
 1. 查 [待定事项](../00-overview/04-open-questions.md)，按"当前默认"实现。
 2. 实现保持可改：把待定的部分放在接口或配置后面，不写死在多处。
-3. 不自行决定待定项。需要决定时问用户，说清楚选项和影响。
-4. 用户确认后，把结论写进对应文档，并从 04 删除该项。
+3. 设计没写清楚、互相矛盾或缺细节时，自己会审，采用推荐做法，继续工作。把决定写进对应文档，并列进审核报告的"采用的决定"。要改变待定项的当前默认、已定设计或内核规则时，同样自己会审并采用推荐做法，先改文档再改代码，在审核报告里单独列出，由审核线程逐条核对。只有改变 1.0 目标时才问用户。
+4. 有结论后，把结论写进对应文档，并从 04 删除该项。
 5. 发现新的待定问题：在 04 里新增一项，写明问题、当前默认做法和相关文档，并告诉用户。
 6. 待定项会影响验收时，在阶段验收里写明按哪个默认做法验收。
 
@@ -185,6 +185,7 @@ P1 的验收条件见 [54](54-phases-and-acceptance.md)。
 
 ## 8. 协作
 
-- 协作分工见仓库根目录的 `AGENTS.md`。
-- 有源码之后，查结构优先用代码知识图，并检查索引覆盖。
-- 交付前的最终方案和最终代码要经过终审。
+- 协作分工、什么时候停下问用户、Git 与 PR 规则见仓库根目录的 `AGENTS.md`。
+- 本地快速检查用 `scripts/check.sh`，CI 运行同一个脚本。新增检查项加进这个脚本。
+- 有源码之后，查结构时有代码知识图就优先用它，并检查索引覆盖。
+- 每块由单独的审核线程独立审核，终审在审核线程里审核一次最终方案和最终 diff。

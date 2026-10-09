@@ -9,7 +9,7 @@ depends_on: [KERNEL, COMPONENTS, SUBSTRATE, SCHEMA-CONST]
 
 # 仓库与模块布局
 
-本文是源码的目录约定。两个模块的 `go.mod` 和目录骨架已按本文建立。
+本文是源码的目录约定。
 
 ## 1. 模块划分
 
@@ -157,8 +157,8 @@ flowchart LR
 | agent-worker | 任务队列访问；调用 Harness 和模型出口代理的接口凭证 | 任何 V；Docker socket；宿主 shell；数据库账号 |
 | harness | Harness 库账号；审计库追加写账号；调用执行器的接口凭证 | 任何 V；Docker socket |
 | scheduler | 调度服务库账号；向 Harness 提交触发的接口凭证 | 任何 V；直接调用执行器 |
-| executor | 按 K 读取 V 的凭证库权限；审计库追加写账号；项目目标网络 | 模型 API key；修改策略或登记资产 |
-| model-proxy | 只限模型 API key 的凭证库读权限；已批准的模型端点 | 资产凭证；项目目标网络 |
+| executor | 按 K 读取 V 的凭证库权限；审计库追加写账号；项目目标网络 | 模型 API key 和模型接入变量；修改策略或登记资产 |
+| model-proxy | 启动时收到的模型接入变量（[11](../10-architecture/11-components-and-boundaries.md) 第 5.4 节）；已批准的模型端点 | 凭证库权限；资产凭证；项目目标网络 |
 | substrate | 本机 Docker socket（只在节点代理）；节点通道证书 | 资产凭证；模型 API key |
 | monitor-worker | 监控旁路自己的存储和只读采集配置（见 [监控](../30-features/36-monitoring.md)） | 写操作凭证；依赖核心或 Worker |
 | migrate | 迁移账号 | 运行期业务账号以外的任何凭证 |

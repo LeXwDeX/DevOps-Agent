@@ -21,7 +21,7 @@
 
 ## 当前阶段
 
-项目在开发阶段，按层逐块开发，当前开发 core 层。功能尚未可用。不处理 Hermes 源码。
+项目按层实现中，目标是 1.0 版：本地用 Docker 部署，LLM 的 URL 和 key 通过 Docker 环境变量传入，支持 OpenAI Chat Completions 格式。设计文档不代表功能已经实现。协作约定见 [AGENTS.md](AGENTS.md)。不处理 Hermes 源码。
 
 ## License
 

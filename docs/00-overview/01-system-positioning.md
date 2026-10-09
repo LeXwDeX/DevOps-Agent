@@ -54,11 +54,11 @@ depends_on: [GLOSSARY, KERNEL]
 
 - 平台与 Agent 模块使用 Go。Agent 能力封装为独立的 GoAgent SDK。
 - 首版两个应用容器：core（核心控制服务、Agent Worker）和 runtime（Harness、调度、执行器、模型出口代理）。PostgreSQL 和监控旁路单独部署。
-- 镜像只含程序；配置、密钥和数据全部外部挂载（K-31）。
+- 镜像只含程序；配置、密钥和数据全部来自外部挂载或环境变量表里的环境变量（K-31）。
 - 详见 [组件与边界](../10-architecture/11-components-and-boundaries.md) 和 [Go 技术选型](../50-engineering/51-go-stack.md)。
 
 ## 7. 当前阶段
 
-- 项目在开发阶段。本文档库仍是唯一设计来源。
-- 代码按层一块一块开发，从 core 层开始（见 [阶段交付](../50-engineering/54-phases-and-acceptance.md) 第 1.1 节）。每块的详细设计经用户确认、用户要求实现后，才写这块的源码（K-30）。
-- 不处理 Hermes 源码。开工方法见 [起底开发指引](../50-engineering/56-bootstrap-guide.md)。
+- 本文档库是唯一设计来源。文档内容是设计，不代表功能已经实现（K-30）。
+- 代码按层一块一块实现，方法见 [阶段交付](../50-engineering/54-phases-and-acceptance.md) 第 1.1 节和 [起底开发指引](../50-engineering/56-bootstrap-guide.md)。
+- 哪些能力已经可用，以代码、测试和发布清单为准（见 [测试与发布](../50-engineering/55-testing-and-release.md)）。不处理 Hermes 源码。

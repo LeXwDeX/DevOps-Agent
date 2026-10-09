@@ -9,14 +9,14 @@ depends_on: []
 
 # DevOps-Agent 设计文档库
 
-本文档库是项目的唯一设计来源，供 Agent 做项目起底开发时按需加载。项目在开发阶段，文档内容不代表功能已经实现（K-30）。
+本文档库是项目的唯一设计来源，供 Agent 做项目起底开发时按需加载。文档内容是设计，不代表功能已经实现（K-30）。
 
 ## 怎么用
 
 1. **先读必读集**：[系统定位](00-overview/01-system-positioning.md)、[术语表](00-overview/02-glossary.md)、[内核规则](00-overview/03-kernel-rules.md)。
 2. **按任务加载**：查下方"任务路由"，只加载列出的文档。每篇文档开头的 `summary` 和 `load_when` 可以帮你判断是否需要读全文。
 3. **规则冲突时**：以 [内核规则](00-overview/03-kernel-rules.md) 为准。其他文档用 `K-xx` 引用规则，不重复改写。
-4. **遇到待定项**：文档里的 `Qn` 指 [待定事项](00-overview/04-open-questions.md)。按"当前默认"做，不要自行改变决定；需要决定时问用户。
+4. **遇到待定项**：文档里的 `Qn` 指 [待定事项](00-overview/04-open-questions.md)。按"当前默认"做。设计没写清楚的地方，Agent 自己会审并采用推荐做法，把决定写进对应文档和审核报告；改变当前默认或已定设计时同样处理，并在审核报告里单独列出（见 [起底开发指引](50-engineering/56-bootstrap-guide.md) 第 6 节）。
 5. **旧称**：拆分前的旧稿已删除。"所有命令必须真实无副作用 DRY-RUN""强制独立 JEV 交叉审核""密钥剪贴板"等旧说法已被本库取代，旧称对照见 [术语表](00-overview/02-glossary.md)。
 
 ## 必读集
@@ -37,7 +37,7 @@ depends_on: []
 | [03-kernel-rules](00-overview/03-kernel-rules.md) | 内核规则 K-xx | 必读 | 已定 |
 | [04-open-questions](00-overview/04-open-questions.md) | 待定事项及当前默认 | 遇到 Qn 时 | 持续维护 |
 | **10 架构** | | | |
-| [11-components-and-boundaries](10-architecture/11-components-and-boundaries.md) | 组件、职责、权限边界、通信；core + runtime 容器划分与挂载表 | 开发任何模块前 | 已定 / 部署形态草案 |
+| [11-components-and-boundaries](10-architecture/11-components-and-boundaries.md) | 组件、职责、权限边界、通信；core + runtime 容器划分、挂载表与环境变量表（模型接入变量） | 开发任何模块前 | 已定 / 部署形态草案 |
 | [12-deployment-substrate](10-architecture/12-deployment-substrate.md) | Docker 底座、Supervisor、跨 VM 分发、运行环境模板、工具隔离 | 部署平台自身、容器与沙盒相关开发 | 已定 |
 | [13-state-and-recovery](10-architecture/13-state-and-recovery.md) | 状态位置、恢复即停止、迁移 | 存储、状态机、备份恢复 | 已定 |
 | **20 执行** | | | |
@@ -45,7 +45,7 @@ depends_on: []
 | [22-review-and-policy](20-execution/22-review-and-policy.md) | 自审、dcg、会话模式、策略分层、人工审核、预授权 | 审核界面、策略、门禁 | 已定 |
 | [23-harness-tasks](20-execution/23-harness-tasks.md) | Harness 职责、既定任务、分支、命令模板、规程包 | 编排、规程包、定时任务 | 已定 |
 | [24-sql](20-execution/24-sql.md) | SQL 解析分类、预期、指纹、组件 SQL 边界 | 任何发出 SQL 的功能 | 已定 |
-| [25-secrets](20-execution/25-secrets.md) | 密钥 K→V、注入、mask 规则 | 凭证、执行器、日志、模型输入 | 已定 / 存储待设计 |
+| [25-secrets](20-execution/25-secrets.md) | 密钥 K→V、注入、mask 规则；首版模型 API key 来源 | 凭证、执行器、日志、模型输入 | 已定 / 存储待设计 |
 | [26-tool-wrapping](20-execution/26-tool-wrapping.md) | 工具包装形式、工具 schema、登记、MCP 定位 | 新增或登记工具 | 已定 |
 | **30 功能** | | | |
 | [31-project-workbench](30-features/31-project-workbench.md) | 项目、用户流程、项目 Agent 生成 | 工作台与项目功能 | 已定 |
@@ -96,6 +96,7 @@ depends_on: []
 | 新增模型厂商适配器 | 42、41、55 |
 | 开发 Hook 或事件 | 45、43、41 |
 | 部署平台自身 | 12、11、13 |
+| 开发模型出口代理或模型接入 | 11、25、42、41 |
 | 开发平台管理模块 | 38、22、25 |
 | 定义 schema、类型或常量 | 52、53 |
 
