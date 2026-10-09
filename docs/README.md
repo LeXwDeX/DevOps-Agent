@@ -56,7 +56,7 @@ depends_on: []
 | [36-monitoring](30-features/36-monitoring.md) | 监控旁路、采集组件、自研模块与派生解析器 | 监控与告警 | 已定 |
 | [37-ops-entrypoints](30-features/37-ops-entrypoints.md) | 运维入口、发起方式、人类终端、无破窗通道 | 入口与终端 | 已定 |
 | [38-platform-admin](30-features/38-platform-admin.md) | 平台管理模块、SSO/MFA 预留、审计页面 | 管理功能 | 结构预留 |
-| [39-console-views](30-features/39-console-views.md) | 侧边栏三个入口：逻辑拓扑地图、当前资源、Harness 流程（SOP）列表与版本回滚 | 前端页面、TopologyView、SOP 版本 | 已定 |
+| [39-console-views](30-features/39-console-views.md) | 侧边栏四个入口：运维大盘、逻辑拓扑地图、当前资源、Harness 流程（SOP）列表与版本回滚 | 前端页面、运维大盘、TopologyView、SOP 版本 | 已定 |
 | **40 SDK** | | | |
 | [41-sdk-overview](40-sdk/41-sdk-overview.md) | GoAgent SDK 边界、宿主端口、模型角色 | 任何 SDK 开发 | 已定 |
 | [42-llm-protocols](40-sdk/42-llm-protocols.md) | 四种基础协议、厂商派生适配器、请求与流式管理 | 模型访问 | 已定 |
@@ -86,7 +86,7 @@ depends_on: []
 | 开发项目部署流程 | 32、23、21、25、13 |
 | 开发运维表格 | 34、23、24、13 |
 | 开发事实地图 | 33、35、36 |
-| 开发工作台前端（拓扑地图、资源、SOP 列表） | 39、33、23、31 |
+| 开发工作台前端（运维大盘、拓扑地图、资源、SOP 列表） | 39、33、23、31 |
 | 接入一个云厂商 | 35、26、22、21 |
 | 开发监控旁路或自研监控模块 | 36、33、12 |
 | 开发 GoAgent SDK | 41、42、43、44、45、52 |
