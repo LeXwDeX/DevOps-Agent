@@ -19,7 +19,8 @@ depends_on: [KERNEL, DESIGN-CORE, COMPONENTS, STATE-RECOVERY, SECRETS, GO-STACK,
 | outbox 的读取与标记已投递（供以后的投递服务用） | `PolicySource`、`Registry`、`ScopeSource`：数据来自登记中心和会话模块，随 module 块实现 |
 | 三个库的版本化迁移文件，以及测试用的迁移执行函数 | 迁移的受控执行（由底座发起，K-23） |
 | `Clock`、`IDGen` 的标准实现 | `cmd/*` 装配、HTTP 接口、任务队列 |
-| 模型出口代理：读取模型接入变量、端点限制、key 注入、mask、流式转发、可用性状态 | GoAgent SDK 和它的 `AuthenticatedTransportPort` 适配（SDK 块） |
+| 模型出口代理：读取模型接入变量、端点限制、key 注入、mask、流式转发、可用性状态 | GoAgent SDK 的其余部分：运行循环、上下文、工具、`AuthenticatedTransportPort` 适配（SDK 块） |
+| SDK 的 Chat Completions 基础适配器和 DeepSeek 派生适配器（支持 `reasoning_content`，第 5.4 节） | 其他三种基础协议、GLM 派生适配器、请求管理、sidecar 持久化 |
 | core 容器的环境变量检查函数 | 数据库角色与授权（部署块） |
 
 完成标准：存储实现通过 `core/coretest` 的全部端口契约测试，并在真实 PostgreSQL 上通过第 8 节的测试；模型出口代理通过第 8 节的测试；第 9 节的审核清单全部满足。
@@ -175,6 +176,32 @@ flowchart LR
 
 `modelgw.ForbidInCore(environ []string) error`：环境里有任一模型接入变量就返回 `config.forbidden_env`，错误信息只写变量名。core 容器的入口进程以后调用它，失败就拒绝启动。
 
+### 5.4 Chat Completions 适配器与 `reasoning_content`
+
+测试端点上的部分模型（例如别名 `deepseek`）在回复里返回非标准字段 `reasoning_content`，推理也计入 `max_tokens`。`max_tokens` 太小时 `content` 为空、`finish_reason` 为 `length`。按 [LLM 协议](../40-sdk/42-llm-protocols.md) 第 3 节，用派生适配器处理这个差异。代理（第 5.2 节）不解析回复，原样转发。
+
+代码在 SDK 模块（[SDK 概览](../40-sdk/41-sdk-overview.md) 第 13 节），不依赖平台：
+
+```text
+sdk/agent/
+  protocol/
+    types.go      # 公共模型类型：Message、Block（text / thinking / tool_call / tool_result）、Request、Response、FinishReason、Usage
+    adapter.go    # ProtocolAdapter 接口与扩展点接口
+    chat.go       # ChatAdapterBase：标准 Chat Completions 编解码
+  providers/
+    deepseek.go   # DeepSeekAdapter：嵌入 ChatAdapterBase，只重写差异
+```
+
+| 规则 | 说明 |
+|---|---|
+| 基础适配器保持标准 | `ChatAdapterBase` 只处理标准字段。回复里的未知字段不丢弃，原样放进 `Response.Sidecar`（只读的原始 JSON），不获得执行含义（42 第 5 节） |
+| 派生适配器强制嵌入 | `DeepSeekAdapter` 嵌入 `ChatAdapterBase`，只重写"读取回复"（`NormalizeResponse`、`DecodeEvent`）和"回传历史"（`EncodePayload`）。基础流程通过构造时传入的扩展接口调用这些方法，保证从最外层派生对象分派（42 第 3.2 节） |
+| 读取回复 | `reasoning_content` 变成 `thinking` 内容块，放在文本块之前。流式时 `delta.reasoning_content` 变成 thinking 增量 |
+| 回传历史 | 带工具调用的 assistant 消息，把它的 thinking 块原样写回 `reasoning_content` 字段，供工具循环续接。不带工具调用的 assistant 消息不回传 thinking |
+| 不按模型名猜 | 用哪个适配器由 ModelProfile 指定，代码不根据模型名切换 |
+| 输出被截断 | 框架固定校验：`finish_reason` 为 `length`，且没有文本和工具调用时，返回 `goagent.model.output_truncated`，不当作空回答 |
+| 默认 `max_tokens` | 请求没写时用 4096，避免推理占满额度后正文为空 |
+
 ## 6. 错误码
 
 新增到 `schema/errcode`：
@@ -215,6 +242,8 @@ flowchart LR
 | 接入变量 | 每条检查规则的正例和负例；状态原因里不出现变量值 |
 | 代理 | key 注入；客户端头被丢弃；目标地址固定；重定向被拒；超时；请求和响应超限；凭证无效；不可用时上游收到 0 次请求 |
 | mask | 上游错误体、流式响应（key 跨块）、日志里都不出现 key；对流式 mask 做 fuzz |
+| 协议适配器 | 标准回复、带 `reasoning_content` 的回复（非流式和流式）、空 `content` 加 `length` 判为截断、工具调用回传 `reasoning_content`、未知字段进 Sidecar；派生准入三项检查：确实嵌入父类型、未重写的方法与父类型输出一致、重写经最外层对象分派；对流式解码做 fuzz |
+| 真实端点（可选） | 设置测试变量后，经代理调用真实端点，默认模型 `deepseek`；不设置时跳过 |
 | core 检查 | 有任一变量时报错，错误信息不含值 |
 | 依赖方向 | `archtest` 增加 provider 规则 |
 
@@ -240,3 +269,5 @@ flowchart LR
 | 审计只追加 | 触发器拒绝修改和删除 | 11 第 2 节"被修改或删除"列为不能做的事 |
 | 测试数据库 | 优先用本机 PostgreSQL 程序起临时实例，不依赖 Docker | 云端会话没有 Docker 守护进程 |
 | 代理客户端凭证 | 校验函数由装配层注入 | 凭证的挂载位置属于部署设计 |
+| `reasoning_content` | 用 SDK 的 DeepSeek 派生适配器处理；代理不解析回复 | 用户决定用派生（补丁）方式支持；42 第 3 节已把它列为 DeepSeek 的差异 |
+| SDK 错误码 | SDK 自持错误码，前缀 `goagent.`，不导入平台的 errcode | SDK 不依赖平台（K-22） |
