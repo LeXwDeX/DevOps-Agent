@@ -2,10 +2,11 @@
 
 ## 当前阶段
 
-- 项目仍在设计阶段。唯一设计来源是文档库 `docs/`，入口 `docs/README.md`。
-- 平台与 Agent 模块规划使用 Go；Hermes 仅作设计参考，不属于部署组件、协议接入或源码兼容目标。
-- 当前只维护设计文档，不写 Go 代码，不创建 `go.mod` 或实际 SDK，也不处理 Hermes 源码。
-- 设计内容不代表功能已经实现。只有用户明确要求实现后，才开始源码工作。开工方法见 `docs/50-engineering/56-bootstrap-guide.md`。
+- 项目进入开发阶段。唯一设计来源仍是文档库 `docs/`，入口 `docs/README.md`。
+- 平台与 Agent 模块使用 Go；Hermes 仅作设计参考，不属于部署组件、协议接入或源码兼容目标。不处理 Hermes 源码。
+- 两个 Go 模块已建立：`platform/`（`github.com/LeXwDeX/DevOps-Agent/platform`）和 `sdk/agent/`（`github.com/LeXwDeX/DevOps-Agent/sdk/agent`）。
+- 按层一块一块开发，每块只做用户要求的范围（见下方"开发节奏"）。当前开发块：core 层（`docs/60-design/61-core-layer.md`）。SDK 目前只有模块骨架。
+- 设计内容不代表功能已经实现。某块的详细设计经用户确认、用户要求实现后，才写这块的源码。开工方法见 `docs/50-engineering/56-bootstrap-guide.md`。
 
 ## 使用文档库
 
@@ -48,4 +49,4 @@
 
 - 不使用外部 DayBreak 工具。
 - 用短句和常用词。需要解释复杂关系时优先补图（文档库中用 Mermaid）。
-- 源码任务优先使用代码知识图查询结构，并检查索引覆盖；仅在用户要求源码工作后适用。当前阶段不审计或重构源码。
+- 源码任务优先使用代码知识图查询结构，并检查索引覆盖。只改当前开发块范围内的源码。

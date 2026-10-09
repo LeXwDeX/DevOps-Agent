@@ -9,7 +9,7 @@ depends_on: [KERNEL, COMPONENTS, SUBSTRATE, SCHEMA-CONST]
 
 # 仓库与模块布局
 
-本文是未来源码的目录约定。当前不创建 `go.mod`，不写源码（K-30）。
+本文是源码的目录约定。两个模块的 `go.mod` 和目录骨架已按本文建立。
 
 ## 1. 模块划分
 

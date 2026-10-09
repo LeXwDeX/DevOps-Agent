@@ -305,3 +305,6 @@ native/fts5_cjk/*.so
 
 # hermes
 hermes/
+
+# Go 模块：SDK 第二宿主样例目录不能被上面的 examples/ 规则忽略
+!sdk/agent/examples/
