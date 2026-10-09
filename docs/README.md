@@ -70,6 +70,8 @@ depends_on: []
 | [54-phases-and-acceptance](50-engineering/54-phases-and-acceptance.md) | P0–P6 阶段与验收条件 | 规划和验收 | 已定 |
 | [55-testing-and-release](50-engineering/55-testing-and-release.md) | 复测与发布质量门槛 | 测试与发布 | 已定 |
 | [56-bootstrap-guide](50-engineering/56-bootstrap-guide.md) | 起底开发指引：第一步做什么 | 开始写代码前 | 已定 |
+| **60 详细设计** | | | |
+| [61-core-layer](60-design/61-core-layer.md) | core 层详细设计：状态机、检验流水线、策略解析、修订冻结、编排引擎、端口与测试 | 开发或审核 core 层 | 草案 |
 
 ## 任务路由
 
@@ -78,6 +80,7 @@ depends_on: []
 | 任务 | 加载 |
 |---|---|
 | 开始项目起底开发 | 56、53、54、11、51 |
+| 开发 core 层 | 61、21、22、23、53、52 |
 | 开发 Harness 门禁 | 21、22、23、13、11 |
 | 开发执行器 | 21、25、24、26、11 |
 | 开发审核界面与策略配置 | 22、21、38 |

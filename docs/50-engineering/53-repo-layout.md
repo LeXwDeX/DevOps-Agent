@@ -98,6 +98,18 @@ platform/
 - 包内单元测试和 `testdata/` 放在各自包里；`test/` 只放跨二进制的契约测试和语料。
 - 名字说明：`internal/core/` 是代码里的内核层，和"core 容器""核心控制服务"不是一回事。
 
+### 4.3 分层约定
+
+| 约定 | 说明 |
+|---|---|
+| schema 管对外，model 管对内 | schema 的生成类型只用于边界：HTTP/JSON、任务队列、事件、持久化的 JSON 字段、工具与策略定义。进入系统后转换成 model 类型。转换函数放在边界所在的层（provider 或 module），每个转换都有往返测试。 |
+| model 只有数据和自校验 | 结构体、构造函数、`Validate()`、不可变值对象（例如内容摘要、版本号）。不含流程，不调用任何接口。 |
+| core 是纯逻辑加端口 | 状态机、流水线、策略解析、编排都写成可以在内存里跑完的代码。需要外部能力时声明接口，放在 `core/ports`。时间、ID 生成也走端口，便于测试。 |
+| 测试替身随 core 提供 | `core/coretest` 提供每个端口的内存实现（fake），供 core、module 和契约测试使用。provider 的真实实现必须通过同一套端口契约测试。 |
+| 错误码集中 | 错误码在 schema 层集中定义，格式 `<层或模块>.<原因>`，例如 `core.fingerprint_changed`。core 返回带错误码的错误，不返回裸字符串。 |
+| 一个 module 一个目录 | module 之间不互相导入内部包。需要协作时通过 core 的事件或 core 定义的接口。 |
+| cmd 只装配 | 读配置、建 provider、注入 core 和 module、启动服务。不写判断逻辑。 |
+
 ### 4.2 SDK 的分层
 
 `sdk/agent/` 内部按同样的思路理解：公共 API 在模块根目录；协议基础适配器和厂商派生适配器相当于 provider 层；运行循环、上下文和工具管理相当于 core 层。具体目录以 [SDK 概览](../40-sdk/41-sdk-overview.md) 第 13 节为准。
