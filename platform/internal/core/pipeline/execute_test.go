@@ -392,3 +392,100 @@ func TestExecuteTerminalSaveConflictSurfaces(t *testing.T) {
 		t.Errorf("stored = %s", got.State)
 	}
 }
+
+// 检验时指纹不可用 → 转人工；人工 ▶ 之后可以执行，不做指纹比对，事件和审计记"指纹不可用，人工已确认"。
+func TestUnavailableFingerprintApprovedByHumanExecutes(t *testing.T) {
+	for _, viaPre := range []bool{true, false} {
+		name := "Execute"
+		if viaPre {
+			name = "PreExecute"
+		}
+		t.Run(name, func(t *testing.T) {
+			f := newFixture(t)
+			f.env.Fingerprint.PushUnavailable()
+			r := f.inspect(input())
+			wantState(t, r, consts.RequestAwaitingReview)
+			if r.Fingerprint == nil || r.Fingerprint.Status != consts.FingerprintUnavailable {
+				t.Fatalf("fingerprint = %+v", r.Fingerprint)
+			}
+			frozen, err := f.svc.Review(bg, r.CallID, reviewOf(r, consts.ActionExecute))
+			if err != nil {
+				t.Fatal(err)
+			}
+			wantState(t, frozen, consts.RequestFrozen)
+			calls := f.env.Fingerprint.Calls()
+			if viaPre {
+				if err := f.svc.PreExecute(bg, r.CallID); err != nil {
+					t.Fatal(err)
+				}
+				wantState(t, f.get(r.CallID), consts.RequestFrozen)
+				return
+			}
+			out, err := f.svc.Execute(bg, r.CallID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			wantState(t, out, consts.RequestSucceeded)
+			if f.env.Fingerprint.Calls() != calls {
+				t.Error("fingerprint compared although it was unavailable at inspection")
+			}
+			if f.env.Executor.Calls() != 1 {
+				t.Errorf("executor calls = %d", f.env.Executor.Calls())
+			}
+			started, ok := hasType(f.env.Requests.Events(), events.ExecutionStarted)
+			if !ok || started.Data["fingerprint_unavailable_human_confirmed"] != true || started.Data["note"] != "指纹不可用，人工已确认" {
+				t.Errorf("started event = %+v", started)
+			}
+			var started2 *ports.AuditRecord
+			for _, rec := range f.env.Audit.Records() {
+				if rec.Action == "execution.started" {
+					rec := rec
+					started2 = &rec
+				}
+			}
+			if started2 == nil || started2.Detail["fingerprint_unavailable_human_confirmed"] != true || started2.Detail["note"] != "指纹不可用，人工已确认" {
+				t.Errorf("audit = %+v", f.env.Audit.Records())
+			}
+		})
+	}
+}
+
+// 检验时采集到了指纹、人工也批准了，执行前指纹变了仍然是 target_changed，事件不带"人工已确认"标记。
+func TestCapturedFingerprintChangedAfterHumanApprovalIsTargetChanged(t *testing.T) {
+	f := newFixture(t)
+	f.setPolicy(consts.PolicyManual)
+	r := f.inspect(input())
+	wantState(t, r, consts.RequestAwaitingReview)
+	if _, err := f.svc.Review(bg, r.CallID, reviewOf(r, consts.ActionExecute)); err != nil {
+		t.Fatal(err)
+	}
+	f.env.Fingerprint.PushValue("fp-other")
+	out, err := f.svc.Execute(bg, r.CallID)
+	wantCode(t, err, errcode.FingerprintChanged)
+	wantState(t, out, consts.RequestTargetChanged)
+	if f.env.Executor.Calls() != 0 {
+		t.Error("executor called")
+	}
+}
+
+// 指纹不可用且没有人工批准就冻结（不会由正常流程产生）：仍然是 target_changed，不执行。
+func TestUnavailableFingerprintWithoutApprovalIsTargetChanged(t *testing.T) {
+	f := newFixture(t)
+	r := f.inspect(input())
+	wantState(t, r, consts.RequestFrozen)
+	stored := f.get(r.CallID)
+	stored.Fingerprint = &request.Fingerprint{Status: consts.FingerprintUnavailable}
+	// 冻结摘要包含指纹，重算后保存，模拟"没有人工批准的不可用指纹冻结"。
+	fd, err := stored.FreezeDigest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stored.Frozen.Digest = fd
+	f.env.Requests.Seed(stored)
+	out, err := f.svc.Execute(bg, r.CallID)
+	wantCode(t, err, errcode.FingerprintChanged)
+	wantState(t, out, consts.RequestTargetChanged)
+	if f.env.Executor.Calls() != 0 {
+		t.Error("executor called")
+	}
+}

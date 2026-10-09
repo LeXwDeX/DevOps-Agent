@@ -118,7 +118,7 @@ func newHarness(t *testing.T) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	eng, err := orchestrator.New(orchestrator.Deps{Tasks: env.Tasks, Requests: h.store, Registry: env.Registry, Clock: env.Clock, IDGen: env.IDs})
+	eng, err := orchestrator.New(orchestrator.Deps{Tasks: env.Tasks, Requests: h.store, Registry: env.Registry, Secrets: env.Secrets, Clock: env.Clock, IDGen: env.IDs})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -3,12 +3,15 @@ package ids
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding"
 	"encoding/hex"
 	"encoding/json"
 	"io"
 	"math/big"
+	"reflect"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/LeXwDeX/DevOps-Agent/platform/internal/schema/errcode"
 )
@@ -22,12 +25,17 @@ import (
 //     -0 记为 0。有效数字为 d.ddd，指数 x 满足 -6 <= x < 21 时写成普通小数，
 //     否则写成 d.ddde+X / d.ddde-X。所以 1、1.0、1e0 都得到 1。
 //   - NaN、Inf 和无法序列化的类型返回 core.canonical_unsupported。
+//   - 任何字符串（含对象键）不是合法 UTF-8，返回 core.canonical_unsupported。
+//     encoding/json 会把非法字节悄悄换成 U+FFFD，不同的非法字节会得到同一个摘要，所以必须拒绝（K-13、K-15）。
 
 // Canonicalize 返回 v 的规范化 JSON。
 func Canonicalize(v any) ([]byte, error) {
 	raw, err := json.Marshal(v)
 	if err != nil {
 		return nil, errcode.Wrap(errcode.CanonicalUnsupported, "marshal", err)
+	}
+	if err := checkUTF8(v, raw); err != nil {
+		return nil, err
 	}
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.UseNumber()
@@ -43,6 +51,70 @@ func Canonicalize(v any) ([]byte, error) {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+// checkUTF8 检查 v 里所有会被写进 JSON 的字符串（含对象键）都是合法 UTF-8。
+// encoding/json 会把非法字节悄悄换成 U+FFFD，输出里分不出来，所以要在序列化之前沿着值本身检查。
+// raw 是 json.Marshal 的输出：自定义 MarshalJSON 原样透传的字节在这里再查一遍。
+func checkUTF8(v any, raw []byte) error {
+	if !utf8.Valid(raw) || !validStrings(reflect.ValueOf(v)) {
+		return errcode.New(errcode.CanonicalUnsupported, "string is not valid UTF-8")
+	}
+	return nil
+}
+
+var (
+	jsonMarshalerType = reflect.TypeFor[json.Marshaler]()
+	textMarshalerType = reflect.TypeFor[encoding.TextMarshaler]()
+)
+
+// validStrings 沿着 reflect 值走一遍，所有字符串和字符串键都必须是合法 UTF-8。
+// 实现了 json.Marshaler 的值由 Marshal 输出的 UTF-8 检查覆盖；实现了 TextMarshaler 的值检查它的文本。
+func validStrings(v reflect.Value) bool {
+	if !v.IsValid() {
+		return true
+	}
+	t := v.Type()
+	if t.Implements(jsonMarshalerType) {
+		return true
+	}
+	if t.Implements(textMarshalerType) && (v.Kind() != reflect.Pointer || !v.IsNil()) {
+		text, err := v.Interface().(encoding.TextMarshaler).MarshalText()
+		return err != nil || utf8.Valid(text)
+	}
+	switch v.Kind() {
+	case reflect.String:
+		return utf8.ValidString(v.String())
+	case reflect.Pointer, reflect.Interface:
+		return v.IsNil() || validStrings(v.Elem())
+	case reflect.Slice, reflect.Array:
+		if v.Kind() == reflect.Slice && v.Type().Elem().Kind() == reflect.Uint8 {
+			return true // []byte 编码为 base64
+		}
+		for i := 0; i < v.Len(); i++ {
+			if !validStrings(v.Index(i)) {
+				return false
+			}
+		}
+	case reflect.Map:
+		iter := v.MapRange()
+		for iter.Next() {
+			if !validStrings(iter.Key()) || !validStrings(iter.Value()) {
+				return false
+			}
+		}
+	case reflect.Struct:
+		for i := 0; i < t.NumField(); i++ {
+			f := t.Field(i)
+			if !f.IsExported() || f.Tag.Get("json") == "-" {
+				continue
+			}
+			if !validStrings(v.Field(i)) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // DigestOf 返回 v 规范化 JSON 的 SHA-256。

@@ -29,6 +29,10 @@ func TestTaskStoreContract(t *testing.T) {
 	TaskStoreContract(t, func() ports.TaskStore { return NewMemTaskStore() })
 }
 
+func TestSecretKeysContract(t *testing.T) {
+	SecretKeysContract(t, func() ports.SecretKeys { return NewFakeSecretKeys() })
+}
+
 func TestEventSinkContract(t *testing.T) {
 	EventSinkContract(t, func() ports.EventSink { return NewMemEventSink() })
 }
@@ -356,5 +360,22 @@ func TestConcurrentUse(t *testing.T) {
 	wg.Wait()
 	if env.Executor.Calls() != 160 {
 		t.Fatalf("calls = %d", env.Executor.Calls())
+	}
+}
+
+func TestFakeSecretKeysRemoveAndFaults(t *testing.T) {
+	s := NewFakeSecretKeys()
+	s.AddKeys("p", "prod", "A", "B")
+	s.RemoveKeys("p", "prod", "B")
+	got, err := s.Missing(bg, "p", "prod", []string{"A", "B"})
+	if err != nil || !reflect.DeepEqual(got, []string{"B"}) {
+		t.Fatalf("got %v, %v", got, err)
+	}
+	s.FailNext("Missing", 1, ErrInjected)
+	if _, err := s.Missing(bg, "p", "prod", []string{"A"}); !errors.Is(err, ErrInjected) {
+		t.Fatalf("err = %v", err)
+	}
+	if s.Calls() != 2 {
+		t.Fatalf("calls = %d", s.Calls())
 	}
 }

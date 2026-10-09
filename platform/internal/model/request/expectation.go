@@ -83,6 +83,11 @@ func (e Expectation) Validate(scope Scope) error {
 	if len(e.Targets) == 0 {
 		add("targets is required")
 	}
+	for i, t := range e.Targets {
+		if strings.TrimSpace(t) == "" {
+			add("target #%d is empty", i)
+		}
+	}
 	switch {
 	case e.Category == "":
 		add("category is required")

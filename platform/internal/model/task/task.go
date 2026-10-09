@@ -4,6 +4,7 @@ package task
 
 import (
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -103,12 +104,21 @@ func (d *Definition) Clone() *Definition {
 	return &c
 }
 
+// identRe 是步骤 ID、字段名、参数名的合法形式。不允许 "."：条件表达式用 "." 逐级取值（步骤 ID.字段名），
+// 名字里带 "." 会让登记时的类型检查和运行时的查找对不上，也会让不同的步骤和字段拼出同一个键。
+var identRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+// ValidIdent 判断名字是否符合 [A-Za-z_][A-Za-z0-9_]*。
+func ValidIdent(name string) bool { return identRe.MatchString(name) }
+
 func checkFields(what string, fields []FieldSpec, add func(string, ...any)) {
 	seen := map[string]bool{}
 	for _, f := range fields {
 		switch {
 		case f.Name == "":
 			add("%s: empty field name", what)
+		case !ValidIdent(f.Name):
+			add("%s: field name %q must match [A-Za-z_][A-Za-z0-9_]*", what, f.Name)
 		case seen[f.Name]:
 			add("%s: duplicate field %q", what, f.Name)
 		}
@@ -119,8 +129,8 @@ func checkFields(what string, fields []FieldSpec, add func(string, ...any)) {
 	}
 }
 
-// Validate 只检查结构：ID 唯一、入口存在、去向存在、Next 与 Branches 不并存、
-// 字段类型合法、无环。表达式的类型检查由 core/orchestrator 完成。
+// Validate 只检查结构：版本号 >= 1、摘要合法、ID 唯一、步骤 ID 和字段名符合 [A-Za-z_][A-Za-z0-9_]*、
+// 入口存在、去向存在、Next 与 Branches 不并存、字段类型合法、无环。表达式的类型检查由 core/orchestrator 完成。
 // 不合格时返回 core.task_invalid，消息列出全部问题。
 func (d *Definition) Validate() error {
 	var problems []string
@@ -128,6 +138,12 @@ func (d *Definition) Validate() error {
 
 	if d.ID == "" {
 		add("task id is required")
+	}
+	if d.Version < 1 {
+		add("version must be >= 1, got %d", d.Version)
+	}
+	if !d.Digest.Valid() {
+		add("digest %q is not a valid digest", d.Digest)
 	}
 	checkFields("params", d.Params, add)
 	seenKey := map[string]bool{}
@@ -145,6 +161,9 @@ func (d *Definition) Validate() error {
 		if s.ID == "" {
 			add("step #%d has empty id", i)
 			continue
+		}
+		if !ValidIdent(s.ID) {
+			add("step id %q must match [A-Za-z_][A-Za-z0-9_]*", s.ID)
 		}
 		if _, dup := index[s.ID]; dup {
 			add("duplicate step id %q", s.ID)
@@ -257,7 +276,8 @@ type Run struct {
 	State         consts.RunState `json:"state"`
 	Current       string          `json:"current,omitempty"` // 当前步骤 ID
 	Steps         []StepRecord    `json:"steps,omitempty"`
-	MissingInputs []string        `json:"missing_inputs,omitempty"` // 缺的必需参数或 K
+	MissingParams []string        `json:"missing_params,omitempty"` // awaiting_input 时缺的必需参数名
+	MissingKeys   []string        `json:"missing_keys,omitempty"`   // awaiting_input 时凭证库里还没有的 K（只有 K 名，没有 V）
 	Stop          *RunStop        `json:"stop,omitempty"`
 	Version       ids.Version     `json:"version"`   // 乐观锁版本号
 	EventSeq      int64           `json:"event_seq"` // RunID 事件流上最后一个事件的序号
@@ -280,7 +300,8 @@ func (r *Run) Clone() *Run {
 			c.Steps[i] = s
 		}
 	}
-	c.MissingInputs = slices.Clone(r.MissingInputs)
+	c.MissingParams = slices.Clone(r.MissingParams)
+	c.MissingKeys = slices.Clone(r.MissingKeys)
 	if r.Stop != nil {
 		s := *r.Stop
 		c.Stop = &s

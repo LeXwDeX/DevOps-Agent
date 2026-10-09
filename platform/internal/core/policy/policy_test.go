@@ -203,18 +203,39 @@ func TestFlagsFrom(t *testing.T) {
 		{"fingerprint unavailable", func(r *request.ExecutionRequest) { r.Fingerprint.Status = consts.FingerprintUnavailable }, Flags{FingerprintUnavailable: true}},
 		{"category unknown", func(r *request.ExecutionRequest) { r.Expectation.Category = consts.CategoryUnknown }, Flags{CategoryUnknown: true}},
 		{"category empty", func(r *request.ExecutionRequest) { r.Expectation.Category = "" }, Flags{CategoryUnknown: true}},
-		{"irreversible no preview", func(r *request.ExecutionRequest) { r.Expectation.Reversible = consts.Irreversible }, Flags{IrreversibleWithoutPreview: true}},
-		{"reversibility unknown no preview", func(r *request.ExecutionRequest) { r.Expectation.Reversible = consts.ReversibilityUnknown }, Flags{IrreversibleWithoutPreview: true}},
-		{"reversibility empty no preview", func(r *request.ExecutionRequest) { r.Expectation.Reversible = "" }, Flags{IrreversibleWithoutPreview: true}},
-		{"irreversible with preview", func(r *request.ExecutionRequest) {
+		{"irreversible, preview none", func(r *request.ExecutionRequest) {
+			r.Expectation.Reversible = consts.Irreversible
+			r.Checks.Preview.Status = consts.PreviewNone
+		}, Flags{IrreversibleWithoutPreview: true}},
+		{"irreversible, preview nil", func(r *request.ExecutionRequest) {
+			r.Expectation.Reversible = consts.Irreversible
+			r.Checks.Preview = nil
+		}, Flags{IrreversibleWithoutPreview: true}},
+		{"irreversible, preview failed", func(r *request.ExecutionRequest) {
+			r.Expectation.Reversible = consts.Irreversible
+			r.Checks.Preview.Status = consts.PreviewFailed
+		}, Flags{IrreversibleWithoutPreview: true, PreviewFailed: true}},
+		{"irreversible, preview status unknown value", func(r *request.ExecutionRequest) {
+			r.Expectation.Reversible = consts.Irreversible
+			r.Checks.Preview.Status = "bogus"
+		}, Flags{IrreversibleWithoutPreview: true}},
+		{"reversibility unknown, no preview result", func(r *request.ExecutionRequest) {
+			r.Expectation.Reversible = consts.ReversibilityUnknown
+			r.Checks.Preview = nil
+		}, Flags{IrreversibleWithoutPreview: true}},
+		{"reversibility empty, no preview result", func(r *request.ExecutionRequest) {
+			r.Expectation.Reversible = ""
+			r.Checks.Preview = nil
+		}, Flags{IrreversibleWithoutPreview: true}},
+		// 单元声明了预演，但预演结果缺失：不能算"有预演"。
+		{"irreversible, preview declared but not run", func(r *request.ExecutionRequest) {
 			r.Expectation.Reversible = consts.Irreversible
 			r.Expectation.HasPreview = true
-		}, Flags{}},
-		{"unknown reversibility with preview", func(r *request.ExecutionRequest) {
-			r.Expectation.Reversible = consts.ReversibilityUnknown
-			r.Expectation.HasPreview = true
-		}, Flags{}},
-		{"reversible no preview ok", func(r *request.ExecutionRequest) { r.Expectation.HasPreview = false }, Flags{}},
+			r.Checks.Preview = nil
+		}, Flags{IrreversibleWithoutPreview: true}},
+		{"irreversible, preview passed", func(r *request.ExecutionRequest) { r.Expectation.Reversible = consts.Irreversible }, Flags{}},
+		{"unknown reversibility, preview passed", func(r *request.ExecutionRequest) { r.Expectation.Reversible = consts.ReversibilityUnknown }, Flags{}},
+		{"reversible, no preview result is fine", func(r *request.ExecutionRequest) { r.Checks.Preview = nil }, Flags{}},
 		{"hook requires manual", func(r *request.ExecutionRequest) { r.Submission.HookRequireManual = true }, Flags{HookRequiresManual: true}},
 		{"analysis failed", func(r *request.ExecutionRequest) { r.Submission.AnalysisFailed = true }, Flags{AnalysisFailed: true}},
 		{"ad hoc", func(r *request.ExecutionRequest) { r.Source = consts.SourceAdHoc }, Flags{AdHocCommand: true}},
@@ -311,22 +332,71 @@ func TestEndToEndRules(t *testing.T) {
 		t.Errorf("ad hoc forbid -> %s", d.Mode)
 	}
 
-	// 不可逆且无预演：即使策略为 auto 也转人工；有预演则按策略
+	// 不可逆且预演没有通过：即使策略为 auto 也转人工；预演通过则按策略
 	r = cleanRequest()
 	r.Expectation.Reversible = consts.Irreversible
+	r.Checks.Preview = &request.PreviewResult{Status: consts.PreviewNone}
 	if d := decide(autoSet, r, consts.SessionAuto); d.Mode != manual {
 		t.Errorf("irreversible w/o preview -> %s", d.Mode)
 	}
 	r.Expectation.HasPreview = true
+	r.Checks.Preview = nil // 声明了预演但没有结果
+	if d := decide(autoSet, r, consts.SessionAuto); d.Mode != manual {
+		t.Errorf("irreversible, preview declared but no result -> %s", d.Mode)
+	}
+	r.Checks.Preview = &request.PreviewResult{Status: consts.PreviewPassed}
 	if d := decide(autoSet, r, consts.SessionAuto); d.Mode != auto {
-		t.Errorf("irreversible with preview -> %s", d.Mode)
+		t.Errorf("irreversible with passed preview -> %s", d.Mode)
 	}
 	if d := decide(mpol.Set{Rules: []mpol.Rule{global("", mode(manual), nil)}}, r, consts.SessionAuto); d.Mode != manual {
 		t.Errorf("irreversible with preview, manual policy -> %s", d.Mode)
 	}
 	// 未知可逆性按不可逆处理
-	r.Expectation.Reversible, r.Expectation.HasPreview = consts.ReversibilityUnknown, false
+	r.Expectation.Reversible, r.Checks.Preview = consts.ReversibilityUnknown, nil
 	if d := decide(autoSet, r, consts.SessionAuto); d.Mode != manual {
 		t.Errorf("unknown reversibility w/o preview -> %s", d.Mode)
+	}
+}
+
+// 规则里的 Mode 不合法：按 manual 处理，不会落到放行，也不会被当成 forbid。
+func TestResolveInvalidModeIsManual(t *testing.T) {
+	for _, bad := range []consts.PolicyMode{"", "bogus", "AUTO"} {
+		m := bad
+		d := Resolve(mpol.Set{Version: "v", Rules: []mpol.Rule{global("", &m, nil)}}, query())
+		if d.Mode != consts.PolicyManual || d.Layer != consts.LayerGlobal {
+			t.Errorf("mode %q -> %s at %s", bad, d.Mode, d.Layer)
+		}
+	}
+	// 细层的不合法模式也挡住更粗层的 auto。
+	bad := consts.PolicyMode("bogus")
+	d := Resolve(mpol.Set{Rules: []mpol.Rule{action("", &bad, nil), global("", mode(consts.PolicyAuto), nil)}}, query())
+	if d.Mode != consts.PolicyManual || d.Layer != consts.LayerAction {
+		t.Errorf("fine layer invalid mode -> %s at %s", d.Mode, d.Layer)
+	}
+}
+
+// ResolveValidated：策略集合法时等同 Resolve；不合法时丢掉坏规则、不允许自动，合法的 forbid 仍然有效。
+func TestResolveValidated(t *testing.T) {
+	good := mpol.Set{Version: "v", Rules: []mpol.Rule{global("", mode(consts.PolicyAuto), nil)}}
+	if got, want := ResolveValidated(good, query()), Resolve(good, query()); !reflect.DeepEqual(got, want) {
+		t.Errorf("valid set: %+v != %+v", got, want)
+	}
+
+	broken := mpol.Rule{Layer: consts.LayerZone, Subject: "ssh", Mode: mode(consts.PolicyAuto)} // 缺 zone
+	badMode := consts.PolicyMode("bogus")
+	invalidMode := global("", &badMode, nil)
+
+	d := ResolveValidated(mpol.Set{Version: "v", Rules: []mpol.Rule{global("", mode(consts.PolicyAuto), nil), broken}}, query())
+	if d.Mode != consts.PolicyManual || d.Layer != consts.LayerSystem || d.AllowAuto || d.PolicyVersion != "v" ||
+		!strings.Contains(strings.Join(d.Reasons, "|"), "策略集不合法") {
+		t.Errorf("auto + broken rule -> %+v", d)
+	}
+	d = ResolveValidated(mpol.Set{Rules: []mpol.Rule{invalidMode}}, query())
+	if d.Mode != consts.PolicyManual || d.AllowAuto {
+		t.Errorf("invalid mode rule -> %+v", d)
+	}
+	d = ResolveValidated(mpol.Set{Rules: []mpol.Rule{global("", mode(consts.PolicyForbid), nil), broken}}, query())
+	if d.Mode != consts.PolicyForbid || d.Layer != consts.LayerGlobal {
+		t.Errorf("forbid + broken rule -> %+v", d)
 	}
 }

@@ -24,6 +24,7 @@ type Deps struct {
 	Tasks    ports.TaskStore
 	Requests ports.RequestStore
 	Registry ports.Registry
+	Secrets  ports.SecretKeys
 	Clock    ports.Clock
 	IDGen    ports.IDGen
 }
@@ -41,7 +42,7 @@ type Engine struct {
 
 // New 创建引擎。
 func New(d Deps) (*Engine, error) {
-	if d.Tasks == nil || d.Requests == nil || d.Registry == nil || d.Clock == nil || d.IDGen == nil {
+	if d.Tasks == nil || d.Requests == nil || d.Registry == nil || d.Secrets == nil || d.Clock == nil || d.IDGen == nil {
 		return nil, errcode.New(errcode.InvalidArgument, "orchestrator: all deps are required")
 	}
 	return &Engine{d: d, cache: map[string]map[string][]*expr.Program{}}, nil
@@ -49,8 +50,10 @@ func New(d Deps) (*Engine, error) {
 
 // StartInput 是启动一次任务运行的输入。
 type StartInput struct {
-	TaskID    string
-	Version   int64 // 0 = 当前启用版本
+	TaskID string
+	// Version 0 表示当前启用版本，这是正常入口。非零只给受控的重跑入口用（按已登记的指定版本再跑一次）：
+	// 不限于启用版本，调用方负责保证指定版本是被允许的。
+	Version   int64
 	SessionID string
 	Scope     mreq.Scope
 	Params    map[string]any
@@ -97,9 +100,11 @@ func (e *Engine) loadForRun(ctx context.Context, run *task.Run) (*task.Definitio
 func (e *Engine) eventID() string { return e.d.IDGen.NewID("event") }
 
 // Start 启动一次运行并绑定任务版本和摘要，之后不变（61 第 7.3 节）。
-// 参数不全时运行进入 awaiting_input，不建申请、不产生事件，返回的申请为 nil；
+// 必需参数不全，或任务需要的 K 在凭证库里还没有，运行进入 awaiting_input：
+// 缺的参数记在 MissingParams，缺的 K 记在 MissingKeys；不建申请、不产生事件，返回的申请为 nil。
 // 否则创建入口步骤的草稿申请，运行进入 running，产生 devops.task.started 和 devops.call.proposed。
 // 返回的申请由调用方送进流水线。
+// 查询凭证库失败时返回错误，运行不保存（没有 Run 记录，调用方可以原样重试）：不能把"查不到"当成"都有"。
 func (e *Engine) Start(ctx context.Context, in StartInput) (*task.Run, *mreq.ExecutionRequest, error) {
 	if in.TaskID == "" || in.SessionID == "" {
 		return nil, nil, errcode.New(errcode.InvalidArgument, "task id and session id are required")
@@ -132,9 +137,12 @@ func (e *Engine) Start(ctx context.Context, in StartInput) (*task.Run, *mreq.Exe
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
-	if missing := missingParams(def, run.Params); len(missing) > 0 {
+	missing, err := e.findMissing(ctx, def, run)
+	if err != nil {
+		return nil, nil, err
+	}
+	if missing {
 		run.State = consts.RunAwaitingInput
-		run.MissingInputs = missing
 		if err := e.d.Tasks.CreateRun(ctx, run, nil); err != nil {
 			return nil, nil, err
 		}
@@ -143,8 +151,10 @@ func (e *Engine) Start(ctx context.Context, in StartInput) (*task.Run, *mreq.Exe
 	return e.launch(ctx, def, run, 0, now)
 }
 
-// ProvideInput 补参数。只在 awaiting_input 时可用；合并后重新校验。
-// 补齐时创建入口步骤的申请（同 Start）；仍缺时保存合并后的参数和缺项，返回的申请为 nil。
+// ProvideInput 补参数，并重新检查缺的 K（K 是在凭证库里补的，这里只带参数，可以为空）。
+// 只在 awaiting_input 时可用；合并后重新校验。
+// 参数和 K 都补齐时创建入口步骤的申请（同 Start）；仍缺时保存合并后的参数和缺项，返回的申请为 nil。
+// 查询凭证库失败时返回错误，运行保持原样，不保存合并后的参数。
 func (e *Engine) ProvideInput(ctx context.Context, runID string, params map[string]any) (*task.Run, *mreq.ExecutionRequest, error) {
 	run, err := e.d.Tasks.GetRun(ctx, runID)
 	if err != nil {
@@ -168,14 +178,33 @@ func (e *Engine) ProvideInput(ctx context.Context, runID string, params map[stri
 	for k, v := range mreq.CloneMap(params) {
 		run.Params[k] = v
 	}
-	if missing := missingParams(def, run.Params); len(missing) > 0 {
-		run.MissingInputs = missing
+	missing, err := e.findMissing(ctx, def, run)
+	if err != nil {
+		return nil, nil, err
+	}
+	if missing {
 		if err := e.saveRun(ctx, run, expected, now, nil); err != nil {
 			return nil, nil, err
 		}
 		return run, nil, nil
 	}
 	return e.launch(ctx, def, run, expected, now)
+}
+
+// findMissing 检查运行还缺什么，写进 run.MissingParams 和 run.MissingKeys（互相独立，缺项各自列出）。
+// 返回是否有任何缺项。参数在前、K 在后；任务没有声明 K 时不查凭证库。
+// 凭证库查询出错时返回错误，此时 run 里的缺项字段不可信，调用方不得保存。
+func (e *Engine) findMissing(ctx context.Context, def *task.Definition, run *task.Run) (bool, error) {
+	run.MissingParams = missingParams(def, run.Params)
+	run.MissingKeys = nil
+	if len(def.SecretKeys) > 0 {
+		keys, err := e.d.Secrets.Missing(ctx, run.Scope.Project, run.Scope.Environment, def.SecretKeys)
+		if err != nil {
+			return false, err
+		}
+		run.MissingKeys = keys
+	}
+	return len(run.MissingParams) > 0 || len(run.MissingKeys) > 0, nil
 }
 
 // launch 创建入口步骤的申请并让运行进入 running。expected 为 0 表示运行尚未保存（Start）。
@@ -189,7 +218,7 @@ func (e *Engine) launch(ctx context.Context, def *task.Definition, run *task.Run
 		return nil, nil, err
 	}
 	run.State = consts.RunRunning
-	run.MissingInputs = nil
+	run.MissingParams, run.MissingKeys = nil, nil
 	attach(run, entry.ID, req)
 	started := events.ForRun(run, events.TaskStarted, map[string]any{
 		"task_id":      def.ID,

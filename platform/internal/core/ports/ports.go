@@ -92,6 +92,14 @@ type ScopeSource interface {
 	OutsideScope(ctx context.Context, project, env string, targets []string) ([]string, error)
 }
 
+// SecretKeys 查询凭证库里哪些 K 已登记（61 第 7.4 节、第 8.3 节）。
+// 只回答"有没有"。没有读取 V 的方法，core 永远拿不到 V（K-16）。
+type SecretKeys interface {
+	// Missing 返回 keys 中在该项目和环境里还没有登记的 K，保持 keys 的顺序、不含重复；都已登记返回空。
+	// 只返回 K 名，不返回任何 V。查询出错时返回错误，调用方不得把出错当作"都已登记"。
+	Missing(ctx context.Context, project, env string, keys []string) ([]string, error)
+}
+
 // PreviewPort 运行原生预演。
 type PreviewPort interface {
 	Preview(ctx context.Context, r *request.ExecutionRequest) (request.PreviewResult, error)

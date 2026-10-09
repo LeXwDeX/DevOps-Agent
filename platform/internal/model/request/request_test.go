@@ -88,6 +88,17 @@ func TestExpectationValidate(t *testing.T) {
 			t.Errorf("%s: err = %v", name, err)
 		}
 	}
+	// 空串或空白的目标 ID 不合法，即使范围里也有同样的空白目标。
+	for _, blank := range []string{"", "  ", "\t"} {
+		e := r.Expectation.Clone()
+		e.Targets = append(e.Targets, blank)
+		sc := r.Scope.Clone()
+		sc.Targets = append(sc.Targets, blank)
+		err := e.Validate(sc)
+		if code, _ := errcode.CodeOf(err); code != errcode.ExpectationInvalid || !strings.Contains(err.Error(), "target #") {
+			t.Errorf("blank target %q: err = %v", blank, err)
+		}
+	}
 	// 不可逆不需要 rollback；目标顺序和重复不影响一致性
 	if err := mut(func(e *Expectation) { e.Reversible = consts.Irreversible; e.Rollback = "" }); err != nil {
 		t.Errorf("irreversible without rollback: %v", err)
@@ -196,6 +207,10 @@ func TestDigestFieldSensitivity(t *testing.T) {
 		{"fingerprint nil", func(r *ExecutionRequest) { r.Fingerprint = nil }, false, true},
 		{"policy mode", func(r *ExecutionRequest) { r.Checks.Policy.Mode = consts.PolicyAuto }, false, true},
 		{"policy version", func(r *ExecutionRequest) { r.Checks.Policy.PolicyVersion = "v2" }, false, true},
+		{"policy layer", func(r *ExecutionRequest) { r.Checks.Policy.Layer = consts.LayerGlobal }, false, true},
+		{"policy allow_auto", func(r *ExecutionRequest) { r.Checks.Policy.AllowAuto = !r.Checks.Policy.AllowAuto }, false, true},
+		{"policy reasons changed", func(r *ExecutionRequest) { r.Checks.Policy.Reasons[0] = "other" }, false, true},
+		{"policy reasons added", func(r *ExecutionRequest) { r.Checks.Policy.Reasons = append(r.Checks.Policy.Reasons, "more") }, false, true},
 		{"policy nil", func(r *ExecutionRequest) { r.Checks.Policy = nil }, false, true},
 		{"revision", func(r *ExecutionRequest) { r.Revision = 2 }, false, true},
 		// 不在冻结摘要内的字段

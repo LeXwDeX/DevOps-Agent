@@ -470,3 +470,21 @@ func TestConcurrentExecuteRunsOnce(t *testing.T) {
 		}
 	}
 }
+
+// Submit 不接受 Task 字段：只有编排引擎创建的 task_step 申请带任务引用。
+func TestSubmitRejectsTaskReference(t *testing.T) {
+	f := newFixture(t)
+	for _, src := range []consts.RequestSource{consts.SourceRegisteredTool, consts.SourceTaskLaunch, consts.SourceAdHoc} {
+		in := input()
+		in.Source = src
+		if src == consts.SourceAdHoc {
+			in = adHocInput()
+		}
+		in.Task = &request.TaskRef{RunID: "run-1", StepID: "A"}
+		_, err := f.svc.Submit(bg, in)
+		wantCode(t, err, errcode.InvalidArgument)
+	}
+	if len(f.env.Requests.Events()) != 0 {
+		t.Error("rejected submission left events")
+	}
+}

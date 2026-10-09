@@ -187,6 +187,65 @@ func (s *FakeScopeSource) OutsideScope(ctx context.Context, project, env string,
 	return out, nil
 }
 
+// ---- SecretKeys ----
+
+// FakeSecretKeys 是凭证库 K 查询替身，只记 K 名，没有 V。方法名：Missing。
+// 没有登记过的项目和环境组合里，所有 K 都算缺失。
+type FakeSecretKeys struct {
+	Faults
+	mu   sync.Mutex
+	keys map[string]map[string]bool // "项目/环境" -> K 集合
+}
+
+var _ ports.SecretKeys = (*FakeSecretKeys)(nil)
+
+func NewFakeSecretKeys() *FakeSecretKeys {
+	return &FakeSecretKeys{keys: map[string]map[string]bool{}}
+}
+
+// AddKeys 登记属于该项目和环境的 K。
+func (s *FakeSecretKeys) AddKeys(project, env string, keys ...string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	k := project + "/" + env
+	if s.keys[k] == nil {
+		s.keys[k] = map[string]bool{}
+	}
+	for _, key := range keys {
+		s.keys[k][key] = true
+	}
+}
+
+// RemoveKeys 撤销已登记的 K。
+func (s *FakeSecretKeys) RemoveKeys(project, env string, keys ...string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, key := range keys {
+		delete(s.keys[project+"/"+env], key)
+	}
+}
+
+// Calls 返回 Missing 的调用次数。
+func (s *FakeSecretKeys) Calls() int { return s.CallCount("Missing") }
+
+func (s *FakeSecretKeys) Missing(ctx context.Context, project, env string, keys []string) ([]string, error) {
+	if err := s.begin(ctx, "Missing"); err != nil {
+		return nil, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	have := s.keys[project+"/"+env]
+	var out []string
+	seen := map[string]bool{}
+	for _, key := range keys {
+		if !have[key] && !seen[key] {
+			out = append(out, key)
+		}
+		seen[key] = true
+	}
+	return out, nil
+}
+
 // ---- PreviewPort ----
 
 // FakePreview 是原生预演替身，默认返回 passed。方法名：Preview。

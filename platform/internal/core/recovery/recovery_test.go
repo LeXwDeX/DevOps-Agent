@@ -390,3 +390,102 @@ func TestDepsHaveNoExecutor(t *testing.T) {
 		}
 	}
 }
+
+// 列出非终态对象失败：started 之后一定有 completed，Data 带错误文本。
+func TestListFailureStillEmitsCompleted(t *testing.T) {
+	check := func(name string, setup func(env *coretest.Env), wantStoppedRequests int) {
+		t.Run(name, func(t *testing.T) {
+			env := coretest.NewEnv()
+			seedAll(env)
+			setup(env)
+			rep, err := OnStartup(ctx, deps(env))
+			if !errors.Is(err, coretest.ErrInjected) {
+				t.Fatalf("err = %v", err)
+			}
+			sink := env.Sink.Events()
+			if len(sink) != 2 || sink[0].Type != events.RecoveryStarted || sink[1].Type != events.RecoveryCompleted {
+				t.Fatalf("sink events = %+v", sink)
+			}
+			d := sink[1].Data
+			if d["error"] == nil || !strings.Contains(d["error"].(string), coretest.ErrInjected.Error()) ||
+				d["stopped_requests"] != wantStoppedRequests || sink[1].Sequence != 2 || sink[1].Validate() != nil {
+				t.Errorf("completed data = %v", d)
+			}
+			if len(rep.StoppedRequests) != wantStoppedRequests {
+				t.Errorf("report = %+v", rep)
+			}
+		})
+	}
+	check("requests list", func(env *coretest.Env) { env.Requests.FailWith("ListNonTerminal", coretest.ErrInjected) }, 0)
+	check("runs list", func(env *coretest.Env) { env.Tasks.FailWith("ListNonTerminalRuns", coretest.ErrInjected) }, 6)
+
+	// 没有失败时 completed 不带 error 字段。
+	env := coretest.NewEnv()
+	if _, err := OnStartup(ctx, deps(env)); err != nil {
+		t.Fatal(err)
+	}
+	if sink := env.Sink.Events(); len(sink) != 2 || sink[1].Data["error"] != nil {
+		t.Errorf("sink events = %+v", sink)
+	}
+}
+
+// 上次恢复已改了申请、运行保存失败：这次申请已是终态，没有改写结果，
+// 运行里的步骤记录按 CallID 读到的申请状态更新。
+func TestRunStepRecordReadFromRequestWhenNotRewrittenNow(t *testing.T) {
+	for _, st := range []consts.RequestState{consts.RequestUnknown, consts.RequestStopped} {
+		t.Run(string(st), func(t *testing.T) {
+			env := coretest.NewEnv()
+			r := coretest.SampleRequest("call-x")
+			r.State = st
+			if st == consts.RequestStopped {
+				r.Stop = &mreq.Stop{Reason: consts.StopRecoveryInterrupted}
+			}
+			env.Requests.Seed(r)
+			run := coretest.SampleRun("run-x")
+			run.State = consts.RunRunning
+			run.Current = "A"
+			run.Steps = []task.StepRecord{{StepID: "A", CallID: "call-x", State: consts.RequestExecuting}}
+			env.Tasks.SeedRun(run)
+
+			rep, err := OnStartup(ctx, deps(env))
+			if err != nil || len(rep.Errors) != 0 || len(rep.StoppedRuns) != 1 {
+				t.Fatalf("rep %+v err %v", rep, err)
+			}
+			got, _ := env.Tasks.GetRun(ctx, "run-x")
+			if got.State != consts.RunRecoveryInterrupted || got.Steps[0].State != st {
+				t.Errorf("run %s record %s, want %s", got.State, got.Steps[0].State, st)
+			}
+			if after, _ := env.Requests.Get(ctx, "call-x"); after.Version != r.Version {
+				t.Error("terminal request was rewritten")
+			}
+		})
+	}
+}
+
+// 步骤的申请读不到：运行照样停止，读取失败记入 Errors，步骤记录保持原样；申请不存在不算错误。
+func TestRunStepRecordLookupFailureDoesNotBlockRun(t *testing.T) {
+	setup := func() *coretest.Env {
+		env := coretest.NewEnv()
+		run := coretest.SampleRun("run-x")
+		run.State = consts.RunRunning
+		run.Current = "A"
+		run.Steps = []task.StepRecord{{StepID: "A", CallID: "call-x", State: consts.RequestExecuting}}
+		env.Tasks.SeedRun(run)
+		return env
+	}
+
+	env := setup()
+	env.Requests.FailWith("Get", coretest.ErrInjected)
+	rep, err := OnStartup(ctx, deps(env))
+	got, _ := env.Tasks.GetRun(ctx, "run-x")
+	if err != nil || len(rep.Errors) != 1 || got.State != consts.RunRecoveryInterrupted || got.Steps[0].State != consts.RequestExecuting {
+		t.Fatalf("rep %+v err %v run %s record %s", rep, err, got.State, got.Steps[0].State)
+	}
+
+	env = setup() // 申请从未建成
+	rep, err = OnStartup(ctx, deps(env))
+	got, _ = env.Tasks.GetRun(ctx, "run-x")
+	if err != nil || len(rep.Errors) != 0 || got.State != consts.RunRecoveryInterrupted || got.Steps[0].State != consts.RequestExecuting {
+		t.Fatalf("rep %+v err %v run %s record %s", rep, err, got.State, got.Steps[0].State)
+	}
+}

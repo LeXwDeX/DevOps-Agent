@@ -328,14 +328,60 @@ func TestAdHocIsAlwaysManual(t *testing.T) {
 	wantState(t, f.inspect(adHocInput()), consts.RequestRejected)
 }
 
-func TestAdHocUsesAdHocSubjectAndZoneFromCategory(t *testing.T) {
+// 独立命令没有登记单元：Category 一律是 unknown，权限区一律是 write，Reversible 是 unknown，HasPreview 是 false。
+// 提交方填的值被忽略（61 第 3.2 节）。
+func TestAdHocUsesAdHocSubjectAndWriteZone(t *testing.T) {
 	f := newFixture(t)
-	// 只有 read 区的 ad_hoc 规则为 forbid：读类命令被禁止，写类命令不受影响（走系统兜底后转人工）。
+	f.env.Policy.Set(policyZone("ad_hoc", consts.ZoneWrite, consts.PolicyForbid))
+	in := adHocInput()
+	in.Expectation.Category = consts.CategoryReadOnly
+	in.Expectation.Reversible = consts.Reversible
+	in.Expectation.HasPreview = true
+	r := f.inspect(in)
+	wantState(t, r, consts.RequestRejected)
+	e := r.Expectation
+	if e.Category != consts.CategoryUnknown || e.Reversible != consts.ReversibilityUnknown || e.HasPreview {
+		t.Errorf("expectation = %+v", e)
+	}
+	if cd, _ := r.ContentDigest(); cd != r.Digest {
+		t.Error("digest does not match the inspected content")
+	}
+}
+
+// 反例 (a)：谎报 read_only 不能绕过 write 区的 forbid，也不能让只对 read 区生效的规则命中。
+func TestAdHocClaimingReadOnlyCannotBypassZoneForbid(t *testing.T) {
+	for _, claim := range []consts.Category{consts.CategoryReadOnly, consts.CategoryWrite, consts.CategoryDelete} {
+		f := newFixture(t)
+		f.env.Policy.Set(policyZone("ad_hoc", consts.ZoneWrite, consts.PolicyForbid))
+		in := adHocInput()
+		in.Expectation.Category = claim
+		wantState(t, f.inspect(in), consts.RequestRejected)
+	}
+	// 只有 read 区的 ad_hoc 规则为 forbid：谎报 read_only 也不会命中它（区按 unknown → write 计算）。
+	f := newFixture(t)
 	f.env.Policy.Set(policyZone("ad_hoc", consts.ZoneRead, consts.PolicyForbid))
 	in := adHocInput()
 	in.Expectation.Category = consts.CategoryReadOnly
-	wantState(t, f.inspect(in), consts.RequestRejected)
-	wantState(t, f.inspect(adHocInput()), consts.RequestAwaitingReview)
+	r := f.inspect(in)
+	wantState(t, r, consts.RequestAwaitingReview)
+	if !strings.Contains(strings.Join(r.Checks.Escalations, "|"), "读写类别未知") {
+		t.Errorf("escalations = %v", r.Checks.Escalations)
+	}
+}
+
+// 反例 (b)：独立命令谎报 HasPreview 不会调用预演端口，预演结果记为 none。
+func TestAdHocClaimingPreviewDoesNotCallPreviewPort(t *testing.T) {
+	f := newFixture(t)
+	in := adHocInput()
+	in.Expectation.HasPreview = true
+	r := f.inspect(in)
+	wantState(t, r, consts.RequestAwaitingReview)
+	if n := f.env.Preview.Calls(); n != 0 {
+		t.Errorf("preview calls = %d, want 0", n)
+	}
+	if r.Checks.Preview == nil || r.Checks.Preview.Status != consts.PreviewNone {
+		t.Errorf("preview = %+v", r.Checks.Preview)
+	}
 }
 
 func TestRegisteredUnitUsesRegisteredZoneAndAction(t *testing.T) {
@@ -576,4 +622,28 @@ func policyZone(subject string, zone consts.Zone, mode consts.PolicyMode) policy
 
 func policyAction(subject, action string, mode consts.PolicyMode) policySet {
 	return policySet{Version: "pa", Rules: []policyRule{{Layer: consts.LayerAction, Subject: subject, Action: action, Mode: policyModePtr(mode)}}}
+}
+
+// 策略集里有不合法的规则：不能自动执行，申请转人工（不卡在 checking）；合法的 forbid 仍然生效。
+func TestInvalidPolicySetNeverAutoExecutes(t *testing.T) {
+	broken := policyRule{Layer: consts.LayerZone, Subject: "svc", Mode: policyModePtr(consts.PolicyAuto)} // 缺 zone
+	autoRule := policyRule{Layer: consts.LayerGlobal, Subject: "svc", Mode: policyModePtr(consts.PolicyAuto)}
+	forbidRule := policyRule{Layer: consts.LayerGlobal, Subject: "svc", Mode: policyModePtr(consts.PolicyForbid)}
+	badMode := consts.PolicyMode("bogus")
+
+	f := newFixture(t)
+	f.env.Policy.Set(policySet{Version: "pv", Rules: []policyRule{autoRule, broken}})
+	r := f.inspect(input())
+	wantState(t, r, consts.RequestAwaitingReview)
+	if r.Checks.Policy == nil || r.Checks.Policy.AllowAuto || !strings.Contains(strings.Join(r.Checks.Policy.Reasons, "|"), "策略集不合法") {
+		t.Errorf("policy = %+v", r.Checks.Policy)
+	}
+
+	f = newFixture(t)
+	f.env.Policy.Set(policySet{Version: "pv", Rules: []policyRule{{Layer: consts.LayerGlobal, Subject: "svc", Mode: &badMode}}})
+	wantState(t, f.inspect(input()), consts.RequestAwaitingReview)
+
+	f = newFixture(t)
+	f.env.Policy.Set(policySet{Version: "pv", Rules: []policyRule{forbidRule, broken}})
+	wantState(t, f.inspect(input()), consts.RequestRejected)
 }

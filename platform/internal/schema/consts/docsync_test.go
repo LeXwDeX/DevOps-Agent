@@ -48,7 +48,8 @@ func sorted(set map[string]bool) []string {
 func TestMatchesSchemaDoc(t *testing.T) {
 	raw, err := os.ReadFile(schemaDoc)
 	if err != nil {
-		t.Skipf("docs not available: %v", err)
+		// 文档缺失不能让比对静默通过：路径变了就必须修这个测试。
+		t.Fatalf("cannot read %s: %v", schemaDoc, err)
 	}
 	doc := string(raw)
 	for _, c := range []struct {
@@ -63,6 +64,7 @@ func TestMatchesSchemaDoc(t *testing.T) {
 		{"权限区", strs(Zone("").All()), nil},
 		{"会话模式", strs(SessionMode("").All()), nil},
 		{"人工动作", strs(HumanAction("").All()), nil},
+		{"修订来源", strs(RevisionSource("").All()), nil},
 		{"自审结论", strs(SelfReviewVerdict("").All()), nil},
 		{"申请来源", strs(RequestSource("").All()), nil},
 		{"读写类别", strs(Category("").All()), nil},

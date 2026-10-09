@@ -67,6 +67,38 @@ func describe(r policy.Rule) string {
 	return s
 }
 
+// effectiveMode 把规则里的模式变成 Resolve 能用的值：不合法的模式按 manual 处理（52 第 4.2 节：按最保守的值）。
+func effectiveMode(m consts.PolicyMode) consts.PolicyMode {
+	if m.Valid() {
+		return m
+	}
+	return consts.PolicyManual
+}
+
+// ResolveValidated 先校验策略集再解析（61 第 6.2 节）。
+// 策略集合法时等同 Resolve。有不合法的规则时：丢掉不合法的规则，用剩下的规则解析；
+// 结果不是 forbid 的一律改为 manual（层记为 system，AllowAuto 为 false），Reasons 说明原因。
+// 保留合法的 forbid 规则，所以策略集有一条写坏的规则，也不会让别的禁止规则失效。
+func ResolveValidated(set policy.Set, q policy.Query) policy.Decision {
+	err := set.Validate()
+	if err == nil {
+		return Resolve(set, q)
+	}
+	valid := policy.Set{Version: set.Version}
+	for _, r := range set.Rules {
+		if r.Validate() == nil {
+			valid.Rules = append(valid.Rules, r)
+		}
+	}
+	d := Resolve(valid, q)
+	d.Reasons = append(d.Reasons, "策略集不合法，不合法的规则已忽略，不能自动执行："+err.Error())
+	d.AllowAuto = false
+	if d.Mode != consts.PolicyForbid {
+		d.Mode, d.Layer = consts.PolicyManual, consts.LayerSystem
+	}
+	return d
+}
+
 // Resolve 按 61 第 6.2 节解析策略：
 //
 //  1. 从细到粗依次查找（具体功能 → 权限区 → 全局 → 系统兜底），层内先当前环境、后不分环境。
@@ -76,6 +108,8 @@ func describe(r policy.Rule) string {
 //  4. 会话不是自动模式时，auto 改为 manual；来源为 pre_authorized 除外。
 //     会话模式为空或未知值时按手工处理，不落到放行值。
 //  5. 没有任何规则给出 Mode：系统兜底 manual，命中层记为 system。
+//
+// 规则里的 Mode 不合法时按 manual 处理。Resolve 不校验策略集；门禁处用 ResolveValidated。
 //
 // Reasons 是给人看的中文说明。
 func Resolve(set policy.Set, q policy.Query) policy.Decision {
@@ -87,8 +121,12 @@ func Resolve(set policy.Set, q policy.Query) policy.Decision {
 	for i, r := range rules {
 		if r.Mode != nil && !found {
 			found = true
-			d.Mode, d.Layer = *r.Mode, r.Layer
-			d.Reasons = append(d.Reasons, fmt.Sprintf("策略命中 %s：%s", describe(r), *r.Mode))
+			mode := effectiveMode(*r.Mode)
+			d.Mode, d.Layer = mode, r.Layer
+			d.Reasons = append(d.Reasons, fmt.Sprintf("策略命中 %s：%s", describe(r), mode))
+			if mode != *r.Mode {
+				d.Reasons = append(d.Reasons, fmt.Sprintf("规则的模式 %q 不合法，按 manual 处理", *r.Mode))
+			}
 		}
 		if r.Mode != nil && *r.Mode == consts.PolicyForbid && forbid == nil {
 			forbid = &rules[i]

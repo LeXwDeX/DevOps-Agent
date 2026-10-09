@@ -146,6 +146,49 @@ func TestUnsupported(t *testing.T) {
 	}
 }
 
+// 非法 UTF-8 的字符串（值、键、嵌套、结构体字段、字节）一律拒绝，不会和别的字节串得到同一个摘要。
+func TestInvalidUTF8Rejected(t *testing.T) {
+	type rec struct {
+		Rendered string   `json:"rendered"`
+		Keys     []string `json:"keys"`
+	}
+	bad := map[string]any{
+		"string":         "echo \xff",
+		"map key":        map[string]int{"a\xfe": 1},
+		"nested value":   map[string]any{"a": []any{map[string]any{"b": "\xc3\x28"}}},
+		"nested key":     map[string]any{"a": map[string]any{"\xff": 1}},
+		"struct field":   rec{Rendered: "x\xff"},
+		"struct slice":   rec{Rendered: "ok", Keys: []string{"k", "\xfe"}},
+		"truncated rune": "abc\xe2\x82",
+		"raw message":    json.RawMessage("\"a\xff\""),
+	}
+	for name, v := range bad {
+		t.Run(name, func(t *testing.T) {
+			_, err := Canonicalize(v)
+			if code, ok := errcode.CodeOf(err); !ok || code != errcode.CanonicalUnsupported {
+				t.Errorf("Canonicalize err = %v", err)
+			}
+			if _, err := DigestOf(v); err == nil {
+				t.Error("DigestOf accepted invalid UTF-8")
+			}
+		})
+	}
+}
+
+// 合法的 U+FFFD 字符、转义文本和反斜杠不受影响，也不和非法字节混淆。
+func TestValidReplacementCharacterAccepted(t *testing.T) {
+	for _, s := range []string{"\ufffd", "a\ufffdb", `\ufffd`, `\\ufffd`, `"\ufffd"`, "日本語"} {
+		if _, err := Canonicalize(s); err != nil {
+			t.Errorf("Canonicalize(%q): %v", s, err)
+		}
+	}
+	a, _ := DigestOf("x\ufffd")
+	b, _ := DigestOf(`x\ufffd`)
+	if a == b {
+		t.Error("U+FFFD character and its escape text share a digest")
+	}
+}
+
 func TestDigestKnownValue(t *testing.T) {
 	// {"a":1} 的 SHA-256
 	d, _ := DigestOf(map[string]int{"a": 1})

@@ -30,7 +30,9 @@ var stepStopReason = map[consts.RequestState]consts.StopReason{
 //     这两类只在运行状态变化时保存；
 //   - succeeded：记录步骤输出，按无条件 Next 或按顺序求值分支条件选下一步，
 //     没有后续则 completed，否则创建下一步的草稿申请并返回它；
-//   - mismatched / unknown / failed / rejected / stopped：运行 stopped，原因同步骤；
+//   - mismatched / unknown / failed / rejected：运行 stopped，原因同步骤；
+//   - stopped：按申请的停止原因，cancelled_by_human → 运行 cancelled，
+//     recovery_interrupted → 运行 recovery_interrupted，其余 → 运行 stopped，原因都同步骤；
 //   - target_changed：运行 stopped，并把步骤申请也停止（登记过的步骤不由 Agent 修订）。
 //
 // 没有分支匹配，或分支条件求值出错（例如缺字段），运行 stopped，原因 no_branch_matched，
@@ -81,14 +83,15 @@ func (e *Engine) Advance(ctx context.Context, runID string, step *mreq.Execution
 		if step.Stop == nil {
 			return nil, nil, errcode.Newf(errcode.InvalidArgument, "call %s is stopped without a stop reason", step.CallID)
 		}
-		return e.stopRun(ctx, run, idx, step.State, step.Stop.Reason, step.Stop.Detail, expected, now)
+		// 运行的终态跟着步骤的停止原因走：取消和恢复中断不是普通的 stopped（61 第 7.4 节）。
+		return e.stopRun(ctx, run, idx, step.State, runStateForStop(step.Stop.Reason), step.Stop.Reason, step.Stop.Detail, expected, now)
 
 	case consts.RequestTargetChanged:
 		// 先停步骤申请再停运行：运行保存失败时，重试会走 stopped 分支收尾。
 		if err := e.stopTargetChanged(ctx, run, step, now); err != nil {
 			return nil, nil, err
 		}
-		return e.stopRun(ctx, run, idx, step.State, consts.StopTargetChanged,
+		return e.stopRun(ctx, run, idx, step.State, consts.RunStopped, consts.StopTargetChanged,
 			"target changed before execution; registered steps are not revised", expected, now)
 	}
 
@@ -96,7 +99,7 @@ func (e *Engine) Advance(ctx context.Context, runID string, step *mreq.Execution
 	if !ok {
 		return nil, nil, errcode.Newf(errcode.InvalidArgument, "unhandled request state %q", step.State)
 	}
-	return e.stopRun(ctx, run, idx, step.State, reason, stepDetail(step), expected, now)
+	return e.stopRun(ctx, run, idx, step.State, consts.RunStopped, reason, stepDetail(step), expected, now)
 }
 
 // storedStep 按 CallID 重读存储里的申请，并核对调用方的副本与它一致：
@@ -147,10 +150,23 @@ func (e *Engine) followStep(ctx context.Context, run *task.Run, idx int, st cons
 	return run, nil, nil
 }
 
-// stopRun 把运行停在当前步骤并产生 devops.task.stopped。
-func (e *Engine) stopRun(ctx context.Context, run *task.Run, idx int, st consts.RequestState, reason consts.StopReason, detail string, expected ids.Version, now time.Time) (*task.Run, *mreq.ExecutionRequest, error) {
+// runStateForStop 把已停止步骤申请的停止原因映射为运行的终态：
+// cancelled_by_human → cancelled，recovery_interrupted → recovery_interrupted，其余 → stopped。
+// 取消或恢复时申请已保存、运行保存失败，重试 Advance 走这里收尾。
+func runStateForStop(reason consts.StopReason) consts.RunState {
+	switch reason {
+	case consts.StopCancelledByHuman:
+		return consts.RunCancelled
+	case consts.StopRecoveryInterrupted:
+		return consts.RunRecoveryInterrupted
+	}
+	return consts.RunStopped
+}
+
+// stopRun 把运行以 state（终态之一）停在当前步骤并产生 devops.task.stopped。
+func (e *Engine) stopRun(ctx context.Context, run *task.Run, idx int, st consts.RequestState, state consts.RunState, reason consts.StopReason, detail string, expected ids.Version, now time.Time) (*task.Run, *mreq.ExecutionRequest, error) {
 	run.Steps[idx].State = st
-	setStopped(run, consts.RunStopped, reason, run.Current, detail, now)
+	setStopped(run, state, reason, run.Current, detail, now)
 	ev := e.stoppedEvent(run, "", now)
 	if err := e.saveRun(ctx, run, expected, now, []events.Event{ev}); err != nil {
 		return nil, nil, err

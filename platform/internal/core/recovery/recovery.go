@@ -47,7 +47,8 @@ type Report struct {
 //  2. 非终态申请：executing → unknown（devops.execution.unknown），
 //     其余 → stopped，原因 recovery_interrupted（devops.call.stopped）；
 //  3. 非终态运行 → recovery_interrupted（devops.task.stopped）；
-//  4. 发出 devops.recovery.completed，Data 带各项数量。
+//  4. 发出 devops.recovery.completed，Data 带各项数量。列出非终态对象失败时同样发出，
+//     Data 的 error 字段带错误文本（started 之后一定有 completed）。
 //
 // 终态对象不碰（Version 不变）。某一项遇到 CAS 冲突时重读一次，仍是非终态就重试一次；
 // 还不行记入 Errors 并继续处理其余项。事件发送失败同样只记入 Errors：
@@ -64,7 +65,7 @@ func OnStartup(ctx context.Context, d Deps) (Report, error) {
 
 	reqs, err := d.Requests.ListNonTerminal(ctx)
 	if err != nil {
-		return r.finish(), err
+		return r.abort(ctx, err)
 	}
 	sort.Slice(reqs, func(i, j int) bool { return reqs[i].CallID < reqs[j].CallID })
 	for _, req := range reqs {
@@ -73,21 +74,36 @@ func OnStartup(ctx context.Context, d Deps) (Report, error) {
 
 	runs, err := d.Tasks.ListNonTerminalRuns(ctx)
 	if err != nil {
-		return r.finish(), err
+		return r.abort(ctx, err)
 	}
 	sort.Slice(runs, func(i, j int) bool { return runs[i].RunID < runs[j].RunID })
 	for _, run := range runs {
 		r.run(ctx, run)
 	}
 
-	r.emit(ctx, events.RecoveryCompleted, map[string]any{
+	r.emit(ctx, events.RecoveryCompleted, r.completedData(nil))
+	return r.finish(), nil
+}
+
+// completedData 是 devops.recovery.completed 的数据：各项数量；cause 非空时带 error 字段。
+func (r *recoverer) completedData(cause error) map[string]any {
+	data := map[string]any{
 		"recovery_id":      r.rep.RecoveryID,
 		"stopped_requests": len(r.rep.StoppedRequests),
 		"unknown_requests": len(r.rep.UnknownRequests),
 		"stopped_runs":     len(r.rep.StoppedRuns),
 		"errors":           len(r.rep.Errors),
-	})
-	return r.finish(), nil
+	}
+	if cause != nil {
+		data["error"] = cause.Error()
+	}
+	return data
+}
+
+// abort 在列出非终态对象失败、无法继续时收尾：照样发出 completed（带错误文本），返回已有的报告和原错误。
+func (r *recoverer) abort(ctx context.Context, cause error) (Report, error) {
+	r.emit(ctx, events.RecoveryCompleted, r.completedData(cause))
+	return r.finish(), cause
 }
 
 type recoverer struct {
@@ -224,19 +240,42 @@ func (r *recoverer) run(ctx context.Context, run *task.Run) {
 	}
 }
 
+// syncStepRecord 让运行里当前步骤的记录和申请的状态一致。
+// 申请在本次恢复里被改写过，用改写后的状态；没有改写结果（上次恢复已改了申请、运行保存失败，
+// 本次申请已是终态）时，按 CallID 读一次申请的当前状态。申请读不到不阻止运行停止，只记入 Errors，
+// 步骤记录保持原样。
+func (r *recoverer) syncStepRecord(ctx context.Context, w *task.Run) {
+	n := len(w.Steps)
+	if n == 0 || w.Current == "" || w.Steps[n-1].StepID != w.Current {
+		return
+	}
+	rec := &w.Steps[n-1]
+	if st, ok := r.outcome[rec.CallID]; ok {
+		rec.State = st
+		return
+	}
+	req, err := r.d.Requests.Get(ctx, rec.CallID)
+	switch {
+	case err == nil:
+		rec.State = req.State
+	case !isNotFound(err):
+		r.fail("run %s: read step request %s: %v", w.RunID, rec.CallID, err)
+	}
+}
+
+func isNotFound(err error) bool {
+	c, ok := errcode.CodeOf(err)
+	return ok && c == errcode.NotFound
+}
+
 func (r *recoverer) rewriteRun(ctx context.Context, run *task.Run) error {
 	now := r.d.Clock.Now()
 	w := run.Clone()
 	expected := w.Version
 	w.State = consts.RunRecoveryInterrupted
-	w.MissingInputs = nil
+	w.MissingParams, w.MissingKeys = nil, nil
 	w.Stop = &task.RunStop{Reason: consts.StopRecoveryInterrupted, StepID: w.Current, At: now}
-	// 当前步骤的申请在本次恢复里被改写过，运行里的记录跟着更新。
-	if n := len(w.Steps); n > 0 && w.Current != "" && w.Steps[n-1].StepID == w.Current {
-		if st, ok := r.outcome[w.Steps[n-1].CallID]; ok {
-			w.Steps[n-1].State = st
-		}
-	}
+	r.syncStepRecord(ctx, w)
 	w.Version = expected.Next()
 	w.UpdatedAt = now
 	data := map[string]any{"reason": string(consts.StopRecoveryInterrupted)}

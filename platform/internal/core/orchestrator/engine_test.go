@@ -2,12 +2,14 @@ package orchestrator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
 	"sync"
 	"testing"
 
+	"github.com/LeXwDeX/DevOps-Agent/platform/internal/core/coretest"
 	"github.com/LeXwDeX/DevOps-Agent/platform/internal/core/events"
 	mreq "github.com/LeXwDeX/DevOps-Agent/platform/internal/model/request"
 	"github.com/LeXwDeX/DevOps-Agent/platform/internal/model/task"
@@ -304,17 +306,40 @@ func TestStepFailureStopsRun(t *testing.T) {
 	}
 }
 
-func TestStepStoppedStopsRunWithStepReason(t *testing.T) {
-	for _, reason := range []consts.StopReason{consts.StopCancelledByHuman, consts.StopRecoveryInterrupted} {
-		f := newFixture(t)
-		run, req := f.start()
-		r := f.setState(req, consts.RequestStopped, func(r *mreq.ExecutionRequest) {
-			r.Stop = &mreq.Stop{Reason: reason, Detail: "d"}
+// 步骤申请已是 stopped 时，运行的终态按停止原因映射；原因同步骤，事件状态跟着运行状态。
+func TestStepStoppedMapsStopReasonToRunState(t *testing.T) {
+	rows := []struct {
+		reason consts.StopReason
+		want   consts.RunState
+	}{
+		{consts.StopCancelledByHuman, consts.RunCancelled},
+		{consts.StopRecoveryInterrupted, consts.RunRecoveryInterrupted},
+		{consts.StopTargetChanged, consts.RunStopped},
+		{consts.StopFailed, consts.RunStopped},
+	}
+	for _, rw := range rows {
+		t.Run(string(rw.reason), func(t *testing.T) {
+			f := newFixture(t)
+			run, req := f.start()
+			r := f.setState(req, consts.RequestStopped, func(r *mreq.ExecutionRequest) {
+				r.Stop = &mreq.Stop{Reason: rw.reason, Detail: "d"}
+			})
+			run, _, err := f.eng.Advance(ctx, run.RunID, r)
+			if err != nil || run.State != rw.want || run.Stop.Reason != rw.reason || run.Stop.Detail != "d" || run.Stop.StepID != "A" {
+				t.Fatalf("err %v run %+v stop %+v", err, run, run.Stop)
+			}
+			if !reflect.DeepEqual(f.storedRun(run.RunID), run) {
+				t.Fatal("not stored")
+			}
+			evts := f.env.Log.All()
+			last := evts[len(evts)-1]
+			if last.Type != events.TaskStopped || last.Status != string(rw.want) || last.Data["reason"] != string(rw.reason) {
+				t.Errorf("last event = %+v", last)
+			}
+			// 运行已在终态，再推进是错误。
+			_, _, err = f.eng.Advance(ctx, run.RunID, r)
+			mustCode(t, err, errcode.RunInvalidState)
 		})
-		run, _, err := f.eng.Advance(ctx, run.RunID, r)
-		if err != nil || run.State != consts.RunStopped || run.Stop.Reason != reason || run.Stop.Detail != "d" {
-			t.Fatalf("%s: err %v run %+v", reason, err, run.Stop)
-		}
 	}
 	// 没有停止原因的 stopped 申请是脏数据
 	f := newFixture(t)
@@ -418,7 +443,7 @@ func TestAwaitingInputThenProvide(t *testing.T) {
 	if err != nil || req != nil {
 		t.Fatalf("err %v req %v", err, req)
 	}
-	if run.State != consts.RunAwaitingInput || !reflect.DeepEqual(run.MissingInputs, []string{"port"}) || run.Current != "" {
+	if run.State != consts.RunAwaitingInput || !reflect.DeepEqual(run.MissingParams, []string{"port"}) || run.Current != "" {
 		t.Fatalf("run = %+v", run)
 	}
 	if len(f.env.Log.All()) != 0 || f.renderCount() != 0 {
@@ -445,7 +470,7 @@ func TestAwaitingInputThenProvide(t *testing.T) {
 	if err != nil || req == nil {
 		t.Fatalf("err %v req %v", err, req)
 	}
-	if run.State != consts.RunRunning || run.Current != "A" || len(run.MissingInputs) != 0 || run.Params["svc"] != "nginx" || run.Params["port"] != 80 {
+	if run.State != consts.RunRunning || run.Current != "A" || len(run.MissingParams) != 0 || run.Params["svc"] != "nginx" || run.Params["port"] != 80 {
 		t.Fatalf("run = %+v", run)
 	}
 	if run.Version != 2 || !reflect.DeepEqual(f.storedRun(run.RunID), run) {
@@ -467,11 +492,11 @@ func TestProvideInputPartial(t *testing.T) {
 		task.FieldSpec{Name: "zone", Type: str(), Required: true})
 	f := newFixture(t, d)
 	run, _, err := f.eng.Start(ctx, input())
-	if err != nil || !reflect.DeepEqual(run.MissingInputs, []string{"port", "zone"}) {
+	if err != nil || !reflect.DeepEqual(run.MissingParams, []string{"port", "zone"}) {
 		t.Fatalf("run %+v err %v", run, err)
 	}
 	run, req, err := f.eng.ProvideInput(ctx, run.RunID, map[string]any{"port": 1})
-	if err != nil || req != nil || run.State != consts.RunAwaitingInput || !reflect.DeepEqual(run.MissingInputs, []string{"zone"}) {
+	if err != nil || req != nil || run.State != consts.RunAwaitingInput || !reflect.DeepEqual(run.MissingParams, []string{"zone"}) {
 		t.Fatalf("run %+v req %v err %v", run, req, err)
 	}
 	if got := f.storedRun(run.RunID); got.Params["port"] != 1 || got.Version != 2 {
@@ -813,4 +838,172 @@ func TestAdvanceUsesStoredRequestNotCallersCopy(t *testing.T) {
 	if out := got.Steps[0].Output; out["n"] != 7 {
 		t.Fatalf("recorded output %v, want the stored output", out)
 	}
+}
+
+// ---- 缺 K（61 第 7.4 节）----
+
+// keyedDef 是需要 TOKEN 和 DB_PASS 两个 K 的任务。
+func keyedDef() *task.Definition {
+	d := diamondDef(1)
+	d.SecretKeys = []string{"TOKEN", "DB_PASS"}
+	return d
+}
+
+func TestStartMissingKeyAwaitsInput(t *testing.T) {
+	f := newFixture(t, keyedDef())
+	f.env.Secrets.AddKeys("p", "prod", "DB_PASS") // 只有 DB_PASS 已登记
+
+	run, req, err := f.eng.Start(ctx, input())
+	if err != nil || req != nil {
+		t.Fatalf("err %v req %v", err, req)
+	}
+	if run.State != consts.RunAwaitingInput || run.Current != "" ||
+		len(run.MissingParams) != 0 || !reflect.DeepEqual(run.MissingKeys, []string{"TOKEN"}) {
+		t.Fatalf("run = %+v", run)
+	}
+	if len(f.env.Log.All()) != 0 || f.renderCount() != 0 {
+		t.Fatal("awaiting_input run produced events or rendered a step")
+	}
+	if !reflect.DeepEqual(f.storedRun(run.RunID), run) {
+		t.Fatal("not stored")
+	}
+}
+
+// 缺的参数和缺的 K 分开列出，互不影响。
+func TestStartMissingParamsAndKeysListedSeparately(t *testing.T) {
+	d := keyedDef()
+	d.Params = append(d.Params, task.FieldSpec{Name: "port", Type: num(), Required: true})
+	f := newFixture(t, d)
+
+	run, _, err := f.eng.Start(ctx, input()) // 缺 port，两个 K 都没登记
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(run.MissingParams, []string{"port"}) || !reflect.DeepEqual(run.MissingKeys, []string{"TOKEN", "DB_PASS"}) {
+		t.Fatalf("run = %+v", run)
+	}
+
+	// 只补参数：K 仍缺，仍在 awaiting_input，缺项只剩 K。
+	run, req, err := f.eng.ProvideInput(ctx, run.RunID, map[string]any{"port": 80})
+	if err != nil || req != nil || run.State != consts.RunAwaitingInput ||
+		len(run.MissingParams) != 0 || !reflect.DeepEqual(run.MissingKeys, []string{"TOKEN", "DB_PASS"}) {
+		t.Fatalf("run %+v req %v err %v", run, req, err)
+	}
+}
+
+// K 补好之后，ProvideInput（不带参数）让运行回到 running 并创建入口步骤的申请。
+func TestKeyFilledThenProvideInputRuns(t *testing.T) {
+	f := newFixture(t, keyedDef())
+	run, _, err := f.eng.Start(ctx, input())
+	if err != nil || run.State != consts.RunAwaitingInput {
+		t.Fatalf("run %+v err %v", run, err)
+	}
+
+	// K 还没补，ProvideInput 不会放行。
+	run, req, err := f.eng.ProvideInput(ctx, run.RunID, nil)
+	if err != nil || req != nil || run.State != consts.RunAwaitingInput {
+		t.Fatalf("run %+v req %v err %v", run, req, err)
+	}
+
+	f.env.Secrets.AddKeys("p", "prod", "TOKEN", "DB_PASS")
+	run, req, err = f.eng.ProvideInput(ctx, run.RunID, nil)
+	if err != nil || req == nil {
+		t.Fatalf("err %v req %v", err, req)
+	}
+	if run.State != consts.RunRunning || run.Current != "A" || len(run.MissingParams) != 0 || len(run.MissingKeys) != 0 {
+		t.Fatalf("run = %+v", run)
+	}
+	if !reflect.DeepEqual(f.storedRun(run.RunID), run) {
+		t.Fatal("not stored")
+	}
+	log := f.env.Log.All()
+	if len(log) != 2 || log[0].Type != events.TaskStarted || log[1].Type != events.CallProposed {
+		t.Fatalf("events = %+v", log)
+	}
+}
+
+func TestAllKeysRegisteredStartsRunning(t *testing.T) {
+	f := newFixture(t, keyedDef())
+	f.env.Secrets.AddKeys("p", "prod", "TOKEN", "DB_PASS")
+	run, req, err := f.eng.Start(ctx, input())
+	if err != nil || req == nil || run.State != consts.RunRunning {
+		t.Fatalf("run %+v req %v err %v", run, req, err)
+	}
+	if f.env.Secrets.Calls() != 1 {
+		t.Errorf("secret key queries = %d", f.env.Secrets.Calls())
+	}
+}
+
+// K 按运行的项目和环境查：别的环境登记的 K 不算。
+func TestKeysAreCheckedInTheRunsScope(t *testing.T) {
+	f := newFixture(t, keyedDef())
+	f.env.Secrets.AddKeys("p", "dev", "TOKEN", "DB_PASS")
+	run, _, err := f.eng.Start(ctx, input()) // 范围是 p/prod
+	if err != nil || run.State != consts.RunAwaitingInput || len(run.MissingKeys) != 2 {
+		t.Fatalf("run %+v err %v", run, err)
+	}
+}
+
+func TestTaskWithoutKeysDoesNotQueryVault(t *testing.T) {
+	f := newFixture(t)
+	if _, _, err := f.eng.Start(ctx, input()); err != nil {
+		t.Fatal(err)
+	}
+	if f.env.Secrets.Calls() != 0 {
+		t.Errorf("secret key queries = %d", f.env.Secrets.Calls())
+	}
+}
+
+// 凭证库查询失败：Start 返回错误，不保存运行、不产生事件；故障消失后可以原样重试。
+func TestStartSecretQueryErrorDoesNotStartOrSave(t *testing.T) {
+	f := newFixture(t, keyedDef())
+	f.env.Secrets.AddKeys("p", "prod", "TOKEN", "DB_PASS")
+	f.env.Secrets.FailNext("Missing", 1, coretest.ErrInjected)
+
+	run, req, err := f.eng.Start(ctx, input())
+	if !errors.Is(err, coretest.ErrInjected) || run != nil || req != nil {
+		t.Fatalf("run %v req %v err %v", run, req, err)
+	}
+	if runs, _ := f.env.Tasks.ListNonTerminalRuns(ctx); len(runs) != 0 {
+		t.Fatalf("run saved despite the error: %+v", runs)
+	}
+	if len(f.env.Log.All()) != 0 || f.renderCount() != 0 {
+		t.Fatal("events or renders after a failed vault query")
+	}
+	run, req, err = f.eng.Start(ctx, input())
+	if err != nil || req == nil || run.State != consts.RunRunning {
+		t.Fatalf("retry: run %+v req %v err %v", run, req, err)
+	}
+}
+
+// ProvideInput 时凭证库查询失败：返回错误，运行保持原样（参数也不合并），不会被放行。
+func TestProvideInputSecretQueryErrorLeavesRunUntouched(t *testing.T) {
+	d := keyedDef()
+	d.Params = append(d.Params, task.FieldSpec{Name: "port", Type: num(), Required: true})
+	f := newFixture(t, d)
+	run, _, err := f.eng.Start(ctx, input())
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := f.storedRun(run.RunID)
+	f.env.Secrets.AddKeys("p", "prod", "TOKEN", "DB_PASS")
+	f.env.Secrets.FailNext("Missing", 1, coretest.ErrInjected)
+
+	got, req, err := f.eng.ProvideInput(ctx, run.RunID, map[string]any{"port": 80})
+	if !errors.Is(err, coretest.ErrInjected) || got != nil || req != nil {
+		t.Fatalf("run %v req %v err %v", got, req, err)
+	}
+	if !reflect.DeepEqual(f.storedRun(run.RunID), before) {
+		t.Fatal("failed ProvideInput changed the stored run")
+	}
+	run, req, err = f.eng.ProvideInput(ctx, run.RunID, map[string]any{"port": 80})
+	if err != nil || req == nil || run.State != consts.RunRunning {
+		t.Fatalf("retry: run %+v req %v err %v", run, req, err)
+	}
+}
+
+func TestNewRequiresSecretKeysPort(t *testing.T) {
+	f := newFixture(t)
+	_, err := New(Deps{Tasks: f.env.Tasks, Requests: f.env.Requests, Registry: f.env.Registry, Clock: f.env.Clock, IDGen: f.env.IDs})
+	mustCode(t, err, errcode.InvalidArgument)
 }

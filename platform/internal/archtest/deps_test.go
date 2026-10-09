@@ -28,6 +28,20 @@ func isStdlib(path string) bool {
 	return !strings.Contains(first, ".")
 }
 
+// coreForbiddenStdlib 是 core 非测试文件不得导入的标准库包：core 没有外部 I/O，文件、网络、进程、系统调用
+// 都只能经 ports 里的端口（61 第 10 节审核清单第 3 项）。带 "/" 结尾的项匹配整个子树。
+var coreForbiddenStdlib = []string{"os", "os/", "net", "net/", "syscall", "syscall/", "unsafe", "C"}
+
+// forbiddenStdlib 判断标准库导入是否在 core 的黑名单里。
+func forbiddenStdlib(imp string) bool {
+	for _, f := range coreForbiddenStdlib {
+		if imp == f || (strings.HasSuffix(f, "/") && strings.HasPrefix(imp, f)) {
+			return true
+		}
+	}
+	return false
+}
+
 // layerOf 返回内部包导入路径所属的层（internal/ 下第一段）；不是本模块 internal 包返回 ""。
 func layerOf(path string) string {
 	rest, ok := strings.CutPrefix(path, internalPath)
@@ -42,6 +56,10 @@ func layerOf(path string) string {
 // isTest 表示该文件是 _test.go。
 func violation(layer, pkgDir string, isTest bool, imp string) string {
 	if isStdlib(imp) {
+		// 只限制 core 的非测试文件；测试文件可以用 os 等（例如读文件）。
+		if layer == "core" && !isTest && forbiddenStdlib(imp) {
+			return "core must not import " + imp + " (no external I/O; use a port)"
+		}
 		return ""
 	}
 	target := layerOf(imp)
@@ -135,6 +153,29 @@ func TestViolationRules(t *testing.T) {
 		{"core", "core/pipeline", false, modulePath + "/cmd/x", true},
 		{"core", "core/pipeline", false, in("core/coretest"), true},
 		{"core", "core/pipeline", true, in("core/coretest"), false},
+		// core 非测试文件的标准库黑名单：外部 I/O、系统调用、不安全指针。
+		{"core", "core/pipeline", false, "os", true},
+		{"core", "core/pipeline", false, "os/exec", true},
+		{"core", "core/pipeline", false, "os/signal", true},
+		{"core", "core/pipeline", false, "net", true},
+		{"core", "core/pipeline", false, "net/http", true},
+		{"core", "core/pipeline", false, "net/url", true},
+		{"core", "core/pipeline", false, "syscall", true},
+		{"core", "core/pipeline", false, "unsafe", true},
+		{"core", "core/pipeline", false, "C", true},
+		{"core", "core/coretest", false, "os", true},
+		// 测试文件和别的层不受这条限制；名字相近的包不误报。
+		{"core", "core/pipeline", true, "os", false},
+		{"core", "core/pipeline", true, "net/http/httptest", false},
+		{"model", "model/ids", false, "os", false},
+		{"schema", "schema/errcode", false, "net", false},
+		{"core", "core/pipeline", false, "context", false},
+		{"core", "core/pipeline", false, "io", false},
+		{"core", "core/pipeline", false, "io/fs", false},
+		{"core", "core/pipeline", false, "sync/atomic", false},
+		{"core", "core/pipeline", false, "strings", false},
+		{"core", "core/pipeline", false, "reflect", false},
+		{"core", "core/coretest", false, "sync", false},
 		{"core", "core/coretest", false, in("core/ports"), false},
 		{"core", "core/coretest", false, in("core/coretest"), false},
 	}

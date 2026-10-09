@@ -10,6 +10,7 @@ type Env struct {
 	Policy      *FakePolicySource
 	Registry    *FakeRegistry
 	Scope       *FakeScopeSource
+	Secrets     *FakeSecretKeys
 	Preview     *FakePreview
 	Fingerprint *FakeFingerprint
 	DCG         *FakeDCG
@@ -30,6 +31,7 @@ func NewEnv() *Env {
 		Policy:      NewFakePolicySource(policy.Set{}),
 		Registry:    NewFakeRegistry(),
 		Scope:       NewFakeScopeSource(),
+		Secrets:     NewFakeSecretKeys(),
 		Preview:     NewFakePreview(),
 		Fingerprint: NewFakeFingerprint(),
 		DCG:         NewFakeDCG(),

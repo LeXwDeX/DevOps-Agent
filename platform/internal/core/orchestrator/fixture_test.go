@@ -73,7 +73,7 @@ func newFixture(t *testing.T, defs ...*task.Definition) *fixture {
 		f.env.Tasks.SeedDefinition(d, i == 0)
 	}
 	f.env.Registry.RenderFn = f.render
-	eng, err := New(Deps{Tasks: f.env.Tasks, Requests: f.env.Requests, Registry: f.env.Registry, Clock: f.env.Clock, IDGen: f.env.IDs})
+	eng, err := New(Deps{Tasks: f.env.Tasks, Requests: f.env.Requests, Registry: f.env.Registry, Secrets: f.env.Secrets, Clock: f.env.Clock, IDGen: f.env.IDs})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -15,7 +15,7 @@ type NewParams struct {
 	CallID      ids.CallID
 	Source      consts.RequestSource
 	SessionID   string
-	Task        *request.TaskRef // Source 为 task_step 时必填
+	Task        *request.TaskRef // Source 为 task_step 时必填，其余来源必须为 nil
 	Scope       request.Scope
 	Content     request.Content
 	Expectation request.Expectation
@@ -27,6 +27,7 @@ type NewParams struct {
 // Versions.SchemaID 填执行申请 SchemaID。输入会被深拷贝。
 // Version 起始为 1；之后每次保存由调用方设为 expected.Next()。
 // 不校验执行预期：预期不合格是检验结果（awaiting_revision），不是创建失败。
+// 只有来源 task_step 带 Task，其余来源带了返回 core.invalid_argument。
 // 来源 pre_authorized 在这里可创建，流水线暂不接受（core.source_not_supported）。
 func New(p NewParams) (*request.ExecutionRequest, error) {
 	if !p.CallID.Valid() {
@@ -37,6 +38,10 @@ func New(p NewParams) (*request.ExecutionRequest, error) {
 	}
 	if p.Source == consts.SourceTaskStep && (p.Task == nil || p.Task.RunID == "" || p.Task.StepID == "") {
 		return nil, errcode.New(errcode.InvalidArgument, "task_step source requires task run id and step id")
+	}
+	if p.Source != consts.SourceTaskStep && p.Task != nil {
+		// 否则事件和审计会带上一个不属于任何运行的 RunID。
+		return nil, errcode.Newf(errcode.InvalidArgument, "source %s must not carry a task reference", p.Source)
 	}
 	r := &request.ExecutionRequest{
 		CallID:      p.CallID,

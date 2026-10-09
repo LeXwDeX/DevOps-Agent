@@ -169,6 +169,7 @@ func (s *Service) checkScope(ctx context.Context, t *txn) (sc scopeResult, done 
 
 // checkExpectation 是步骤 2：已登记单元的 Category、Reversible、HasPreview 以登记声明为准，
 // 然后校验必填项。登记声明为空按 unknown 处理（fail-safe：转人工），不信任提交方的值。
+// 独立命令没有登记单元：Category、Reversible 置为 unknown，HasPreview 置为 false，忽略提交方的值（61 第 3.2 节）。
 // 覆盖可能改变内容，所以摘要在这里按实际检验的内容重算。
 func (s *Service) checkExpectation(t *txn, unit *ports.UnitInfo) (done bool, err error) {
 	r := t.r
@@ -182,6 +183,10 @@ func (s *Service) checkExpectation(t *txn, unit *ports.UnitInfo) (done bool, err
 			r.Expectation.Reversible = consts.ReversibilityUnknown
 		}
 		r.Expectation.HasPreview = unit.HasPreview
+	} else {
+		r.Expectation.Category = consts.CategoryUnknown
+		r.Expectation.Reversible = consts.ReversibilityUnknown
+		r.Expectation.HasPreview = false
 	}
 	d, err := r.ContentDigest()
 	if err != nil {
@@ -313,7 +318,7 @@ func (s *Service) decide(ctx context.Context, t *txn, sc scopeResult) error {
 	} else {
 		q.Subject, q.Action, q.Zone = "ad_hoc", "", policy.ZoneOf(r.Expectation.Category)
 	}
-	dec := policy.Resolve(set, q)
+	dec := policy.ResolveValidated(set, q)
 	r.Versions.PolicyVersion, r.Versions.PolicyLayer = dec.PolicyVersion, dec.Layer
 
 	flags := policy.FlagsFrom(r)

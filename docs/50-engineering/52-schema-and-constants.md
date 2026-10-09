@@ -76,6 +76,7 @@ Go 代码实现状态转换和业务算法。适合声明的结构用 schema 描
 | 原生预演状态 | [core 层详细设计](../60-design/61-core-layer.md) 第 3.1 节 | `none` 未声明预演、`passed` 成功、`failed` 失败 | 平台 contracts |
 | 指纹状态 | [core 层详细设计](../60-design/61-core-layer.md) 第 3.1 节 | `collected` 已采集、`unavailable` 采集不到 | 平台 contracts |
 | 人工动作 | K-09 | `execute` ▶ 执行、`reject` ✕ 拒绝、`comment` 点评 | 平台 contracts |
+| 修订来源 | K-14 | `self_review` Agent 自审、`human_comment` 人工点评 | 平台 contracts |
 | 会话模式 | [审核与策略](../20-execution/22-review-and-policy.md) 第 3 节 | `manual` 手工、`auto` 自动 | 平台 contracts |
 | 包装形式 | [工具包装](../20-execution/26-tool-wrapping.md) 第 1 节 | `bash`、`python`、`tool_call` | 平台 contracts |
 | 目标类型 | [工具包装](../20-execution/26-tool-wrapping.md) 第 2 节 | `host`、`container`、`database`、`cloud_resource`、`file` | 平台 contracts |

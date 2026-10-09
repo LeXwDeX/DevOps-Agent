@@ -234,8 +234,16 @@ func TestNewValidation(t *testing.T) {
 		p = params()
 		p.Source = src
 		p.Task = &mreq.TaskRef{RunID: "r", StepID: "s"}
-		if _, err := New(p); err != nil {
-			t.Errorf("source %s: %v", src, err)
+		_, err := New(p)
+		if src == consts.SourceTaskStep {
+			if err != nil {
+				t.Errorf("source %s: %v", src, err)
+			}
+			continue
+		}
+		// 只有 task_step 带 Task；其余来源带了会让事件和审计带上假的 RunID。
+		if code, _ := errcode.CodeOf(err); code != errcode.InvalidArgument {
+			t.Errorf("source %s with a task reference: %v", src, err)
 		}
 	}
 }

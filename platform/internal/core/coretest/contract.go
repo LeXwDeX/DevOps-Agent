@@ -704,3 +704,71 @@ func IDGenContract(t *testing.T, newGen func() ports.IDGen) {
 		wg.Wait()
 	})
 }
+
+// SecretKeySeeder 让契约测试能给凭证库登记 K。只登记 K 名，没有 V。
+type SecretKeySeeder interface {
+	AddKeys(project, env string, keys ...string)
+}
+
+// SecretKeysContract 检查 ports.SecretKeys 的行为。
+// 实现了 SecretKeySeeder 才能登记 K；没有实现的实现只检查"没有登记过就全部缺失"。
+func SecretKeysContract(t *testing.T, newPort func() ports.SecretKeys) {
+	t.Run("nothing registered means everything is missing", func(t *testing.T) {
+		got, err := newPort().Missing(bg, "p", "prod", []string{"TOKEN", "DB_PASS"})
+		if err != nil || !reflect.DeepEqual(got, []string{"TOKEN", "DB_PASS"}) {
+			t.Fatalf("got %v, %v", got, err)
+		}
+	})
+
+	t.Run("no keys asked means nothing missing", func(t *testing.T) {
+		got, err := newPort().Missing(bg, "p", "prod", nil)
+		if err != nil || len(got) != 0 {
+			t.Fatalf("got %v, %v", got, err)
+		}
+	})
+
+	t.Run("only missing keys come back, in the asked order, without duplicates", func(t *testing.T) {
+		p := newPort()
+		seeder, ok := p.(SecretKeySeeder)
+		if !ok {
+			t.Skip("port does not implement SecretKeySeeder")
+		}
+		seeder.AddKeys("p", "prod", "TOKEN", "API")
+		asked := []string{"ZED", "TOKEN", "ALPHA", "ZED", "API"}
+		got, err := p.Missing(bg, "p", "prod", asked)
+		if err != nil || !reflect.DeepEqual(got, []string{"ZED", "ALPHA"}) {
+			t.Fatalf("got %v, %v", got, err)
+		}
+		if !reflect.DeepEqual(asked, []string{"ZED", "TOKEN", "ALPHA", "ZED", "API"}) {
+			t.Fatalf("input was modified: %v", asked)
+		}
+		got, err = p.Missing(bg, "p", "prod", []string{"TOKEN", "API"})
+		if err != nil || len(got) != 0 {
+			t.Fatalf("all registered: got %v, %v", got, err)
+		}
+	})
+
+	t.Run("keys are scoped to project and environment", func(t *testing.T) {
+		p := newPort()
+		seeder, ok := p.(SecretKeySeeder)
+		if !ok {
+			t.Skip("port does not implement SecretKeySeeder")
+		}
+		seeder.AddKeys("p", "prod", "TOKEN")
+		for _, scope := range [][2]string{{"p", "dev"}, {"q", "prod"}} {
+			got, err := p.Missing(bg, scope[0], scope[1], []string{"TOKEN"})
+			if err != nil || !reflect.DeepEqual(got, []string{"TOKEN"}) {
+				t.Fatalf("%v: got %v, %v", scope, got, err)
+			}
+		}
+	})
+
+	t.Run("a cancelled context is an error, not an empty answer", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(bg)
+		cancel()
+		got, err := newPort().Missing(ctx, "p", "prod", []string{"TOKEN"})
+		if err == nil && len(got) == 0 {
+			t.Fatal("cancelled context answered \"nothing missing\"")
+		}
+	})
+}

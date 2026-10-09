@@ -13,7 +13,7 @@ type Flags struct {
 	DCGHitOrUnavailable        bool // dcg 命中、不可用或没有结论
 	FingerprintUnavailable     bool // 无法采集指纹
 	CategoryUnknown            bool // Category 为 unknown
-	IrreversibleWithoutPreview bool // 不可逆或未知，且没有原生预演
+	IrreversibleWithoutPreview bool // 不可逆或未知，且原生预演没有通过（没有预演、没跑、失败都算）
 	HookRequiresManual         bool // Before Hook 要求人工
 	AnalysisFailed             bool // 内容无法分析
 	AdHocCommand               bool // 来源是独立命令
@@ -59,7 +59,8 @@ func (f Flags) Reasons() []string {
 //   - dcg：Checks.DCG 缺失，或结果不是 pass，都算命中或不可用。
 //   - 指纹：Fingerprint 缺失，或状态不是 collected。
 //   - Category：unknown 或空值、未知值。
-//   - 可逆性：不是 reversible（含 unknown、空值、未知值）且 Expectation.HasPreview 为 false。
+//   - 可逆性：不是 reversible（含 unknown、空值、未知值），且 Checks.Preview 缺失或结果不是 passed。
+//     看预演的实际结果，不看单元声明有没有预演：声明了但没跑或没通过，同样转人工。
 func FlagsFrom(r *request.ExecutionRequest) Flags {
 	var f Flags
 	switch sr := r.Checks.SelfReview; {
@@ -74,7 +75,8 @@ func FlagsFrom(r *request.ExecutionRequest) Flags {
 	f.DCGHitOrUnavailable = r.Checks.DCG == nil || r.Checks.DCG.Result != consts.DCGPass
 	f.FingerprintUnavailable = r.Fingerprint == nil || r.Fingerprint.Status != consts.FingerprintCollected
 	f.CategoryUnknown = !r.Expectation.Category.Valid() || r.Expectation.Category == consts.CategoryUnknown
-	f.IrreversibleWithoutPreview = r.Expectation.Reversible != consts.Reversible && !r.Expectation.HasPreview
+	f.IrreversibleWithoutPreview = r.Expectation.Reversible != consts.Reversible &&
+		(r.Checks.Preview == nil || r.Checks.Preview.Status != consts.PreviewPassed)
 	f.HookRequiresManual = r.Submission.HookRequireManual
 	f.AnalysisFailed = r.Submission.AnalysisFailed
 	f.AdHocCommand = r.Source == consts.SourceAdHoc

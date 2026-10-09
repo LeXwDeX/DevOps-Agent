@@ -5,6 +5,7 @@ import (
 
 	"github.com/LeXwDeX/DevOps-Agent/platform/internal/core/events"
 	corereq "github.com/LeXwDeX/DevOps-Agent/platform/internal/core/request"
+	"github.com/LeXwDeX/DevOps-Agent/platform/internal/core/review"
 	"github.com/LeXwDeX/DevOps-Agent/platform/internal/model/ids"
 	"github.com/LeXwDeX/DevOps-Agent/platform/internal/model/request"
 	"github.com/LeXwDeX/DevOps-Agent/platform/internal/schema/consts"
@@ -20,46 +21,60 @@ const (
 	reasonAuditDown     = "audit record unavailable, executor not called"
 )
 
+// 指纹不可用、人工已确认时，写进 execution.started 事件和审计的标记。
+const (
+	keyFingerprintConfirmed  = "fingerprint_unavailable_human_confirmed"
+	noteFingerprintConfirmed = "指纹不可用，人工已确认"
+)
+
 // PreExecute 是执行前的最后核验（K-04），由执行器所在进程调用。只读不执行。
 //
 //   - 申请必须在 frozen，否则 core.invalid_transition / core.terminal_state。
 //   - 重算冻结摘要，与 Frozen.Digest 不一致 → core.digest_mismatch，状态不变，不执行。
-//   - 重新采集指纹；采集不到、出错或值与检验时不同 → 申请转 target_changed（保存 devops.call.target_changed），
-//     返回 core.fingerprint_changed，不执行。
+//   - 检验时采集到了指纹：重新采集；采集不到、出错或值与检验时不同 → 申请转 target_changed
+//     （保存 devops.call.target_changed），返回 core.fingerprint_changed，不执行。
+//   - 检验时指纹不可用（申请因此转了人工），且人工已对当前修订和摘要点 ▶ 执行：不做指纹比对，照常执行，
+//     在 devops.execution.started 事件和审计里记"指纹不可用，人工已确认"。
+//     检验时指纹不可用而没有人工批准的，按 target_changed 处理。
 func (s *Service) PreExecute(ctx context.Context, id ids.CallID) error {
 	t, err := s.begin(ctx, id)
 	if err != nil {
 		return err
 	}
-	return s.preExecute(ctx, t)
+	_, err = s.preExecute(ctx, t)
+	return err
 }
 
-func (s *Service) preExecute(ctx context.Context, t *txn) error {
+// preExecute 做执行前核验。confirmed 为真表示检验时指纹不可用、人工已确认，跳过了指纹比对。
+func (s *Service) preExecute(ctx context.Context, t *txn) (confirmed bool, err error) {
 	r := t.r
 	if r.State != consts.RequestFrozen {
-		return stateError(r, "be executed")
+		return false, stateError(r, "be executed")
 	}
 	cur, err := r.FreezeDigest()
 	if err != nil {
-		return err
+		return false, err
 	}
 	if r.Frozen == nil || cur != r.Frozen.Digest {
-		return errcode.Newf(errcode.DigestMismatch, "call %s changed after freezing", r.CallID)
+		return false, errcode.Newf(errcode.DigestMismatch, "call %s changed after freezing", r.CallID)
 	}
 	if r.Fingerprint == nil || r.Fingerprint.Status != consts.FingerprintCollected {
-		// 冻结前的指纹必须已采集；正常流程不会冻结在这种状态。按目标变化处理，不执行。
-		return s.targetChanged(ctx, t, "no collected fingerprint at inspection")
+		if review.ApprovedFor(r) {
+			return true, nil
+		}
+		// 没有人工批准就冻结在这种状态：正常流程不会出现。按目标变化处理，不执行。
+		return false, s.targetChanged(ctx, t, "no collected fingerprint at inspection")
 	}
 	fp, err := s.d.Fingerprint.Collect(ctx, r.Clone())
 	switch {
 	case err != nil:
-		return s.targetChanged(ctx, t, "fingerprint collection failed")
+		return false, s.targetChanged(ctx, t, "fingerprint collection failed")
 	case fp.Status != consts.FingerprintCollected || fp.Value == "":
-		return s.targetChanged(ctx, t, "fingerprint unavailable")
+		return false, s.targetChanged(ctx, t, "fingerprint unavailable")
 	case fp.Value != r.Fingerprint.Value:
-		return s.targetChanged(ctx, t, "fingerprint differs from inspection")
+		return false, s.targetChanged(ctx, t, "fingerprint differs from inspection")
 	}
-	return nil
+	return false, nil
 }
 
 // targetChanged 保存 frozen → target_changed 和事件，返回 core.fingerprint_changed。
@@ -89,7 +104,8 @@ func (s *Service) Execute(ctx context.Context, id ids.CallID) (*request.Executio
 	if err != nil {
 		return nil, err
 	}
-	if err := s.preExecute(ctx, t); err != nil {
+	confirmed, err := s.preExecute(ctx, t)
+	if err != nil {
 		if hasCode(err, errcode.FingerprintChanged) {
 			return t.r, err
 		}
@@ -101,16 +117,24 @@ func (s *Service) Execute(ctx context.Context, id ids.CallID) (*request.Executio
 		return nil, err
 	}
 	r.Execution = &request.Execution{StartedAt: now}
-	t.emit(events.ExecutionStarted, s.frozenData(r))
+	startData := s.frozenData(r)
+	if confirmed {
+		startData[keyFingerprintConfirmed] = true
+		startData["note"] = noteFingerprintConfirmed
+	}
+	t.emit(events.ExecutionStarted, startData)
 	if _, err := t.save(ctx); err != nil {
 		return nil, err
 	}
 	endCtx := context.WithoutCancel(ctx)
 
 	// 开始记录审计失败时不调用执行器：申请直接结束为 failed，不会卡在 executing。
-	startRec := s.audit(r, executorActor, "execution.started", map[string]any{
-		"revision": int(r.Revision), "freeze_digest": string(r.Frozen.Digest),
-	})
+	startDetail := map[string]any{"revision": int(r.Revision), "freeze_digest": string(r.Frozen.Digest)}
+	if confirmed {
+		startDetail[keyFingerprintConfirmed] = true
+		startDetail["note"] = noteFingerprintConfirmed
+	}
+	startRec := s.audit(r, executorActor, "execution.started", startDetail)
 	if err := s.d.Audit.Append(ctx, startRec); err != nil {
 		r.Execution.Detail = reasonAuditDown + ": " + err.Error()
 		out, serr := s.finishExecution(endCtx, t, consts.RequestFailed, reasonAuditDown, nil)
