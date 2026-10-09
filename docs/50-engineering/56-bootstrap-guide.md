@@ -51,8 +51,8 @@ flowchart LR
 | 模块导入路径 | 已定：`github.com/LeXwDeX/DevOps-Agent/sdk/agent` 与 `github.com/LeXwDeX/DevOps-Agent/platform`（[53](53-repo-layout.md) 第 1 节） |
 | schema 格式与生成工具 | 按 [52](52-schema-and-constants.md) 第 6.1 节评估后提给用户确认 |
 | P1 的模型 API key | 已定：P1 只用一个模型 API key（测试环境用 DeepSeek），作为第一个 K 放在 runtime 挂载的 `data/vault/` 下，由模型出口代理读取（[11](../10-architecture/11-components-and-boundaries.md) 第 5.3 节）。凭证库完整设计（Q10）在 P2 接入资产凭证前完成 |
-| Q11 dcg 选型 | 做评估（第五步），结论提给用户 |
-| 底座门禁形态 | 按 [12](../10-architecture/12-deployment-substrate.md) 第 6.1 节的当前默认做，提给用户确认 |
+| Q11 dcg 核实 | 已选定 destructive_command_guard。核实许可证、机器可读调用方式和 SQL 覆盖（第五步），结论提给用户 |
+| 底座门禁形态 | 已定：底座内置最小门禁，首版每步人工确认（[12](../10-architecture/12-deployment-substrate.md) 第 6.1 节） |
 
 **第二步：建目录**
 
@@ -91,7 +91,7 @@ flowchart LR
 | 策略分层解析 | K-07 优先级；`allow_auto: false` 不能自动；无匹配走系统兜底（出厂值人工） |
 | 转人工条件 | [22](../20-execution/22-review-and-policy.md) 第 5 节每一行都有用例 |
 | SQL 分类 PoC | `DROP`、`TRUNCATE`、无 `WHERE` 的 `DELETE` / `UPDATE` 被识别；解析失败转人工 |
-| dcg 候选评估 | 规则样本集的命中结果（Q11） |
+| dcg 核实 | 规则样本集的命中结果、调用方式、许可证结论（Q11） |
 | 依赖方向 | [53](53-repo-layout.md) 第 5 节的规则 |
 | SDK 独立构建 | 无 `go.work`、无 `replace` 可构建 |
 | CGO 双架构 | pg_query_go 在 amd64、arm64 镜像中运行 |

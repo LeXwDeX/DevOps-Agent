@@ -130,7 +130,7 @@ flowchart TB
 
 | 容器内路径 | 宿主路径 | 方式 | 内容 | 备份 |
 |---|---|---|---|---|
-| `/etc/devops-agent` | `config/runtime/` | 只读 | Harness、调度、执行器、模型出口代理的配置：数据库地址与账号名、允许的模型端点、跳板与网络出口、超时与并发 | 随配置版本保存 |
+| `/etc/devops-agent` | `config/runtime/` | 只读 | Harness、调度、执行器、模型出口代理的配置：数据库地址与账号名、允许的模型端点、跳板与网络出口、超时与并发；dcg 配置文件 | 随配置版本保存 |
 | `/run/secrets/devops-agent` | `secrets/runtime/` | 只读，0400 | runtime 各账号的数据库口令、凭证库主密钥（各文件只给对应运行身份） | 离线保存 |
 | `/var/lib/devops-agent/vault` | `data/vault/` | 读写，0700 | 凭证库存储（V，加密保存）。只有执行器和模型出口代理的运行身份能访问 | 是，加密备份 |
 | `/var/lib/devops-agent/artifacts` | `data/artifacts/` | 读写 | 部署制品的版本化暂存（例如从 OSS 下载的制品） | 可选 |
@@ -144,7 +144,7 @@ flowchart TB
 |---|---|---|
 | PostgreSQL | 数据目录放在外部磁盘 `${DATA_ROOT}/${instance_id}/pgdata/`（或托管数据库） | 是，按库定期备份 |
 | 监控旁路 | 自己节点上的外部磁盘（Prometheus 数据、告警记录） | 按旁路设计 |
-| 底座 | 宿主上的配置和本地追加日志（Q23） | 是 |
+| 底座 | 宿主上的配置和底座门禁的本地追加日志（见 [部署底座](12-deployment-substrate.md) 第 6.1 节） | 是 |
 
 规则：
 

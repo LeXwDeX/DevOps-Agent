@@ -21,7 +21,7 @@ depends_on: [KERNEL]
 |---|---|---|---|
 | Q6 | 人类直连终端的形式？ | 逐条提交命令；dcg 命中需二次确认；全量审计；不支持交互式会话（vim、top 等）。 | [运维入口](../30-features/37-ops-entrypoints.md) |
 | Q7 | SQL 方言不支持或解析失败时，转人工还是阻断？ | 转人工。 | [SQL](../20-execution/24-sql.md) |
-| Q11 | dcg 用现成开源实现还是自研？ | 未定。P0 评估现成实现的规则覆盖、可扩展性和 SQL 支持。 | [审核与策略](../20-execution/22-review-and-policy.md) |
+| Q11 | dcg 已选定 [destructive_command_guard](https://github.com/Dicklesworthstone/destructive_command_guard)。剩余核实：许可证（项目页标为 custom）是否允许本项目使用；机器可读的调用方式；SQL 规则覆盖；阿里云、腾讯云没有规则包时的补充规则。 | P0 核实，结论提给用户。 | [审核与策略](../20-execution/22-review-and-policy.md) 第 2.2 节 |
 | Q16 | 不接触目标资产的只读内建工具（知识检索、摘要、列出 K、受限工作区读取），每次调用是否都要模型自审？ | 登记为"非资产只读"的内建工具免自审，自审字段标"不适用"。 | [审核与策略](../20-execution/22-review-and-policy.md)、[SDK 概览](../40-sdk/41-sdk-overview.md)、[SDK 工具目录](../40-sdk/44-tool-catalog.md) |
 | Q19 | 执行输出里返回的新密钥（例如云 API 创建访问密钥返回的 Secret）是否自动存为 K？ | 不自动。适配器在 schema 里标出密钥输出字段，执行器遮盖；这类功能策略设为人工，由用户自己新增 K。 | [云服务商](../30-features/35-cloud-providers.md) 第 3 节、[密钥](../20-execution/25-secrets.md) |
 
@@ -39,8 +39,7 @@ depends_on: [KERNEL]
 | Q9 | 平台管理模块细节：SSO 协议、MFA 方式、角色与多人审批；底座管理入口在核心停机时如何认证。 | 首版单人；结构和接口预留。 | [平台管理](../30-features/38-platform-admin.md) |
 | Q10 | 凭证库：K 命名、存储加密、主密钥、备份、迁移、轮换。 | 待设计，在 P2 接入资产凭证前完成。P1 只用一个模型 API key，放在 runtime 挂载的 `data/vault/` 下。 | [密钥](../20-execution/25-secrets.md) |
 | Q12 | 每个具体工具的能力、输入输出、预演方式和改写边界。 | 逐个做详细需求设计后再定。 | [工具包装](../20-execution/26-tool-wrapping.md) |
-| Q23 | 底座部署、更新、回退平台组件和迁移平台库时，用底座自带门禁还是走 Harness？ | 底座内置最小门禁，复用执行申请 schema 和审核语义，首版一律人工 ▶ / ✕；审计先写底座本地追加日志，审计库可用后同步。 | [部署底座](../10-architecture/12-deployment-substrate.md) 第 6.1 节 |
-| Q24 | 工具沙盒由谁创建（需要宿主权限）？首版启用哪条路径？ | 首版只启用 Docker 只读工作区路径，由独立的沙盒后端创建，执行器不挂 Docker socket；MicroVM 快照路径暂不启用。 | 同上第 10 节 |
+| Q24 | 工具沙盒由谁创建（需要宿主权限）？首版启用哪条路径？ | 首版只启用 Docker 只读工作区路径，由独立的沙盒后端创建，执行器不挂 Docker socket；MicroVM 快照路径暂不启用。 | [部署底座](../10-architecture/12-deployment-substrate.md) 第 10 节 |
 | Q15 | Temporal 是否作为长流程编排器？ | 候选。按组件准入（K-23）、部署成本和恢复要求评估；首版用平台自带的限域状态机。 | [Go 技术选型](../50-engineering/51-go-stack.md) |
 
 ## 功能

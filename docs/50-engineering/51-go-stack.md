@@ -50,7 +50,7 @@ depends_on: [KERNEL, COMPONENTS, SQL, SCHEMA-CONST, REPO-LAYOUT]
 | 日志 | 基线：`log/slog`。 | 结构化字段先 mask，再输出。 |
 | 调用链 | 候选：OpenTelemetry Go，按需采用。 | SDK 注入观测接口，不创建全局 exporter。敏感参数不进入 span 属性。首版不依赖还需另行检验的日志信号管线。 |
 | 监控旁路 | 独立存储、计算和通知（K-25）。 | 采集组件和自研模块见 [监控](../30-features/36-monitoring.md)。第三方监控组件走组件准入。 |
-| 外部命令守卫 | dcg（Q11：现成开源实现还是自研）。 | 不调用模型，规则包固定版本，由管理员登记（K-20）。P0 评估规则覆盖、可扩展性和 SQL 支持。选用现成实现时走组件准入。 |
+| 外部命令守卫 | [destructive_command_guard（dcg）](https://github.com/Dicklesworthstone/destructive_command_guard)，Rust 独立二进制，打进 runtime 镜像。 | 不调用模型。二进制和规则包固定版本，由管理员登记（K-20），走组件准入。用法见 [审核与策略](../20-execution/22-review-and-policy.md) 第 2.2 节。P0 核实许可证、机器可读调用方式和 SQL 覆盖（Q11）。 |
 | Schema 与代码生成 | P0 选定（见 [Schema 与常量](52-schema-and-constants.md) 第 6.1 节）。 | 生成结果必须确定，可在 CI 重新生成并比对。 |
 | 测试与依赖检查 | 基线：race detector、Go fuzzing、`govulncheck`、Testcontainers Go。 | race 只能发现已运行路径上的竞态。fuzz 检验解析和输入边界。真实服务检验 SQL 方言、事务和恢复。测试结果、依赖许可和维护状态写入发布记录。缺少关键测试时，不能宣称该能力可用。见 [测试与发布](55-testing-and-release.md)。 |
 
@@ -89,7 +89,7 @@ depends_on: [KERNEL, COMPONENTS, SQL, SCHEMA-CONST, REPO-LAYOUT]
 | Prometheus、Alertmanager、Grafana | 没有现成指标系统时的监控旁路默认组合 | 按 4.1 准入。见 [监控](../30-features/36-monitoring.md) 第 2 节。 |
 | node_exporter、cAdvisor、blackbox_exporter、数据库 exporter | 监控采集 | 按 4.1 准入；数据库 exporter 另见 [监控](../30-features/36-monitoring.md) 第 3.1 节。 |
 | Temporal | 长流程编排 | 候选（Q15），见第 5 节。 |
-| dcg | 外部命令守卫 | 待选型（Q11）。 |
+| dcg | 外部命令守卫 | 已选定 destructive_command_guard；P0 核实许可证与调用方式（Q11）。 |
 
 ## 5. Temporal 评估要点（Q15）
 
@@ -113,7 +113,7 @@ Temporal 提供持久工作流和独立的 Temporal Worker，适合长期等待�
 |---|---|
 | pg_query_go | 目标 PostgreSQL 主版本的覆盖；CGO 在 amd64/arm64 构建和镜像运行；多语句逐条覆盖。 |
 | TiDB parser | 每个目标产品和版本的覆盖矩阵；SQL mode 差异；不支持时能明确判为"无法确定"。 |
-| dcg 候选（Q11） | 规则覆盖（[审核与策略](../20-execution/22-review-and-policy.md) 第 2.2 节和 [SQL](../20-execution/24-sql.md) 第 5 节列出的类别）；能否追加项目规则；SQL 规则支持；固定版本与摘要；运行性能。 |
+| dcg 核实（Q11） | 规则覆盖（[审核与策略](../20-execution/22-review-and-policy.md) 第 2.2 节和 [SQL](../20-execution/24-sql.md) 第 5 节列出的类别）；能否追加项目规则；SQL 规则支持；固定版本与摘要；运行性能。 |
 | Eino / Google ADK Go | 工具回调、并行调用、子 Agent、流式、取消和恢复路径都能接到统一申请端口；框架执行器无法绕过。 |
 | Moby client | 节点代理的最小原型：按冻结申请创建、启动、停止容器，并采集指纹。 |
 | 云 SDK | 每个首批产品的 DryRun 含义、幂等支持和状态查询方式（P4 只开放一个厂商）。 |
