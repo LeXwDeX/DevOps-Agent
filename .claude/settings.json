@@ -77,14 +77,16 @@
       "mcp__hearthbot",
       "mcp__claude-code-remote"
     ],
-    "ask": [
-      "mcp__github__merge_pull_request"
-    ],
     "deny": [
       "mcp__github__enable_pr_auto_merge",
       "mcp__github__create_or_update_file",
       "mcp__github__push_files",
       "mcp__github__delete_file",
+      "Bash(git push origin +main:*)",
+      "Bash(git push origin HEAD:main:*)",
+      "Bash(git push origin main:*)",
+      "Bash(git push -f:*)",
+      "Bash(git push --force:*)",
       "Read(./**/.env)",
       "Read(./**/.env.local)",
       "Read(./**/.env.*.local)"
