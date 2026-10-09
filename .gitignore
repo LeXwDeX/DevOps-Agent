@@ -12,7 +12,8 @@ go.work.sum
 /dist/
 *.test
 *.out
-coverage.*
+/coverage.out
+/coverage.html
 
 # Claude Code 个人设置
 .claude/settings.local.json

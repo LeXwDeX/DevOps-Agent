@@ -85,7 +85,9 @@ def main():
         return 0
     cwd = data.get("cwd") or None
     try:
-        tokens = shlex.split(cmd, posix=True)
+        lex = shlex.shlex(cmd, posix=True, punctuation_chars=True)
+        lex.whitespace_split = True
+        tokens = list(lex)
     except ValueError:
         if "git" in cmd and "push" in cmd:
             print("无法解析含 git push 的命令，已拒绝。请拆成简单命令。", file=sys.stderr)

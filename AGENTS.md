@@ -99,7 +99,7 @@
 - 云端会话启动时，`.claude/hooks/session-start.sh` 准备 Go 工具链并下载依赖。
 - 云端会话没有 Docker 守护进程。需要 Docker 的测试（例如 Testcontainers）在 CI 或本地运行，测试在没有 Docker 时跳过，并在输出里说明。
 - 权限配置在 `.claude/settings.json`：常用开发命令和合并 PR 免确认；只读类 Docker 命令和 `docker compose -p devops-agent` 免确认，影响整台机器的 Docker 命令被禁止；GitHub 自动合并和绕过 PR 写文件被禁止；Read 工具不读取 `.env` 文件。仓库里不放 `.env`（K-31）。
-- `.claude/hooks/guard-git-push.sh` 在每条 Bash 命令前检查 `git push`：推 `main`、强推、删除远端分支、`--mirror`、`--all` 一律拒绝。
+- `.claude/hooks/guard-git-push.py` 在每条 Bash 命令前检查 `git push`：推 `main`、强推、删除远端分支、`--mirror`、`--all` 一律拒绝。
 - 权限配置和钩子只防误操作，不是安全边界：`go`、`find`、`xargs` 等命令本身能运行任意程序。真正的约束是本文的规则。
 - 新增检查项（例如依赖方向检查、枚举比对）时，加进 `scripts/check.sh`，保持 Agent、开发者和 CI 用同一个入口。
 
