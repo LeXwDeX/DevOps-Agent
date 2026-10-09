@@ -103,11 +103,12 @@ func ParseHumanAction(s string) (HumanAction, error) { return parse("human actio
 type SelfReviewVerdict string
 
 const (
-	VerdictNoRisk SelfReviewVerdict = "no_risk"
-	VerdictRisk   SelfReviewVerdict = "risk"
+	VerdictNoRisk        SelfReviewVerdict = "no_risk"
+	VerdictRisk          SelfReviewVerdict = "risk"
+	VerdictNotApplicable SelfReviewVerdict = "not_applicable" // 只用于既定任务步骤
 )
 
-var selfReviewVerdicts = []SelfReviewVerdict{VerdictNoRisk, VerdictRisk}
+var selfReviewVerdicts = []SelfReviewVerdict{VerdictNoRisk, VerdictRisk, VerdictNotApplicable}
 
 func SelfReviewVerdicts() []SelfReviewVerdict {
 	return append([]SelfReviewVerdict(nil), selfReviewVerdicts...)

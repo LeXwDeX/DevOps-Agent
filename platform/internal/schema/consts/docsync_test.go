@@ -64,6 +64,14 @@ func TestMatchesSchemaDoc(t *testing.T) {
 		{"会话模式", strs(SessionMode("").All()), nil},
 		{"人工动作", strs(HumanAction("").All()), nil},
 		{"自审结论", strs(SelfReviewVerdict("").All()), nil},
+		{"申请来源", strs(RequestSource("").All()), nil},
+		{"读写类别", strs(Category("").All()), nil},
+		{"可逆性", strs(Reversibility("").All()), nil},
+		{"停止原因", strs(StopReason("").All()), nil},
+		{"拒绝来源", strs(RejectionSource("").All()), nil},
+		{"dcg 结果", strs(DCGResult("").All()), nil},
+		{"原生预演状态", strs(PreviewStatus("").All()), nil},
+		{"指纹状态", strs(FingerprintStatus("").All()), nil},
 	} {
 		t.Run(c.label, func(t *testing.T) {
 			got := docValues(t, doc, c.label)

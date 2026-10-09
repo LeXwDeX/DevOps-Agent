@@ -42,6 +42,15 @@ func cases() []enumCase {
 		mk("SessionMode", SessionMode("").All(), ParseSessionMode, SessionMode.Valid),
 		mk("HumanAction", HumanAction("").All(), ParseHumanAction, HumanAction.Valid),
 		mk("SelfReviewVerdict", SelfReviewVerdict("").All(), ParseSelfReviewVerdict, SelfReviewVerdict.Valid),
+		mk("RequestSource", RequestSource("").All(), ParseRequestSource, RequestSource.Valid),
+		mk("Category", Category("").All(), ParseCategory, Category.Valid),
+		mk("Reversibility", Reversibility("").All(), ParseReversibility, Reversibility.Valid),
+		mk("StopReason", StopReason("").All(), ParseStopReason, StopReason.Valid),
+		mk("RejectionSource", RejectionSource("").All(), ParseRejectionSource, RejectionSource.Valid),
+		mk("DCGResult", DCGResult("").All(), ParseDCGResult, DCGResult.Valid),
+		mk("PreviewStatus", PreviewStatus("").All(), ParsePreviewStatus, PreviewStatus.Valid),
+		mk("FingerprintStatus", FingerprintStatus("").All(), ParseFingerprintStatus, FingerprintStatus.Valid),
+		mk("RevisionSource", RevisionSource("").All(), ParseRevisionSource, RevisionSource.Valid),
 	}
 }
 

@@ -28,6 +28,12 @@ const (
 	ExprType             Code = "core.expr_type"
 	ExprMissingField     Code = "core.expr_missing_field"
 	ExprLimit            Code = "core.expr_limit"
+	ExpectationInvalid   Code = "core.expectation_invalid"
+	SourceNotSupported   Code = "core.source_not_supported"
+	AlreadyExists        Code = "core.already_exists"
+	ReviewStale          Code = "core.review_stale"
+	TaskInvalid          Code = "core.task_invalid"
+	RunInvalidState      Code = "core.run_invalid_state"
 )
 
 // Info 描述一个错误码：含义、是否可重试、对应的申请状态（可为空）。
@@ -55,6 +61,12 @@ var catalog = map[Code]Info{
 	ExprType:             {ExprType, "条件表达式类型错误：未知路径、类型不符或结果非布尔", false, ""},
 	ExprMissingField:     {ExprMissingField, "条件表达式运行时缺少所需字段", false, ""},
 	ExprLimit:            {ExprLimit, "条件表达式超出长度、嵌套或列表上限", false, ""},
+	ExpectationInvalid:   {ExpectationInvalid, "执行预期不合格：必填项缺失或与范围不一致", false, "awaiting_revision"},
+	SourceNotSupported:   {SourceNotSupported, "当前版本流水线不接受该申请来源", false, ""},
+	AlreadyExists:        {AlreadyExists, "对象已存在", false, ""},
+	ReviewStale:          {ReviewStale, "人工批准绑定的修订或摘要已不是当前值", false, ""},
+	TaskInvalid:          {TaskInvalid, "任务定义登记校验未通过", false, ""},
+	RunInvalidState:      {RunInvalidState, "任务运行当前状态不允许该操作", false, ""},
 }
 
 // Lookup 查询错误码的登记信息。
