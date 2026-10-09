@@ -38,7 +38,7 @@ Docker 管理权限（本机 socket）只授予节点代理。core 和 runtime �
 | 对象 | 内容 | 重启责任方 | 持久状态 | 底座管理动作 |
 |---|---|---|---|---|
 | core 容器 | 核心控制服务、Agent Worker（两个进程） | Docker Engine | 全部在外部：PostgreSQL 的核心业务库与事实库；`data/core/` | 部署、启停、更新、回退、查看日志与健康 |
-| runtime 容器 | Harness、持久调度服务、执行器、模型出口代理（四个进程） | Docker Engine | 全部在外部：PostgreSQL 的 Harness 库、调度库、审计库；`data/vault/`、`data/artifacts/` | 同上；变更允许的模型端点要发新配置版本 |
+| runtime 容器 | Harness、持久调度服务、执行器、模型出口代理（四个进程） | Docker Engine | 全部在外部：PostgreSQL 的 Harness 库、调度库、审计库；`data/vault/`、`data/artifacts/` | 同上；更换模型端点或 key 要改模型接入变量并重建容器（[11](11-components-and-boundaries.md) 第 5.4 节） |
 | PostgreSQL | 独立容器或托管数据库 | Docker Engine（容器时）/ 托管方 | 外部磁盘 `pgdata/` | 部署、升级、备份、恢复、迁移执行 |
 | 凭证库 | runtime 容器挂载的 `data/vault/`（Q10） | 随 runtime | 外部磁盘 | 部署与加密备份；不读出 V |
 | 审计存储 | PostgreSQL 中独立的库或 schema，追加写 | 随 PostgreSQL | 外部 | 部署与备份；不提供修改和删除 |
@@ -168,7 +168,7 @@ flowchart TB
 | 镜像与配置 | 可信镜像来源、固定 `image_digest`、`config_revision`、启动参数。 |
 | 资源 | 每个组件分别设置 CPU、内存、磁盘配额。Worker 另设队列容量和并发上限，积压不能耗尽核心资源。部署前核验容量和实际空间。 |
 | 网络 | 端口映射、接入网段、允许的出口。见下表。 |
-| 参数与凭证 | 非敏感参数与密钥 K 引用分开。部署凭证和资产凭证都不进入 Agent Worker（K-18）。 |
+| 参数与凭证 | 非敏感参数与密钥 K 引用分开。部署凭证和资产凭证都不进入 Agent Worker（K-18）。环境变量按环境变量表传入（[11](11-components-and-boundaries.md) 第 5.4 节）；部署包只列变量名，不含值。 |
 | 持久化 | 各组件的存储映射、备份和恢复权限。临时文件与持久状态分开。 |
 | 观测与重启 | 每个组件独立探测和重启（第 4 节）。分别显示：平台进程、容器状态、核心健康、Worker 状态、Harness 与执行器健康、模型可用性、VM 可达性、监控旁路状态。 |
 
@@ -180,7 +180,7 @@ flowchart TB
 | Agent Worker | 核心任务队列、Harness 接口、模型出口代理 | 项目目标、模型厂商（直连）、凭证库、Docker socket |
 | Harness / 持久调度服务 | PostgreSQL（自己的库）、审计库、执行器 | 项目目标、凭证库 |
 | 执行器 | 项目目标（按项目网络范围）、凭证库、审计库 | 模型厂商 |
-| 模型出口代理 | 已批准的模型端点、凭证库（只限模型 API key） | 项目目标；模型返回的新 URL |
+| 模型出口代理 | 已批准的模型端点（首版只有 `DEVOPS_LLM_BASE_URL`） | 项目目标；凭证库；模型返回的新 URL |
 | PostgreSQL | 只在平台内部网络 | 公网 |
 
 ## 9. 底座管理入口在核心外

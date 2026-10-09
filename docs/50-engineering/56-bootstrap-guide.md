@@ -50,7 +50,7 @@ flowchart LR
 |---|---|
 | 模块导入路径 | 已定：`github.com/LeXwDeX/DevOps-Agent/sdk/agent` 与 `github.com/LeXwDeX/DevOps-Agent/platform`（[53](53-repo-layout.md) 第 1 节） |
 | schema 层形式 | 已定：直接用 Go 编写常量、配置和契约结构，不依赖代码生成（[52](52-schema-and-constants.md) 第 6.1 节） |
-| P1 的模型 API key | 已定：P1 只用一个模型 API key（测试环境用 DeepSeek），作为第一个 K 放在 runtime 挂载的 `data/vault/` 下，由模型出口代理读取（[11](../10-architecture/11-components-and-boundaries.md) 第 5.3 节）。凭证库完整设计（Q10）在 P2 接入资产凭证前完成 |
+| 模型端点和 API key | 已定：由模型接入变量 `DEVOPS_LLM_BASE_URL` 和 `DEVOPS_LLM_API_KEY` 传给 runtime 容器，只有模型出口代理使用。接口格式为 OpenAI Chat Completions。key 登记为 K `DEVOPS_LLM_API_KEY`，不进凭证库（[11](../10-architecture/11-components-and-boundaries.md) 第 5.4 节）。凭证库完整设计（Q10）在 P2 接入资产凭证前完成 |
 | Q11 dcg 核实 | 已选定 destructive_command_guard。核实许可证、机器可读调用方式和 SQL 覆盖（第五步），结论提给用户 |
 | 底座门禁形态 | 已定：底座内置最小门禁，首版每步人工确认（[12](../10-architecture/12-deployment-substrate.md) 第 6.1 节） |
 
@@ -105,7 +105,7 @@ P0 验收通过后再开始。建议顺序：
 1. 底座最小版：单 VM、supervisord、节点代理、部署包模板，按固定 digest 部署平台组件（[12](../10-architecture/12-deployment-substrate.md)）。
 2. PostgreSQL 和平台库迁移：迁移文件构建期分析，由底座作为受控执行运行。
 3. 审计存储骨架：追加写。
-4. 凭证库最小实现与模型出口代理：模型 API key 以 K 引用。
+4. 凭证库最小实现与模型出口代理：代理从模型接入变量取端点和 key，按 Chat Completions 格式转发；key 以 K 引用（[11](../10-architecture/11-components-and-boundaries.md) 第 5.4 节）。
 5. 核心控制服务骨架：项目、会话、对话、任务状态；平台管理的身份与模型配置最小版。
 6. mask：输入侧 mask 与自动转 K。
 7. 任务队列协议与 Agent Worker。

@@ -37,7 +37,7 @@ depends_on: []
 | [03-kernel-rules](00-overview/03-kernel-rules.md) | 内核规则 K-xx | 必读 | 已定 |
 | [04-open-questions](00-overview/04-open-questions.md) | 待定事项及当前默认 | 遇到 Qn 时 | 持续维护 |
 | **10 架构** | | | |
-| [11-components-and-boundaries](10-architecture/11-components-and-boundaries.md) | 组件、职责、权限边界、通信；core + runtime 容器划分与挂载表 | 开发任何模块前 | 已定 / 部署形态草案 |
+| [11-components-and-boundaries](10-architecture/11-components-and-boundaries.md) | 组件、职责、权限边界、通信；core + runtime 容器划分、挂载表与环境变量表（模型接入变量） | 开发任何模块前 | 已定 / 部署形态草案 |
 | [12-deployment-substrate](10-architecture/12-deployment-substrate.md) | Docker 底座、Supervisor、跨 VM 分发、运行环境模板、工具隔离 | 部署平台自身、容器与沙盒相关开发 | 已定 |
 | [13-state-and-recovery](10-architecture/13-state-and-recovery.md) | 状态位置、恢复即停止、迁移 | 存储、状态机、备份恢复 | 已定 |
 | **20 执行** | | | |
@@ -45,7 +45,7 @@ depends_on: []
 | [22-review-and-policy](20-execution/22-review-and-policy.md) | 自审、dcg、会话模式、策略分层、人工审核、预授权 | 审核界面、策略、门禁 | 已定 |
 | [23-harness-tasks](20-execution/23-harness-tasks.md) | Harness 职责、既定任务、分支、命令模板、规程包 | 编排、规程包、定时任务 | 已定 |
 | [24-sql](20-execution/24-sql.md) | SQL 解析分类、预期、指纹、组件 SQL 边界 | 任何发出 SQL 的功能 | 已定 |
-| [25-secrets](20-execution/25-secrets.md) | 密钥 K→V、注入、mask 规则 | 凭证、执行器、日志、模型输入 | 已定 / 存储待设计 |
+| [25-secrets](20-execution/25-secrets.md) | 密钥 K→V、注入、mask 规则；首版模型 API key 来源 | 凭证、执行器、日志、模型输入 | 已定 / 存储待设计 |
 | [26-tool-wrapping](20-execution/26-tool-wrapping.md) | 工具包装形式、工具 schema、登记、MCP 定位 | 新增或登记工具 | 已定 |
 | **30 功能** | | | |
 | [31-project-workbench](30-features/31-project-workbench.md) | 项目、用户流程、项目 Agent 生成 | 工作台与项目功能 | 已定 |
@@ -96,6 +96,7 @@ depends_on: []
 | 新增模型厂商适配器 | 42、41、55 |
 | 开发 Hook 或事件 | 45、43、41 |
 | 部署平台自身 | 12、11、13 |
+| 开发模型出口代理或模型接入 | 11、25、42、41 |
 | 开发平台管理模块 | 38、22、25 |
 | 定义 schema、类型或常量 | 52、53 |
 

@@ -2,7 +2,7 @@
 id: SECRETS
 title: 密钥 K→V 与 mask 规则
 status: 已定（存储与生命周期细节待设计，见 Q10）
-summary: 模型只能传 K，执行器以环境变量注入 V；没有读取 V 的接口；内置与人工 mask 规则；输入侧自动转 K。
+summary: 模型只能传 K，执行器以环境变量注入 V；没有读取 V 的接口；内置与人工 mask 规则；输入侧自动转 K；首版模型 API key 来自环境变量。
 load_when: 开发凭证库、执行器、工具注入、mask、模型输入过滤、日志或审计时
 depends_on: [KERNEL, GLOSSARY]
 ---
@@ -49,7 +49,7 @@ Agent 不能增、删、改 K，只能在执行申请里引用已存在的 K，�
 |---|---|
 | 内置规则 | 常见形态，例如 `api-key = sk-...`、`password=...`、`Authorization: Bearer ...`、云厂商 AccessKey、私钥块 `-----BEGIN ... PRIVATE KEY-----`。 |
 | 人工规则 | 用户在平台管理模块中配置的正则或关键字规则。 |
-| 已知值 | 凭证库中所有 V 的精确匹配。 |
+| 已知值 | 凭证库中所有 V 的精确匹配。模型 API key 不在凭证库里，由模型出口代理按它的精确值遮盖自己的输出（第 7 节）。 |
 
 mask 作用于：
 
@@ -74,6 +74,17 @@ mask 作用于：
 ## 7. 模型 API key
 
 模型 API key 也是 K。ModelProfile 只引用 K，由模型出口代理注入请求头（它实现 SDK 的鉴权传输端口）。SDK 和 Worker 看不到 V（见 [SDK 概览](../40-sdk/41-sdk-overview.md)）。
+
+首版的模型 API key 来自环境变量，不进凭证库：
+
+| 项 | 内容 |
+|---|---|
+| 来源 | runtime 容器的环境变量 `DEVOPS_LLM_API_KEY`，只交给模型出口代理（[组件与边界](../10-architecture/11-components-and-boundaries.md) 第 5.4 节） |
+| K | 名称为 `DEVOPS_LLM_API_KEY`，来源"环境变量"。状态为可用、缺失或无效 |
+| V 存放 | 只在模型出口代理的内存里。不写进凭证库、数据库、日志、事件或错误信息 |
+| 增、删、改 | 不在平台里操作。管理员修改部署环境里的变量，再重建 runtime 容器 |
+| 列出 | 和其他 K 一样，只返回 K、备注和状态 |
+| mask | 模型出口代理按 V 的精确值遮盖自己的所有输出；其他组件按内置规则遮盖（第 4 节） |
 
 ## 8. 待设计（Q10）
 
