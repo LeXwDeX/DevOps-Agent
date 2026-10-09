@@ -198,7 +198,7 @@ sdk/agent/
 | 基础适配器保持标准 | `ChatAdapterBase` 只处理标准字段。回复里的未知字段不丢弃，原样放进 `Response.Sidecar`（只读的原始 JSON），不获得执行含义（42 第 5 节） |
 | 派生适配器强制嵌入 | `DeepSeekAdapter` 嵌入 `ChatAdapterBase`，只重写"读取回复"（`NormalizeResponse`、`DecodeEvent`）和"回传历史"（`EncodePayload`）。基础流程通过构造时传入的扩展接口调用这些方法，保证从最外层派生对象分派（42 第 3.2 节） |
 | 读取回复 | `reasoning_content` 变成 `thinking` 内容块，放在文本块之前。流式时 `delta.reasoning_content` 变成 thinking 增量 |
-| 回传历史 | 带工具调用的 assistant 消息，把它的 thinking 块原样写回 `reasoning_content` 字段，供工具循环续接。不带工具调用的 assistant 消息不回传 thinking |
+| 回传历史 | 按 DeepSeek 官方 [思考模式文档](https://api-docs.deepseek.com/zh-cn/guides/thinking_mode/)（[英文版](https://api-docs.deepseek.com/guides/thinking_mode/)）：请求带 `tools` 时，历史里每条带 thinking 块的 assistant 消息都把 thinking 原样写回 `reasoning_content`，否则接口返回 400；请求不带 `tools` 时，不回传（接口会忽略）。其他厂商的回传规则以各自官方文档为准，写在各自的派生适配器里 |
 | 不按模型名猜 | 用哪个适配器由 ModelProfile 指定，代码不根据模型名切换 |
 | 输出被截断 | 框架固定校验：`finish_reason` 为 `length`，且没有文本和工具调用时，返回 `goagent.model.output_truncated`，不当作空回答 |
 | 默认 `max_tokens` | 请求没写时用 4096，避免推理占满额度后正文为空 |
