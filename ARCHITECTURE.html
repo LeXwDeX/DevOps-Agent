@@ -20,7 +20,7 @@
     a { color: var(--link); text-underline-offset: 4px; }
     a:focus-visible, summary:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
     .layout { display: grid; grid-template-columns: 204px minmax(0, 1fr); gap: 48px; max-width: 1576px; margin: 0 auto; padding: 44px 40px 64px; }
-    aside { align-self: start; position: sticky; top: 32px; }
+    aside { align-self: start; position: sticky; top: 32px; max-height: calc(100vh - 64px); overflow-y: auto; }
     .brand { font: 600 16px var(--sans); letter-spacing: -.02em; margin-bottom: 10px; }
     .nav-caption { font-size: 12px; color: var(--soft); margin: 0 0 24px; }
     nav a { display: block; padding: 8px 0; color: var(--muted); text-decoration: none; border-bottom: 1px solid var(--rule); }
@@ -86,7 +86,7 @@
     .diagram-container a:focus-visible rect { stroke: var(--accent); stroke-width: 2; }
     @media (max-width: 1000px) {
       .layout { display: block; padding: 24px; }
-      aside { position: static; margin-bottom: 32px; }
+      aside { position: static; margin-bottom: 32px; max-height: none; overflow: visible; }
       nav { display: flex; flex-wrap: wrap; gap: 8px 20px; }
       nav a { padding: 3px 0; }
       .nav-caption { margin-bottom: 12px; }
@@ -129,14 +129,19 @@
         <a href="#deployment">部署底座</a>
         <a href="#runtime">运行环境</a>
         <a href="#execution">受控执行</a>
+        <a href="#audit-model-roles">功能模型与交叉审核</a>
         <a href="#secret-transfer">密钥剪贴板</a>
         <a href="#map">运维事实地图</a>
+        <a href="#ops-ledgers">网页运维表格</a>
+        <a href="#background-maintenance">自然日后台维护</a>
         <a href="#providers">云服务商 API 层</a>
         <a href="#state">状态与恢复</a>
         <a href="#monitoring">监控旁路与模块</a>
         <a href="#operations">运维入口</a>
         <a href="#go-development">Go 内核与生态</a>
+        <a href="#schema-governance">Schema 与集中常量</a>
         <a href="#agent-sdk">GoAgent SDK</a>
+        <a href="#context-patch-api">上下文改写 API</a>
         <a href="#goagent-events">公开事件与 HOOKS</a>
         <a href="#go-stages">开发与复测</a>
       </nav>
@@ -159,7 +164,7 @@
           <strong>先检验，再执行。</strong>
           <p>设计哲学作为架构内核，定义所有功能与流程必须遵守的共同约束。统一顺序是<strong>检验阶段 → 执行阶段</strong>。检验包括需求沟通、事实与权限核验、Bash DRY-RUN、SQL 语法分析、独立子 Agent 审核和适用人审。只有本次操作所需检验全部通过，执行面才可执行。</p>
         </div>
-        <p>安全性与可靠性进入功能准入条件。设计项目对话、项目 Agent 生成、部署、脚本、SQL、云 API、Docker 底座、监控模块、定时任务、自动重启和密钥传递时，均须明确下列约束。Harness、固定规则与各执行器共同落实约束；派生适配器和 PATCH 只能扩展声明的业务接口。</p>
+        <p>安全性与可靠性进入功能准入条件。设计项目对话、项目 Agent 生成、部署、脚本、SQL、云 API、Docker 底座、监控模块、运维表格、定时任务、自动重启和密钥传递时，均须明确下列约束。Harness、固定规则与各执行器共同落实约束；派生适配器和 PATCH 只能扩展声明的业务接口。</p>
         <div class="table-wrap">
           <table id="kernel-contract">
             <thead><tr><th>共同约束</th><th>功能与流程必须说明的内容</th></tr></thead>
@@ -172,13 +177,13 @@
             </tbody>
           </table>
         </div>
-        <p>新功能、规程、适配器和派生处理器在审核准入前须给出上述内容，未满足时保持不可用。已审核方法每次调用仍检验当前条件。监控旁路的固定采集与通知由独立服务执行配置、身份、输入和输出校验，不增加对在线 Agent 或模型的依赖；其中 Bash 和 SQL 继续满足各自强制门禁。</p>
+        <p>新功能、规程、适配器和派生处理器在审核准入前须给出上述内容，未满足时保持不可用。工具调用统一遵守<a href="#command-inspection">默认检验、独立审计与同一次调用内受控改写</a>。当前记录设计哲学；具体工具先详细设计要求，再确定能力、输入输出、预检方式和改写边界。已审核方法每次调用仍检验当前条件。监控旁路的固定采集与通知由独立服务执行配置、身份、输入和输出校验，不增加对在线 Agent 或模型的依赖；其中 Bash 和 SQL 继续满足各自强制门禁。</p>
         <div class="table-wrap">
           <table>
             <thead><tr><th>路径</th><th>检验阶段</th><th>执行阶段</th></tr></thead>
             <tbody>
               <tr id="interaction-phases"><td>人类与 Agent</td><td>通过长沟通和必要提问，确认本次需求、项目事实、目标、权限、计划、输入和验收标准。保存确认记录、来源与待确认项。</td><td>Agent 按已确认的计划和允许参数推进工作流。实际操作仍由执行面按对应申请检验后执行。</td></tr>
-              <tr id="command-phases"><td>Agent 与 Bash / SQL 执行框架</td><td>固定完整展开的命令或 SQL、参数、目标和影响范围。Bash 完成有效 DRY-RUN；SQL 按目标类型和版本完成完整语法分析。取得有效 JEV 裁决和所需人工授权。</td><td>执行面最后核验本次申请与检验产物一致，仅执行相同内容、参数和目标。保存脱敏输出，检验实际结果并记录审计。</td></tr>
+              <tr id="command-phases"><td>Agent 与 Bash / SQL 执行框架</td><td>同一次工具调用默认先检验。Bash 做有效 DRY-RUN；SQL 按目标类型和版本完整分析。审计可通过、受控改写或驳回。改写保留调用编号，重新检验最终内容；通过有效 JEV 与适用人审后冻结。</td><td>执行面最后核验本次申请与检验产物一致，仅执行相同内容、参数和目标。保存脱敏输出，检验实际结果并记录审计。</td></tr>
             </tbody>
           </table>
         </div>
@@ -295,6 +300,7 @@
             <tbody>
               <tr><td>项目内问答</td><td>用户在项目工作台中提问。Agent 查询项目资料和已核验的环境事实。回答显示来源与核验时间；模型推测保留为建议，不能写成已核验事实。</td></tr>
               <tr><td>一键部署应用</td><td>每次项目部署先进入<a href="#deployment-phases">检验阶段</a>，确定本次规程版本、输入、目标、事实和授权。检验通过后，执行面按固定申请部署，最后核验健康并记录结果。首次形成规程时通过多轮沟通和受控试部署确定方法；每次试部署也先检验。新脚本由管理员审核并固定版本后才可执行。一键简化操作，不跳过门禁。Agent 不得自动注册工具或 skill。</td></tr>
+              <tr><td>运维表格与日维护</td><td>用户用对话说明记录对象、字段、来源和统计需求。先检验并审核维护脚本，再创建表格。Harness 接管字段和写入口；自然日更新由执行器运行固定脚本。主/后台 Agent 只读分析并提申请。见<a href="#ops-ledgers">网页运维表格</a>。</td></tr>
               <tr><td>CRONTAB 监控</td><td>用户指定时间表达式、时区和已审核的检查任务。调度器只触发统一受控执行。系统保存检查结果、缺测和失败状态，并按规则通知。检查失败不能自动扩大为危险修复；修复仍走既有授权和人工审批。</td></tr>
               <tr><td>测试库操作</td><td>按具体需求操作已登记并核验的项目测试环境，支持查询、插入、更新、删除数据，以及建表、改表和删表。申请明确数据库、对象、操作条件、SQL 或脚本及影响范围。执行仍经过既有门禁；危险操作按规则由人审批，数据库凭证只在执行面使用。</td></tr>
             </tbody>
@@ -311,7 +317,7 @@
               <tr><td>目标</td><td>明确需求和计划，检验方法、条件、权限、预期效果及失败处理。</td><td>按检验通过的固定内容完成本次部署。</td></tr>
               <tr><td>对话方式</td><td>首次按步骤多轮询问，保存已答问题与待确认项。复用规程时重点确认本次参数和变化，必需信息缺失时补问。</td><td>展示步骤状态和结果。需要人工密钥或新输入时暂停。密钥由人工直接填写到受控入口，Agent 只收到引用及可用状态；取得输入后重新检验受影响的步骤。</td></tr>
               <tr><td>输入与事实</td><td>按参数 schema 检验项目、环境、目标身份、制品、配置、密钥引用及当前事实，形成固定的执行清单。</td><td>仅使用与本次检验产物匹配的输入。改变目录、内容、参数、配置或目标时停止相关执行并重新检验。</td></tr>
-              <tr><td>执行方式</td><td>管理员审核脚本及适配器版本。JEV 初审后，受控接口完成 DRY-RUN 和所需 SQL 分析，随后 JEV 复核产物并取得适用人审。</td><td>执行面最后核验全部条件，按已检验内容操作。试部署、试启动、权限设置及服务注册均属于执行。</td></tr>
+              <tr><td>执行方式</td><td>管理员审核脚本及适配器版本。每次调用默认完成受控 DRY-RUN 和所需 SQL 分析，再独立审计；允许的改写在同一次调用内完成并重检。最终内容通过后取得适用人审。</td><td>执行面最后核验全部条件，按已检验内容操作。试部署、试启动、权限设置及服务注册均属于执行。</td></tr>
               <tr><td>主要产物</td><td>需求确认、事实证据、固定申请、预检结果、JEV 裁决及适用审批。规程包审核和登记记录独立保存。</td><td>本次部署的步骤状态、脱敏输出、实际健康结果、事实和审计记录。</td></tr>
               <tr><td>差异与失败</td><td>未通过时补充证据或修订申请，再检验；当前申请不可执行。</td><td>失败后核验目标现状，按批准的恢复步骤先检验再执行。新增或超出范围的方法建立新版本重新检验。</td></tr>
             </tbody>
@@ -344,7 +350,7 @@
               <defs><marker id="workflow-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0 0 L7 3.5 L0 7 Z" fill="var(--ink)" /></marker></defs>
               <rect x="0" y="0" width="1280" height="800" fill="var(--paper)" />
               <text x="48" y="38" class="diagram-heading">固定版本 → 候选部署 → 实际验收 → 服务化</text>
-              <a href="#execution" aria-label="查看每个执行步骤的 Harness 门禁"><text x="48" y="77" class="diagram-caption">每个执行步骤：JEV 初审 → DRY-RUN / SQL 分析 → JEV 复审与所需人审 → 执行前核验</text></a>
+              <a href="#execution" aria-label="查看每个执行步骤的 Harness 门禁"><text x="48" y="77" class="diagram-caption">每次工具调用：默认预检 → 审计通过/受控改写 → 改写后重检 → 运行或驳回</text></a>
               <path d="M368 164 H480" class="diagram-edge" marker-end="url(#workflow-arrow)" />
               <path d="M800 164 H912" class="diagram-edge" marker-end="url(#workflow-arrow)" />
               <path d="M1072 216 V312" class="diagram-edge" marker-end="url(#workflow-arrow)" />
@@ -472,7 +478,7 @@
 
       <section id="architecture">
         <h2><span class="section-no">02</span>总体架构</h2>
-        <p class="intro">核心容器承载按模块组织的 Go 业务服务，包括项目、任务、审批和事实地图。业务模块共享一个控制服务进程，通过明确接口协作。Agent Worker 采用 Go 开发，使用独立容器，嵌入独立 GoAgent SDK，并通过本项目定义的版本化队列协议与核心交互。资产访问和宿主 Docker 控制通过受控接口完成。执行面在核心容器外核验授权，不能仅相信容器内提交的“已通过”标记。</p>
+        <p class="intro">核心容器承载按模块组织的 Go 业务服务，包括项目、任务、审批和事实地图。运维表格的展示、查询和维护申请同属平台业务模块。权威字段定义、脚本登记与写入口归核心容器外的 Harness 权限域，自然日由独立调度器提交固定脚本申请。业务模块共享一个控制服务进程，通过明确接口协作。Agent Worker 采用 Go 开发，使用独立容器，嵌入独立 GoAgent SDK，并通过本项目定义的版本化队列协议与核心交互。资产访问和宿主 Docker 控制通过受控接口完成。执行面在核心容器外核验授权，不能仅相信容器内提交的“已通过”标记。</p>
         <p>核心接口不等待模型调用完成。模型请求使用超时、有限重试和熔断。Worker 故障只使相关任务失败或等待恢复，核心面板、任务记录和配置查询仍可使用。Worker 独立设置资源限额和重启策略，不能因积压耗尽核心资源。</p>
         <p class="note">点击图中组件可查看其职责。宽图可横向滚动，勾选“放大图形”可查看细节。</p>
         <figure>
@@ -543,9 +549,9 @@
               </a>
               <a href="#map" aria-label="查看运维事实地图设计">
                 <rect x="304" y="584" width="224" height="92" rx="8" class="diagram-node" />
-                <text x="324" y="612" class="node-label">运维事实地图与查询</text>
-                <text x="324" y="636" class="diagram-caption">稳定 ID / 版本 / 证据 / 时效</text>
-                <text x="324" y="657" class="node-sub">query API / external fact store</text>
+                <text x="324" y="612" class="node-label">事实地图 / 表格查询</text>
+                <text x="324" y="636" class="diagram-caption">稳定 ID / 证据 / 版本 / 只读</text>
+                <text x="324" y="657" class="node-sub">read API / external records</text>
               </a>
               <a href="#review-detail" aria-label="查看独立审核子 Agent 的职责">
                 <rect x="656" y="84" width="272" height="92" rx="8" class="diagram-node" />
@@ -563,7 +569,7 @@
                 <text x="676" y="324" class="node-label">Harness 门禁与执行器</text>
                 <text x="676" y="350" class="diagram-caption">白名单 / DCG / DRY-RUN / SQL</text>
                 <text x="676" y="374" class="diagram-caption">有效审核 / 审批 / 执行前复核</text>
-                <text x="676" y="398" class="diagram-caption">跳板 / SQL 执行 / 云产品适配</text>
+                <text x="676" y="398" class="diagram-caption">固定脚本 / SQL / 云产品适配</text>
                 <text x="676" y="438" class="node-sub">enforced gates / controlled executors</text>
               </a>
               <a href="#audit-detail" aria-label="查看外部审计服务职责">
@@ -586,13 +592,13 @@
               <text x="48" y="793" class="diagram-technical">ARCHITECTURE / PROJECT CONTEXT / ENFORCED HARNESS / PRIVILEGE BOUNDARIES</text>
             </svg>
           </div>
-          <figcaption>Agent Worker 和核心分别使用独立容器，通过异步任务交互。实线表示受控请求和审核交互，虚线表示证据或审计数据。Harness 与审核子 Agent 交换固定申请、预检产物和审核结论。事实节点表示查询服务，底层事实库位于核心容器外。密钥剪贴板的核心能力与权限边界见<a href="#secret-transfer">密钥剪贴板</a>。监控旁路见<a href="#monitoring">监控旁路与模块</a>。</figcaption>
+          <figcaption>Agent Worker 和核心分别使用独立容器，通过异步任务交互。实线表示受控请求和审核交互，虚线表示证据或审计数据。Harness 与审核子 Agent 交换固定申请、预检产物和审核结论。事实与表格节点表示只读查询服务。权威存储位于核心容器外，表格写入由 Harness 控制的固定脚本完成。密钥剪贴板的核心能力与权限边界见<a href="#secret-transfer">密钥剪贴板</a>。监控旁路见<a href="#monitoring">监控旁路与模块</a>。</figcaption>
         </figure>
         <div class="table-wrap">
           <table>
             <thead><tr><th>组件</th><th>职责</th><th>权限边界</th></tr></thead>
             <tbody>
-              <tr><td>接入与业务面板</td><td>项目对话、部署、测试库操作、CRONTAB、IM、告警回调、审批和事实地图查询。</td><td>身份、项目和环境授权先于业务请求。告警入口须鉴权、去重并映射到受控任务。</td></tr>
+              <tr><td>接入与业务面板</td><td>项目对话、部署、测试库操作、CRONTAB、IM、告警回调、审批、运维表格和事实地图查询。</td><td>身份、项目和环境授权先于业务请求。告警入口须鉴权、去重并映射到受控任务。</td></tr>
               <tr id="control-detail"><td>控制面</td><td>项目与会话绑定、白名单、任务状态、目标核验、人工审批与执行申请分发。</td><td>运行配置只能由管理员审核变更。拒绝结果与理由写入外部审计。</td></tr>
               <tr id="decision-detail"><td>Agent Worker</td><td>独立容器处理模型任务，提出计划、诊断解释及执行申请。任务绑定核心实例、项目和环境。</td><td>使用有界队列、超时和独立资源限额。不能读取任何密钥明文，不持有 Docker socket 或宿主 shell。使用密钥引用发起工具请求，工具调用统一提交控制面。</td></tr>
               <tr id="review-detail"><td>审核子 Agent · JEV</td><td>独立复核申请、目标、影响范围及预检产物。输出结构化裁决、理由和需补充的证据。</td><td>不能审核自己提出的操作，不能执行资产操作或自行修改规则。审核裁决须绑定具体申请和产物。密钥只呈现引用、版本、用途与校验结果，审核模型也不能读取明文。</td></tr>
@@ -753,8 +759,33 @@
         <p>JEV 是独立审核子 Agent，使用与主对话 Agent 分开的审计模型配置。所有 Agent 的执行申请都必须由审核子 Agent 复核，包括子 Agent 继续提出的操作。单纯对计划进行审核不产生执行申请；审核子 Agent 要调用工具时，仍须提交受控申请，由另一审核实例复核。</p>
 
 
-        <h3 id="command-inspection">Bash 与 SQL：检验 → 执行</h3>
-        <p>每次命令或 SQL 都先形成固定执行规格，再完成所需检验。已有模板和适配器用于生成与检验本次内容；方法登记状态不能代替本次检验。框架分别保存本次检验结论，以及等待审批、执行中、成功或失败等任务状态。</p>
+        <h3 id="audit-model-roles">功能模型配置与交叉审核</h3>
+        <p>模型按<strong>职责角色</strong>配置，而不是所有任务共用一个隐含模型。可信管理员登记 ModelProfile：厂商、端点、模型、基础协议与 PATCH 版本、能力、数据范围、预算、超时、受控凭证编号和版本。角色绑定引用 Profile；审核策略引用角色与执行申请，明确哪些裁决必须通过。</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>ModelRole</th><th>用途</th><th>权限与独立性</th></tr></thead>
+            <tbody>
+              <tr><td>MainAgent</td><td>用户对话、需求整理、计划与工具候选。</td><td>不批准自己或受其控制的执行申请。</td></tr>
+              <tr><td>BashAudit</td><td>审查展开命令、参数、路径、目标、影响及 DRY-RUN 产物。</td><td>作为独立 JEV 专项角色。模型意见不能替代实际预演或覆盖确定性阻断。</td></tr>
+              <tr><td>SQLAudit</td><td>审查目标方言、对象、参数、权限、数据/结构影响及分析产物。</td><td>SQL 解析仍由固定分析器完成。Bash 调用 SQL 时，两类专项检验均适用。</td></tr>
+              <tr><td>WorkflowAudit</td><td>审查关键流程的步骤、先后条件、人工输入、范围、补偿和恢复。</td><td>核对计划与实际步骤状态，不把流程批准当作每一步执行授权。</td></tr>
+              <tr><td>CriticalAudit</td><td>对高风险或关键操作进行独立终审，核对专项与流程审查证据。</td><td>与提案和被审核实例分离；适用人审继续保留。</td></tr>
+              <tr><td>ContextMaintenance</td><td>在限定范围整理显式思考、上下文和摘要。</td><td>不能写授权、改执行事实或调用资产工具；只产生待校验上下文候选。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>所有执行申请仍经过独立审核。关键操作在专项审核外，由策略要求的关键/流程角色交叉复核。各角色使用独立会话和审核实例，并以同一最终申请摘要及证据为依据。策略可要求不同实际模型或厂商；配置指向同一实际模型时须明确显示，不能标称异模型交叉审核。要求未满足时禁止执行。</p>
+        <p>Harness 调度审核链，保存角色、实际 Profile、配置版本、实例、输入摘要、裁决和证据。修改意见由 Harness 在同一次工具调用内受控应用，修订内容重新预检并由另一独立审核实例复核。调用编号不变，改写者不能自审。必需角色缺失、不可用、超时、拒绝、需补证或裁决冲突时保持阻断，不按多数票通过，也不自动改用主模型兜底。</p>
+        <p>审核沟通使用独立检验工作区，限定轮数、时间和费用。主对话只接收最终定稿与需用户处理的状态。切换审核模型、角色绑定或策略须新配置版本并重新检验受影响申请；更换模型不能继续使用已失配的裁决。SDK 提供通用角色/Profile 路由，平台通过 Harness 定义实际审核职责与准入策略。</p>
+
+        <h3 id="command-inspection">工具调用：默认检验 → 审计 → 运行或驳回</h3>
+        <div class="principle">
+          <strong>默认 DRY-RUN／分析 → 独立审计 → 通过或受控改写同一次调用 → 运行或驳回。</strong>
+          <p>该原则适用于 Bash、SQL 和其他受控工具。改写发生在同一次调用内部，调用编号保持不变；框架直接更新待执行内容并记录修订版本。改写后重新检验最终内容，全部通过才标记【已审计】并进入运行。</p>
+        </div>
+        <p>这里固定通用设计哲学。具体有哪些工具、每个工具的输入输出、预检方式、允许改写的内容和接口要求，后续先进行详细需求设计。当前不以示例确定具体工具规格。</p>
+        <p>一次调用默认处于检验模式，不能直接产生业务变更。Bash 做真实、无副作用的 DRY-RUN；SQL 按实际产品、方言和版本完整分析；其他工具使用已登记的预检方式。方法登记不代替本次检验。审核可通过、提出受控改写或驳回；缺证据时保持阻断。</p>
+        <p>工具内容只能由 Harness 管控的改写入口修订。普通上下文 Patch、Hook、主 Agent 或审核模型都不能任意改参数。框架保存原稿、改写者、原因及全部版本；旧检验产物不能套到已改变的内容。改写者不能批准自己的修订，最终内容须由另一独立审核实例复核。最终执行规格冻结后及运行后禁止改写。</p>
         <div class="table-wrap">
           <table>
             <thead><tr><th>操作</th><th>检验阶段</th><th>执行阶段</th></tr></thead>
@@ -764,20 +795,20 @@
             </tbody>
           </table>
         </div>
-        <p>可复用方法经 JEV 复核与管理员审核后固定版本并登记白名单。一次性命令或 SQL 也可形成绑定固定内容的单次申请，先检验通过后执行；这不会自动注册新工具或 skill。本次记录保存申请摘要、<code>inspection_id</code>、方法版本、目标作用域、检验产物和执行结果。</p>
+        <p>可复用方法经 JEV 复核与管理员审核后固定版本并登记白名单。一次性命令或 SQL 也可形成绑定固定内容的单次申请，先检验通过后执行；这不会自动注册新工具或 skill。本次记录关联同一调用编号、各修订摘要、<code>inspection_id</code>、方法版本、作用域、检验产物及真实结果。受控修订不是新工具调用。</p>
         <p>检验未通过时阻断本次执行，并补充证据或修订申请后重新检验。需要修改方法、预检能力、方言支持或适用范围时，建立新版本草稿重新审核。任何内容、参数或条件变化都核验受影响的检验产物，不能沿用不匹配的旧证据。</p>
         <ol class="steps">
-          <li><strong>接入层识别来源、项目和身份。</strong><span>人工、CRONTAB、告警或自愈任务进入受控会话，并绑定项目和目标环境。</span></li>
-          <li><strong>Agent 提交固定的执行申请。</strong><span>申请包含项目、目标 ID、环境、脚本或 SQL 内容、非敏感参数、密钥绑定引用、云产品操作、工作流上下文、事实与配置版本。框架计算申请摘要，后续产物均绑定该摘要。</span></li>
-          <li><strong>控制面核验事实、权限与白名单。</strong><span>验证目标、工具权限、项目成员权限、环境授权和工作流约束。关键事实未知、过期或冲突时暂停相关变更。</span></li>
-          <li><strong>DCG 检查确定性规则。</strong><span>DCG 是命令与操作规则检查，命中阻断规则即拒绝。模型裁决或 DRY-RUN 不能覆盖阻断结果。</span></li>
-          <li><strong>审核子 Agent 复核计划。</strong><span>独立审核申请、预检方法和影响范围。初审通过只允许指定预检；不能授权正式执行。</span></li>
-          <li><strong>Harness 完成所需预检。</strong><span>所有 Bash、脚本及其他命令必须完成 DRY-RUN。所有 SQL 必须完成语法分析。经 Bash 调用 SQL 时，两项都必须通过。</span></li>
-          <li><strong>审核子 Agent 复核预检产物。</strong><span>JEV 对同一申请及其产物输出通过、拒绝或需补证的裁决。缺少有效通过裁决时，正式执行保持阻断。</span></li>
-          <li><strong>危险操作交给人工终审。</strong><span>删除、重启和配置变更等危险操作按环境授权规则审批。测试环境支持所需的数据和表结构操作，仍须满足对应审批规则。</span></li>
-          <li><strong>执行器重新核验全部条件。</strong><span>核验目标、申请摘要、事实、配置、预检及审批。内容、参数、身份、方言版本或影响范围变化时，相关结果失效，重新申请。</span></li>
-          <li><strong>执行面注入凭证并执行。</strong><span>只执行被核验的固定内容。命令经跳板访问资产；云产品通过已审核适配器调用对应 API。SQL 执行器再次核验分析结果。受控工具按剪贴板编号内部取用，并按批准目标写入，明文不进入 Agent 申请。返回结果按字段允许清单过滤并脱敏后再进入模型。</span></li>
-          <li><strong>控制面保存结果并核验实际状态。</strong><span>结果绑定项目与任务。审计服务保存申请、预检、规则结果、子 Agent 裁决、审批、执行输出和事实引用。</span></li>
+          <li><strong>接入层识别来源、项目和身份。</strong><span>人工、CRONTAB、告警或自愈任务进入受控会话，绑定项目、目标环境和稳定调用编号。</span></li>
+          <li><strong>Agent 提交本次工具调用内容。</strong><span>包含目标、命令/SQL 或业务参数、密钥引用、工具与规程版本、事实和配置引用。Harness 保存当前修订和内容摘要；检验与审计都绑定该调用的同一修订。</span></li>
+          <li><strong>控制面核验事实、权限与白名单。</strong><span>核验项目、环境、目标、工具和当前授权。关键事实未知、过期或冲突时暂停；改写不能扩大权限或替换固定目标。</span></li>
+          <li><strong>DCG 检查确定性规则。</strong><span>命中阻断规则即禁止该内容执行。模型审计或 DRY-RUN 不能覆盖阻断结果。</span></li>
+          <li><strong>Harness 默认执行受控预检。</strong><span>只用已审核登记的分析和预演入口。Bash 须真实 DRY-RUN，SQL 须完整分析，其他工具采用各自预检；Bash 调用 SQL 时两项均适用。不提前执行待审业务操作。</span></li>
+          <li><strong>独立审核链审查内容与预检产物。</strong><span>按功能角色交叉审计，决定通过、受控改写或驳回。失败、未知或需补证均不能运行；审核意见不是执行结果。</span></li>
+          <li><strong>Harness 在同一次调用中应用允许的改写。</strong><span>直接修订待执行内容，保留调用编号、工具身份和授权边界。增加修订版本及摘要，追加日志，撤销不匹配的产物；回到规则、预检和独立复核。超出允许边界时驳回，不产生第二次调用来继续执行。</span></li>
+          <li><strong>适用操作取得人工终审。</strong><span>危险操作按环境规则审批。人工裁决也绑定最终内容和修订，内容改变后不能沿用失配的批准。</span></li>
+          <li><strong>Harness 冻结最终执行规格，执行器再次核验。</strong><span>全部必需条件通过后，对该调用最终内容标记【已审计】。执行前核验目标、摘要、版本、产物及审批有效性；失效时保持阻断，不直接运行或重写冻结内容。</span></li>
+          <li><strong>执行面注入凭证并运行最终内容。</strong><span>命令经跳板，云产品经已审核适配器；SQL 执行器核验最终语句的分析结果。密钥仅在受控后端按编号取用，明文不返回 Agent 或用户。结果先过滤并脱敏。</span></li>
+          <li><strong>控制面保存真实结果。</strong><span>结果与调用编号、最终修订和摘要关联。失败或未知保留原状态；恢复先查实际结果，不重做调用。审计保存原稿、各次预检、改写、裁决、批准和执行记录。</span></li>
         </ol>
         <h3>强制产物与失效条件</h3>
         <div class="table-wrap">
@@ -786,12 +817,12 @@
             <tbody>
               <tr><td>子 Agent 审核</td><td>审核实例、申请摘要、证据引用、裁决、理由和有效期。</td><td>自审、审核缺失、拒绝、需补证、内容不匹配或裁决过期。</td></tr>
               <tr><td>Bash / 命令 DRY-RUN</td><td>固定版本的预演适配器、展开后的命令和参数、目标作用域、预期变更、覆盖范围、结果和时间。</td><td>无受支持的预演方式、未通过、动态内容未覆盖或产物失效。只读命令也不得跳过。</td></tr>
-              <tr><td>SQL 语法分析</td><td>原始 SQL 摘要、完整语句列表、参数类型、数据库类型与版本、解析结果、对象引用和语句类别。</td><td>未分析、解析失败、方言不支持、部分语句遗漏或目标版本不匹配。查询和表结构操作均适用。</td></tr>
+              <tr><td>SQL 语法分析</td><td>当前修订 SQL 摘要、完整语句列表、参数类型、数据库类型与版本、解析结果、对象引用和语句类别。</td><td>未分析、解析失败、方言不支持、部分语句遗漏或目标版本不匹配。查询和表结构操作均适用。</td></tr>
             </tbody>
           </table>
         </div>
         <p>DRY-RUN 必须由已审核且版本固定的预演适配器完成，并保证不修改目标业务状态。适配器可生成变更计划，或在隔离副本中验证；必须声明覆盖范围。仅输出一行命令、让模型模拟结果或只做 <code>bash -n</code> 语法检查，不能形成有效的 DRY-RUN 产物。没有可验证的预演路径时，Harness 禁止执行。</p>
-        <p>预检服务只开放已审核的分析与预演接口，不开放任意 shell。预检组件生成自己的受控记录，不递归生成同一操作的 DRY-RUN。初审只授予该次预检权限，不能注入正式执行的写入凭证。</p>
+        <p>预检服务只开放已审核登记的分析与预演接口，不开放任意 shell。每次先核验入口版本、范围与权限；预检生成自己的记录，不递归生成同一操作的 DRY-RUN。检验模式不提供正式执行的写入凭证。</p>
         <p>SQL 分析按目标类型、产品方言和版本解析完整输入。多语句脚本须逐条覆盖。运行中拼接的 SQL、存储过程及函数内语句必须纳入相应分析；无法确定实际内容或作用范围时阻断。语法通过后还须检查对象、权限和影响范围，再完成子 Agent 审核与适用审批。</p>
         <p>SQL 语法分析使用支持目标方言的分析组件。<code>PREPARE</code> 或 <code>EXPLAIN</code> 只能按数据库适配器声明的语句范围补充校验。<code>EXPLAIN ANALYZE</code> 会实际执行语句，不能充当无副作用的语法分析。</p>
         <p class="note">技术依据：<a href="https://man7.org/linux/man-pages/man1/bash.1.html">Bash 语法检查语义</a>、<a href="https://www.postgresql.org/docs/current/sql-prepare.html">PostgreSQL PREPARE 的适用语句</a>、<a href="https://www.postgresql.org/docs/current/sql-explain.html">PostgreSQL EXPLAIN 的执行行为</a>。</p>
@@ -990,6 +1021,7 @@
               <tr><td>网络</td><td>虚拟私有网络、子网、路由、接口、安全组、防火墙、地址转换与域名解析。</td><td>网关 → 路由到 → 实例</td></tr>
               <tr><td>数据依赖</td><td>数据库、缓存、队列及外部 API。数据库记录供应商产品、基础类型、派生类型、版本、库和 schema。</td><td>应用 → 读写/发布/订阅 → 依赖</td></tr>
               <tr><td>云产品与能力</td><td>供应商、产品、API 版本、账号、区域、稳定资源 ID、适配器版本与已核验能力。</td><td>抽象资源 → 映射到 → 供应商产品资源</td></tr>
+              <tr><td>运维表格</td><td>TableID、脚本/schema 版本、类型化字段、来源、统计口径、记录与日快照。按需求登记机器、容量、部署或到期事项等表格。</td><td>记录 → 引用 → 事实；脚本 → 受控维护 → 表格；记录 → 绑定 → 稳定资源 ID</td></tr>
               <tr><td>平台自身</td><td>VM、核心实例、镜像摘要、配置映射与四类独立运行状态。</td><td>核心实例 → 部署于 → 登记 VM</td></tr>
             </tbody>
           </table>
@@ -1008,6 +1040,158 @@
         <p>地图支持按项目、环境、供应商、宿主和应用筛选。查询遵守项目和环境访问范围。选择一个 API 时，可沿有证据的调用关系查询调用方和下游。选择一个实例时，可追溯宿主、配置及网络策略。关系详情显示证据、时间窗口、覆盖范围和事实版本。</p>
         <p>事实库保留变更历史。变更申请引用目标 ID、事实版本和配置版本。执行前的重新核验结果也进入审计记录。</p>
         <p>采集由执行面通过白名单中的只读接口完成。敏感配置在入库前脱敏。事实库保存密钥引用。来源冲突、采集失效和过期值必须可见，缺少观测不能推导出“没有依赖”。</p>
+
+        <h3 id="ops-ledgers">网页运维表格：脚本先行，Harness 接管</h3>
+        <p>项目工作台提供简易的<strong>运维表格</strong>。用户通过对话说明记录对象、字段、来源和统计需求。表格支持自定义列、排序、筛选、分组、计数和数值汇总。机器属性、容量、配额、部署任务、到期事项都可采用这一形式。证书仅是一个范例。</p>
+        <p>主 Agent 协助设计字段、页面预览和维护脚本草稿。<strong>创建真实表格前，必须先建立通过检验和独立审核、已登记且版本固定的维护脚本包。</strong>表格建立后，Harness 控制字段定义和写入口，执行器运行固定脚本。主 Agent 和后台 Agent 只能读取、分析、汇报，以及申请运行已登记脚本或提出新版本。</p>
+        <p class="note">本节仍是功能雏形，尚未实现表格服务或维护脚本。确定的是脚本准入、写入边界和自然日维护方式。具体字段、页面组件和数据源在项目接入时检验后固定。未准入前的页面预览使用样例数据，不创建真实表格。</p>
+        <div class="principle">
+          <strong>先建立维护脚本，再建立表格。表格确立后，写入归 Harness 管控。</strong>
+          <p>无已审核脚本、脚本与 schema 不匹配，或本次检验未通过时，禁止创建或更新。Agent 不通过 SQL、文件、HTML、页面编辑接口或其他工具直接改表。人工补录也作为固定脚本的受控输入，不能绕过写入口。</p>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>对象</th><th>固定内容</th><th>检验与控制</th></tr></thead>
+            <tbody>
+              <tr><td>字段定义（schema）</td><td>项目与环境、稳定 TableID、列 ID、名称、类型、枚举、单位、空值/未知语义、来源、观测时间、有效期、维护责任及 schema 版本。</td><td>自定义列先成为待审核定义。字段可为文本、数值、布尔、日期、时间或结构化引用。Harness 校验固定 schema；Agent 不能临时添加字段或注册可执行公式。</td></tr>
+              <tr><td>维护脚本包</td><td>创建、采集、归一、计算、行增删改、日快照和统计的固定规则；参数约束、目标范围、依赖、脚本摘要、schema 兼容版本、预演和恢复方案。</td><td>登记前审查完整脚本与测试证据，固定版本和内容摘要。数据源仅可使用获准接口。例行脚本不能夹带新字段、任意 SQL 或资产操作。</td></tr>
+              <tr><td>结构化记录</td><td>稳定 RecordID 与资源 ID、类型化值、来源引用、字段观测时间、核验状态、记录版本和日快照。</td><td>固定脚本维护行和值。实际观测引用事实证据；人工声明和 Agent 推测分别标记。缺测保留未知或旧值及过期标记，不能清空已知证据或改为“否”。</td></tr>
+              <tr><td>统计与页面</td><td>当前视图、日期快照、排序筛选、分组、行数、按资源去重计数、枚举分布，以及同单位数值汇总。</td><td>统计由已审核脚本或固定查询规则计算。结果注明筛选、业务日/窗口、去重依据、单位和版本。未知值单独计数；不得填零或混合单位相加。页面转义来源文本并限制项目访问范围。</td></tr>
+              <tr><td>Agent 与输入</td><td>对话设计、只读分析、异常解释、脚本运行申请、脚本新版本申请，以及人工输入的非敏感备注。</td><td>输入须符合固定参数和来源规则，经同一写入链路处理。无直接改库、改文件或编辑表格的后门。密钥只显示编号、非敏感备注和操作状态，不返回保存的明文。</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4 id="table-script-lifecycle">建立、更新和字段变更</h4>
+        <ol class="steps">
+          <li><strong>主 Agent 整理需求并形成脚本草稿。</strong><span>明确记录对象、稳定键、字段、来源、统计口径、权限、自然日计划和验收。脚本定义真实表格的创建与后续维护；草稿和页面预览均无写入权。</span></li>
+          <li><strong>Harness 检验脚本包并组织独立审核。</strong><span>核对 schema、展开内容、依赖、范围、预演、样例和失败恢复。独立 JEV 审核，取得适用人审后登记固定版本。登记只是准入，不等于批准所有后续调用。</span></li>
+          <li><strong>执行器在本次检验通过后创建表格。</strong><span>固定项目、环境、TableID、脚本摘要、schema 版本、参数与目标。经有效 Bash DRY-RUN、完整 SQL 分析、JEV 产物复核、适用人审及执行前核验，才运行已登记的创建脚本。</span></li>
+          <li><strong>日常更新只运行固定维护脚本。</strong><span>调度器或 Agent 提交脚本运行申请。执行器逐次核验相同内容、参数、目标、权限和有效检验产物，再按固定规则采集、计算、更新和发布。Agent 不自行决定新写入方式。</span></li>
+          <li><strong>字段和规则变更以新版本重新检验。</strong><span>增删列、改名称/类型/默认值/来源、改唯一键、计算方法或统计口径，均须新脚本与 schema 版本。提供字段差异、兼容影响、迁移预演、历史数据处理和恢复方案；独立审核及适用人审通过后，执行器才可切换。</span></li>
+        </ol>
+        <p>Harness 在执行前和发布前校验固定 schema。脚本尝试写入未批准字段、改变规则或扩大范围时，拒绝提交并记录审计。新版本不能改变在途任务；原版本记录和快照保持可追溯。例行行增删改必须符合已审核规则，不视为允许脚本任意改结构。</p>
+        <p>所有底层 SQL 都先按实际数据库产品、方言和版本完整分析，包括查询、创建表、迁移和维护。所有 Bash 都先完成真实、无副作用的 DRY-RUN。每次调用默认受控预检，再独立审计、适用人审和执行前核验；受控改写保留该调用编号，并重新检验最终内容。缺少、失败、过期或不匹配的产物均阻断执行。</p>
+
+        <h4 id="ledger-page-example">通用表格与统计样例</h4>
+        <p class="note">以下数据全部虚构，只用于说明页面。示例选用机器属性表；实际项目可登记其他字段和表格模板。它不代表服务、脚本或资源已经存在。</p>
+        <div class="principle">
+          <strong>机器属性表 · 项目 demo / 测试环境</strong>
+          <p>业务日：2026-10-05 · 时区：Asia/Shanghai · 维护：完成且有缺项（示例） · schema v3 / 脚本 v5 / 记录 v7。</p>
+          <p>筛选：测试环境全部记录 · 行数 3 · 去重机器 3 · 已核验运行中 2 · 运行状态未知 1 · 已知内存合计 48 GiB，内存未知 1。</p>
+        </div>
+        <div class="table-wrap" id="generic-table-preview" tabindex="0" aria-label="虚构通用运维表格样例，可横向滚动">
+          <table>
+            <thead><tr><th>机器 ID</th><th>属性系列</th><th>负责人</th><th>运行状态</th><th>内存（GiB）</th><th>来源与新鲜度</th></tr></thead>
+            <tbody>
+              <tr><td>vm-demo-01</td><td>API 服务</td><td>应用组</td><td>已核验：运行中</td><td>16</td><td>固定采集器，2026-10-05 09:05<br>负责人为已登记人工声明</td></tr>
+              <tr><td>vm-demo-02</td><td>API 服务</td><td>应用组</td><td>已核验：运行中</td><td>32</td><td>固定采集器，2026-10-05 09:05<br>负责人为已登记人工声明</td></tr>
+              <tr><td>vm-demo-03</td><td>批处理</td><td>未知</td><td>未知：本日未采集成功</td><td>未知</td><td>资源 ID 来自已登记清单<br>未把缺测记为停机或零容量</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>分组示例：API 服务 2 台，批处理 1 台。行数和资源数量分别统计；同一机器有多条用途记录时，不能把行数当机器数。日任务完成表示已按规程处理数据和缺项，不表示所有字段都已核验。用户可追溯字段证据，并通过主 Agent 提出新的受控任务。</p>
+
+        <details id="certificate-table-example">
+          <summary id="certificate-ledger">展开可选范例：证书字段如何组织</summary>
+          <p>证书只是一种表格用途，不限定为 SSL 证书。下面采用 X.509 证书字段说明。证书对象和实际部署绑定分别保存；一张证书被多个入口使用时，共用证书元数据，按稳定绑定键展示和统计。</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>字段组</th><th>示例与边界</th></tr></thead>
+              <tbody>
+                <tr><td>机器与实际证书</td><td>宿主 ID、属性系列、应用、入口、用途、负责人；CertificateID、指纹、签发者、NotBefore、NotAfter。实际证书时间来自公钥证书解析。签发得到的证书与入口实际使用的证书分别核验。</td></tr>
+                <tr><td>采购与服务权益</td><td>订单、服务开始/结束、额度、重新签发规则及来源。购买一年与每张证书有效期分开。“180 天一签”仅是特定供应商的待核验规则示例，不作为通用期限。</td></tr>
+                <tr><td>预备项</td><td>保留供应商原始称呼，再区分待签权益、待签请求、已签发未部署证书及其时间。存在购买权益不能推导为已有备用证书；含义未检验时标记未知。</td></tr>
+                <tr><td>自动化能力</td><td>自动签发和部署更新分别记录支持/不支持/未知、是否启用、当前授权和前置条件。签发成功不能标为部署完成；时间未到期不能证明信任链、用途和服务健康。</td></tr>
+                <tr><td>证据与敏感内容</td><td>逐字段保存来源、观测时间、有效期和核验状态。私钥、账户密钥及 DNS/API 凭证仅在工具权限域取用；页面、Agent、用户、Hook 和摘要只见受控引用，不读取保存的明文。</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>维护脚本只处理这张表的获准数据。签发、安装、切换和服务验收各自另建受控任务，不能夹带在每日更新或补跑中。密钥剪贴板的应用细节仍留待后续讨论。</p>
+          <p class="note">字段依据：<a href="https://www.rfc-editor.org/rfc/rfc5280.html#section-4.1.2.5">RFC 5280 证书有效期</a>、<a href="https://pkg.go.dev/crypto/x509#Certificate">Go Certificate 字段</a>与 <a href="https://www.rfc-editor.org/rfc/rfc8555.html#section-7.4">RFC 8555 证书签发</a>。供应商服务权益、表格维护和部署是本系统另行管理的业务对象。</p>
+        </details>
+
+        <h3 id="background-maintenance">按自然日运行固定脚本，后台 Agent 负责分析</h3>
+        <p>维护和日期快照围绕项目的<strong>自然日</strong>组织。自然日是登记时区的当天 00:00 至次日 00:00。项目固定 IANA 时区，例如 Asia/Shanghai。计划记录当地日期、时区版本与对应 UTC 起止时间；夏令时地区的自然日可能为 23 或 25 小时，不能用连续 24 小时或 Worker 日期替代。</p>
+        <p>主 Agent 管理维护规程，并委派受限后台 Agent 分析差异、缺项和异常，向主任务汇报。后台 Agent 在独立 Go Worker 中使用 GoAgent SDK，通过 ParentRunID 与主任务关联；它只能读取获准证据、申请运行固定脚本或提出新版本。Hermes 仅作为后台任务机制的设计参考，本系统以 Go 实现，现阶段不处理 Hermes 源码。</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>角色</th><th>职责</th><th>边界</th></tr></thead>
+            <tbody>
+              <tr><td>主 Agent</td><td>与用户确定范围、维护目标、脚本和计划草稿；管理后台分析任务，提出启用、修订、暂停或取消申请。</td><td>计划和权限变更先检验。不得直接改表、登记程序、扩大权限，或批准自己与后台 Agent 的执行申请。</td></tr>
+              <tr><td>独立持久调度器</td><td>保存固定脚本版本、参数约束、时区、日期周期、触发时间、截止时间和补跑策略；持久提交脚本运行申请。</td><td>例行更新可在主/后台业务 Agent 离线时提交。调度不授予执行权；JEV 或预检不可用时相关脚本阻断并记录状态。</td></tr>
+              <tr><td>Harness 与独立审核</td><td>持有受控 schema 与写入规则，检验每次申请、产物和权限，组织独立 JEV 与适用人审。</td><td>注册过脚本不能替代逐次门禁。业务 Agent 停机与审核服务停机分别处理，不能声称所有模型停机后脚本仍可执行。</td></tr>
+              <tr><td>执行器与表格存储</td><td>执行前最终核验；只运行批准脚本，按版本更新记录、计算统计并保存日快照和审计。</td><td>写权限及权威存储在核心容器外。按 schema 校验与并发版本提交。核心页面和 Agent 没有直接写权限。</td></tr>
+              <tr><td>受限后台 Agent</td><td>只读分析新旧快照和事实，解释差异、追踪缺项，申请固定脚本运行或新版本，向主任务汇报。</td><td>限定项目、环境、工具、期限、并发和预算。输出是建议或申请；不能作为事实或直接写入。其停机不阻断已登记的例行脚本调度。</td></tr>
+              <tr><td>页面与监控旁路</td><td>页面按权限展示当前视图、日期快照和字段证据；旁路独立采集、计算规则、保存告警并通知。</td><td>日维护失败保留最后有效数据并标记新鲜度。旁路按自己的证据及时报警，不等待表格更新或后台分析。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <ol class="steps">
+          <li><strong>受控登记维护计划。</strong><span>绑定项目、环境、TableID、ScheduleID、脚本/schema 版本与摘要、参数约束、时区和触发时刻。固定截止时间、补跑策略、授权、工具与预算；通过检验后启用。</span></li>
+          <li><strong>调度器建立唯一日期周期。</strong><span>首版每个维护计划每天一轮。周期键为项目、环境、TableID、ScheduleID 与当地日期。脚本/规程版本固定为运行元数据，换版本不能自动多出同日一轮。周期先保存，再投递申请。</span></li>
+          <li><strong>Harness 检验本次固定脚本申请。</strong><span>展开内容，绑定当前参数、目标、业务日和证据，先完成真实预检，再独立审计与适用人审；受控修订在同次调用内重检。任何必需组件、产物或授权不可用，执行保持阻断。</span></li>
+          <li><strong>执行器按版本更新并发布。</strong><span>核验有效授权、租约和期望记录版本，运行固定脚本。来源缺失保留未知或旧值与过期标记。通过 schema 校验后保存记录、统计、日快照及必要审计，再发布只读页面和结果事件。</span></li>
+          <li><strong>后台 Agent 分析，主任务接收汇报。</strong><span>保存本日待运行、运行中、完成、部分完成、阻断、失败、漏跑或暂停状态，以及最后成功时间。后台 Agent 在受限任务中整理差异；修复、部署或签发另行申请，不随表格更新自动执行。</span></li>
+        </ol>
+        <p>首版同一计划不重叠。持久唯一约束、租约与版本比较（CAS）防止重复写入和旧持有者提交。重复投递、重试和跨节点恢复沿用周期及稳定操作 ID；未知结果先查询。漏跑按登记策略有界补跑或跳过并留原因。人工刷新另记运行/修订并关联原周期，仍逐次检验，不覆盖原运行事实；迟到结果不得覆盖新版本。</p>
+        <p>暂停、取消和授权撤销通过持久控制记录生效。任务在接受申请、工具提交和结果发布前核验当前控制版本。失效时停止后续申请与提交；已提交的外部操作先核对实际结果，取消不能视为远端回滚。脚本版本切换、同日修订和迁移须保留旧记录及历史统计口径。</p>
+        <p>网页分别显示业务日、页面生成时间、任务完成时间、最后成功时间及各字段的实际观测时间。固定采集器持续维护事实证据，日脚本按已审核规则生成表格记录和统计，后台 Agent 只做分析。维护失败时保留最后有效页面，不能只把日期改为今天。纯采集、规则和通知继续走独立旁路；旁路中的 Bash/SQL 检查仍遵守各自门禁。</p>
+        <details id="daily-update-example">
+          <summary>展开状态示例：业务 Agent 离线与检验失败分别如何处理</summary>
+          <p class="note">以下状态均为虚构。展开/收起只改变展示，不创建任务或操作资产。</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>页面信息</th><th>主/后台业务 Agent 离线</th><th>JEV、预检或脚本失败</th></tr></thead>
+              <tbody>
+                <tr><td>本日维护</td><td>调度器可提交固定脚本；门禁有效且执行成功时正常更新</td><td>阻断或失败，保存原因；不能直接写入或跳过检验</td></tr>
+                <tr><td>快照与分析</td><td>可有本日有效快照；后台分析待恢复</td><td>保留最后有效快照及其原日期；本日状态单独显示</td></tr>
+                <tr><td>字段新鲜度</td><td>按真实采集时间显示，未知单列</td><td>旧数据/未知/过期明确标记，不将缺测记为无变化</td></tr>
+                <tr><td>监控告警</td><td>独立旁路继续采集与通知</td><td>纯指标旁路继续；需 Bash/SQL 门禁的检查阻断并报警</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
+
+        <figure>
+          <div class="figure-head"><strong>先审核脚本，再由 Harness 控制表格维护</strong><label class="zoom"><input type="checkbox" aria-label="放大受控表格维护图">放大图形</label></div>
+          <div class="diagram-container" tabindex="0" aria-label="受控表格维护图，可横向滚动">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 880" role="img" aria-labelledby="ledger-title ledger-desc">
+              <title id="ledger-title">脚本先行、Harness 控制写入与自然日维护</title>
+              <desc id="ledger-desc">用户与主 Agent 提出字段、脚本和维护计划。脚本包先经检验与独立审核，固定 schema 和版本；这是创建真实表格的前提。独立持久调度器按项目自然日提交固定脚本申请。Harness 逐次门禁通过后，执行器才运行脚本，更新核心容器外的权威记录和日快照，页面只读展示。虚线表示主 Agent 委派受限后台 Agent 分析，以及后台 Agent 提交运行申请；后台 Agent 不能直接写表。独立监控旁路不等待每日脚本或 Agent。字段变更必须建立新版本并重新审核。</desc>
+              <defs><marker id="ledger-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0 0 L7 3.5 L0 7 Z" fill="var(--ink)" /></marker></defs>
+              <rect x="0" y="0" width="1280" height="880" fill="var(--paper)" />
+              <text x="48" y="48" class="diagram-heading">脚本是创建前提 · 写入由 Harness 控制 · Agent 只读分析与申请</text>
+              <path d="M400 152 H464" class="diagram-edge" marker-end="url(#ledger-arrow)" />
+              <path d="M816 152 H880" class="diagram-edge" marker-end="url(#ledger-arrow)" />
+              <path d="M1056 208 V328" class="diagram-edge" marker-end="url(#ledger-arrow)" />
+              <path d="M880 396 H816" class="diagram-edge" marker-end="url(#ledger-arrow)" />
+              <path d="M464 396 H400" class="diagram-edge" marker-end="url(#ledger-arrow)" />
+              <path d="M224 464 V576" class="diagram-edge" marker-end="url(#ledger-arrow)" />
+              <path d="M224 208 V264 H432 V644 H464" class="diagram-evidence" marker-end="url(#ledger-arrow)" />
+              <path d="M816 644 H848 V504 H1056 V464" class="diagram-evidence" marker-end="url(#ledger-arrow)" />
+              <text x="246" y="256" class="diagram-caption">主任务委派</text>
+              <text x="1076" y="276" class="diagram-caption">每次提交固定申请</text>
+              <text x="244" y="526" class="diagram-caption">已保存的只读结果</text>
+              <text x="896" y="496" class="diagram-caption">后台 Agent 仅提申请</text>
+              <a href="#background-maintenance" aria-label="主 Agent"><rect x="48" y="96" width="352" height="112" rx="8" class="diagram-node" /><text x="68" y="126" class="node-label">用户对话与主 Agent</text><text x="68" y="152" class="diagram-caption">设计草稿 / 管理计划与后台任务</text><text x="68" y="191" class="node-sub">propose / inspect / no direct writes</text></a>
+              <a href="#table-script-lifecycle" aria-label="维护脚本先行"><rect x="464" y="96" width="352" height="112" rx="8" class="diagram-focus" /><text x="484" y="126" class="node-label">维护脚本包：创建前提</text><text x="484" y="152" class="diagram-caption">检验与独立审核 / 固定 schema 和版本</text><text x="484" y="191" class="node-sub">script hash / sources / statistics / scope</text></a>
+              <a href="#background-maintenance" aria-label="独立持久调度器"><rect x="880" y="96" width="352" height="112" rx="8" class="diagram-node" /><text x="900" y="126" class="node-label">独立持久调度器</text><text x="900" y="152" class="diagram-caption">项目自然日 / 日期周期 / 固定脚本申请</text><text x="900" y="191" class="node-sub">business Agent may be offline</text></a>
+              <a href="#ops-ledgers" aria-label="Harness 控制的表格记录"><rect x="48" y="328" width="352" height="136" rx="8" class="diagram-node" /><text x="68" y="358" class="node-label">Harness 控制的权威记录</text><text x="68" y="384" class="diagram-caption">schema 校验 / 记录与统计 / 日快照</text><text x="68" y="410" class="diagram-caption">核心容器外存储 / Agent 无直接写权</text><text x="68" y="447" class="node-sub">sources / observed time / CAS / audit</text></a>
+              <a href="#execution" aria-label="执行器只运行固定脚本"><rect x="464" y="328" width="352" height="136" rx="8" class="diagram-focus" /><text x="484" y="358" class="node-label">执行器：只运行固定脚本</text><text x="484" y="384" class="diagram-caption">最终核验 / 获准参数与范围</text><text x="484" y="410" class="diagram-caption">采集、计算、更新 / 禁止任意改字段</text><text x="484" y="447" class="node-sub">schema or rule change requires new review</text></a>
+              <a href="#execution" aria-label="每次申请的 Harness 门禁"><rect x="880" y="328" width="352" height="136" rx="8" class="diagram-focus" /><text x="900" y="358" class="node-label">每次申请：Harness 门禁</text><text x="900" y="384" class="diagram-caption">默认预检 / 独立审计 / 重检 / 人审</text><text x="900" y="410" class="diagram-caption">Bash DRY-RUN / 完整 SQL 分析</text><text x="900" y="447" class="node-sub">inspection or review unavailable = blocked</text></a>
+              <a href="#ledger-page-example" aria-label="只读网页表格"><rect x="48" y="576" width="352" height="136" rx="8" class="diagram-node" /><text x="68" y="606" class="node-label">只读网页表格</text><text x="68" y="632" class="diagram-caption">排序 / 筛选 / 分组 / 统计</text><text x="68" y="658" class="diagram-caption">日期快照 / 字段来源 / 失败保留旧值</text><text x="68" y="695" class="node-sub">typed view / escaping / scoped reads</text></a>
+              <a href="#background-maintenance" aria-label="受限后台 Agent"><rect x="464" y="576" width="352" height="136" rx="8" class="diagram-node" /><text x="484" y="606" class="node-label">受限后台 Agent</text><text x="484" y="632" class="diagram-caption">受主 Agent 控制 / 差异、缺项与汇报</text><text x="484" y="658" class="diagram-caption">读取结果 / 申请固定脚本 / 无写权</text><text x="484" y="695" class="node-sub">ParentRunID / bounded Worker + GoAgent SDK</text></a>
+              <a href="#monitoring" aria-label="独立监控旁路"><rect x="880" y="576" width="352" height="136" rx="8" class="diagram-zone" /><text x="900" y="606" class="node-label">独立监控旁路</text><text x="900" y="632" class="diagram-caption">固定采集 / 规则 / 持久告警与通知</text><text x="900" y="658" class="diagram-caption">不等待日维护脚本或业务 Agent</text><text x="900" y="695" class="node-sub">command and SQL checks still need gates</text></a>
+              <path d="M40 760 H1240" stroke="var(--rule-solid)" />
+              <text x="48" y="790" class="diagram-caption">实线：固定脚本维护链路。虚线：后台分析任务与申请。资产变更另建任务；页面日期不代替证据时间。</text>
+              <text x="48" y="830" class="diagram-technical">CONTROLLED OPERATIONS TABLE / SCRIPT FIRST / HARNESS OWNERSHIP / DURABLE CALENDAR CYCLE / INDEPENDENT ALERTS</text>
+            </svg>
+          </div>
+          <figcaption>脚本准入先于真实表格创建。图中的日维护申请仍须逐次检验。字段和统计规则变更以新版本审核。主 Agent 管理规程和后台分析；表格写入始终由 Harness 与执行器控制。右下框是独立旁路。</figcaption>
+        </figure>
+        <p>运维表格属于平台业务。核心模块只持有展示、查询和运行申请接口；权威 schema、脚本登记、写权限及记录存储归核心容器外的 Harness 权限域。GoAgent SDK 复用已有子 Agent、受控工具、检查点和事件契约，不持有表格写入口。</p>
+        <p>平台事件定义 <code>devops.table.updated</code>、<code>devops.table.daily_cycle.completed</code> 与 <code>devops.table.daily_cycle.failed</code>。事件由已持久保存状态的可信服务产生，包含表格、周期、脚本/schema 版本和运行引用。沿用来源核验、脱敏和幂等规则；事件或 Hook 不代替授权、审计和独立告警。
       </section>
 
       <section id="providers">
@@ -1158,6 +1342,7 @@
               <tr><td>人类与 Agent 协作规程</td><td>容器外的版本化规程、项目知识和登记记录。问答、待确认项及验收证据单独持久保存。</td><td>恢复时核验规程版本、内容摘要、审核状态、适用范围及当前白名单。未审核草稿不能恢复成可执行规程。每次任务仍先检验本次需求、目标和授权。</td></tr>
               <tr><td>Bash / SQL 检验与执行</td><td>容器外的固定执行规格或方法模板、登记记录，以及每次申请的检验产物与执行状态。</td><td>恢复时核验申请摘要、方法版本、内容、参数、目标和产物有效期。方法登记与任务阶段分别恢复。无效或不匹配的产物重新检验，不能跳过本次门禁或自动注册新方法。</td></tr>
               <tr><td>项目部署流程</td><td>首版持久化状态机的固定步骤、流程版本、待输入/审批、投递与租约记录，保存在核心容器外。</td><td>每个运行只绑定一个权威编排器。恢复先核对执行器记录与实际资产结果，重新检验授权与产物。旧流程版本保留至相关运行结束；可选编排器的状态来源见<a href="#go-workflows">流程实现边界</a>。</td></tr>
+              <tr><td>运维表格与自然日周期</td><td>Harness 权限域保存固定 schema、脚本版本/摘要、权威记录、证据、统计和日快照。独立调度保存日期周期、计划、预算及结果；核心仅查询和提交申请。</td><td>恢复重新核验脚本/schema 匹配和有效授权，不恢复直接写权。沿用周期、运行及租约；未知结果先查询，迟到提交不得覆盖新数据。历史快照保留原证据时间与统计版本。</td></tr>
               <tr><td>Worker 任务与租约</td><td>容器外的持久任务队列，绑定核心实例和任务身份。</td><td>故障后核验租约及任务状态。已提交给执行面的任务先查实际结果，不能因 Worker 重启而重复执行。</td></tr>
               <tr><td>监控旁路状态</td><td>独立于核心与 Worker 的监控节点和持久存储。</td><td>保存采集配置、模块版本、指标、检查结果、事实证据与告警事件。Agent 重启不清理或重建旁路。</td></tr>
               <tr><td>审核与预检产物</td><td>核心容器外的版本化产物存储，与审计记录关联。</td><td>恢复后重新核验申请摘要、目标、版本和时效；不能因恢复状态直接恢复执行授权。</td></tr>
@@ -1182,9 +1367,10 @@
         <h2><span class="section-no">09</span>监控旁路与模块</h2>
         <h3>独立采集与报警链路</h3>
         <p>监控、采集和报警构成独立旁路。固定采集器把指标、日志和事实证据写入各自的持久存储。固定规则服务计算状态。报警服务持久化事件并通知外部接收方，再异步提交受控诊断任务。通知失败由旁路重试，不等待 Agent 响应。采集、规则计算和通知不依赖 LLM、Agent Worker 或核心容器存活。旁路使用独立生命周期、持久存储和资源限额。监控节点默认与核心及 Agent 所在 VM 隔离。Agent 停止时，旁路继续运行，事件保留供恢复后查询。</p>
-        <p>优先集成现有外部监控和云监控。没有可用指标系统时，指标旁路默认采用 <a href="https://prometheus.io/docs/introduction/overview/">Prometheus</a>、<a href="https://prometheus.io/docs/alerting/latest/alertmanager/">Alertmanager</a> 和 Grafana。日志和调用链按需接入现有存储，不预设必须部署某套日志或追踪产品。CRONTAB 只触发业务巡检和周期事实采集，由独立调度执行服务调用固定检查版本；保留成功、失败、缺测和最近成功时间。纯指标 HTTP 拉取不触发模型推理。</p>
+        <p>优先集成现有外部监控和云监控。没有可用指标系统时，指标旁路默认采用 <a href="https://prometheus.io/docs/introduction/overview/">Prometheus</a>、<a href="https://prometheus.io/docs/alerting/latest/alertmanager/">Alertmanager</a> 和 Grafana。日志和调用链按需接入现有存储，不预设必须部署某套日志或追踪产品。CRONTAB 只触发已登记的业务巡检、周期事实采集及自然日维护任务，由独立调度执行服务固定任务版本；保留成功、失败、缺测和最近成功时间。纯指标 HTTP 拉取不触发模型推理。</p>
         <p>固定采集、规则和通知遵守架构内核的输入、配置、权限、输出及失败校验。使用密钥时由受控后端按批准引用注入。含敏感信息的原始证据隔离保存，Agent 查询与派生处理器输出仅提供允许的脱敏字段或证据引用，不能暴露密钥。</p>
         <p>项目 Agent 经受控只读接口查询监控。Agent 可提出采集器安装或升级、采集/报警配置变更、静默和修复申请；管理员审核并固定配置版本，Harness 执行变更。Agent 不直接改配置、不静默报警、不取得宿主权限。固定且已审核的采集组件按配置持续采集。Exporter 若不能把其数据库 SQL 纳入目标类型与版本分析门禁，或脚本不能通过 DRY-RUN，就不得启用。监控不能为脚本或 SQL 开免检路径。</p>
+        <p>运维表格的自然日维护由独立调度器提交已登记脚本，经 Harness 逐次检验后执行。受限后台 Agent 负责只读分析和申请。业务 Agent 离线不丢失周期；JEV 或预检失效仍阻断脚本。到期事项与检查失败由旁路独立规则及时报警，表格更新失败不能延迟通知。能力与边界见<a href="#background-maintenance">自然日后台维护</a>。</p>
         <p>事实采集由 provider、Docker、API 和配置适配器写入事实库，并保存来源、证据和采集时间。指标只说明其测量范围；例如 CPU 数值不能证明应用间发生了 API 调用。CRONTAB 检查结果也保存缺测、失败和最近成功时间。Agent Worker 故障不阻断固定检查。JEV 或预检组件不可用时，相关命令和 SQL 任务阻断并报警；纯指标旁路继续运行。人工、告警和闭环发起仍共用受控执行路径，危险操作继续人工终审。</p>
         <p class="note">Prometheus 负责采集与规则计算，Alertmanager 负责报警分组、去重、路由和接收方通知。CRONTAB 只决定检查何时触发；检查内容、版本、目标环境和执行授权由受控配置确定。命令与 SQL 门禁见<a href="#execution">受控执行路径</a>。</p>
 
@@ -1429,7 +1615,7 @@
           <table>
             <thead><tr><th>入口</th><th>用途</th><th>约束</th></tr></thead>
             <tbody>
-              <tr><td>项目工作台</td><td>项目对话、应用部署、测试库操作、云资源、CRONTAB、工作流、告警、审批、审计查询和事实地图。</td><td>绑定项目和环境。Agent 操作必须经 Harness，危险操作人工终审。密钥只呈现引用与脱敏状态，人工明文输入直接交给受控密钥入口。</td></tr>
+              <tr><td>项目工作台</td><td>项目对话、应用部署、测试库操作、云资源、CRONTAB、工作流、告警、审批、审计查询、网页运维表格与事实地图。</td><td>绑定项目和环境。Agent 操作必须经 Harness，危险操作人工终审。密钥只呈现引用与脱敏状态，人工明文输入直接交给受控密钥入口。</td></tr>
               <tr><td>底座管理平台</td><td>VM 登记、Docker 环境、核心与 Worker 部署、日志、健康与恢复。</td><td>独立管理员入口。管理权限不授予决策 agent，部署操作进入审计链。</td></tr>
               <tr><td>人类直连通道</td><td>Web terminal 或受控 SSH 代理，支持人工运维。</td><td>全量审计和环境授权。命令先 DRY-RUN，SQL 先语法分析。无法预检的交互命令禁止执行。</td></tr>
               <tr><td>应急通道</td><td>跳板或核心系统故障时，经独立通道应急访问。</td><td>双人授权、全量录制与独立审计。仍须命令 DRY-RUN 和 SQL 分析；预检不可用时禁止执行。</td></tr>
@@ -1446,6 +1632,22 @@
           <p>平台按业务模块开发。权限边界按独立进程部署。每个阶段交付一个可验收的范围，并复测此前已交付的关键路径。需要缩短迭代时缩小范围，已知安全、一致性、兼容和恢复缺陷不能留到后续版本。</p>
         </div>
         <p>Go 负责固定规则、状态转换、接口契约、资源限制和受控执行。模型负责理解、问答、计划与审核建议。模型输出仍是待检验输入；Go 并不能让模型推理、远端网络或云 API 自动获得确定性。</p>
+
+        <h3 id="schema-governance">Schema 驱动与集中常量</h3>
+        <p>系统优先使用<strong>版本化 schema</strong>驱动模块边界。schema 是结构、类型和规则的固定定义。配置、API、事件、工具、流程输入输出、模型角色和运维表格都引用明确版本。Go 实现状态转换和业务算法；适合声明的结构由 schema 描述，未采用 schema 的稳定值也必须使用集中定义的类型化常量。</p>
+        <p>定义集中登记，按 SDK 与平台、再按模块职责分组。每项只有一个权威定义源，避免散落的字段名、状态字符串和默认值。SDK 自持公共契约，不为复用常量而导入平台模块。厂商专用字段留在对应基础协议或派生文件中，不能泄漏到通用业务类型。</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>定义范围</th><th>集中管理内容</th><th>固定规则</th></tr></thead>
+            <tbody>
+              <tr><td>接口与消息</td><td>SchemaID、版本、字段类型、必填项、枚举、单位、来源与兼容规则；HTTP/JSON、队列、事件和工具输入输出契约。</td><td>按模块固定一份定义源，生成或映射 Go 类型与校验器。检验生成结果与契约一致，不能手工维护两套互相漂移的定义。</td></tr>
+              <tr><td>配置与能力</td><td>模块配置、模型 Profile、角色绑定、审核链、Hook 权限、脚本参数、解析器能力及默认值。</td><td>可信管理员检验后登记固定版本。缺项、非法值或安全相关未知能力阻断启用，不自动接受厂商或 Agent 新增字段。</td></tr>
+              <tr><td>状态与常量</td><td>EventType、ModelRole、任务状态、检验裁决、错误代码、HookPoint 和保留命名空间。</td><td>各职责域集中类型化定义，外部名称保持稳定。常量不是可随意编辑的配置；不能用配置关闭固定门禁或改变枚举含义。</td></tr>
+              <tr><td>业务结构与流程</td><td>项目资料、事实类型、表格 schema、固定脚本与流程版本、步骤参数和状态转换契约。</td><td>新结构或语义以新版本审核。迁移、恢复和旧任务兼容分别检验；可配置步骤不能获得任意命令执行权。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>每次运行固定所用 SchemaID、版本、配置摘要和实现版本。schema 变更提供差异、兼容规则、样例、迁移与恢复证据，检验后发布。生成或校验不能代替授权、DRY-RUN、SQL 分析和审核。Agent 可以提出新定义，不能自动登记、热改在途版本或覆写安全规则。</p>
 
         <h3 id="go-ecosystem">生态选型与准入条件</h3>
         <p>工具链基线按 2026-10-05 的 <a href="https://go.dev/dl/">Go 官方下载页</a>核对：平台固定 Go 1.27.1。GoAgent SDK 的最低支持版本设为 Go 1.26，并在 Go 1.26.8 与 1.27.1 上复测。依赖版本、构建镜像和目标平台写入发布清单。安全更新经过复测后更新清单，不使用随时间变化的 <code>latest</code> 作为构建输入。</p>
@@ -1476,11 +1678,11 @@
           <table>
             <thead><tr><th>边界</th><th>确定的职责</th></tr></thead>
             <tbody>
-              <tr><td>公共 API</td><td>模型访问与请求管理、会话与上下文、计划、工具登记与申请、公开事件枚举、Hook 扩展和检查点。采用本项目定义的 <code>Session</code>、<code>ModelRequest</code>、<code>ModelEvent</code>、<code>ContextSnapshot</code>、<code>Plan</code>、<code>ToolSpec</code>、<code>ToolRequest</code>、<code>ToolResult</code>、<code>EventType</code>、<code>Event</code> 与 Hook 契约等公共类型。调用者传入 context，掌握取消和生命周期。接口不暴露平台内部实体、数据库行、厂商或 Agent 框架类型。</td></tr>
+              <tr><td>公共 API</td><td>模型访问与请求管理、会话与上下文、计划、工具登记与申请、公开事件枚举、Hook 扩展和检查点。采用本项目定义的 <code>Session</code>、<code>ModelRequest</code>、<code>ModelEvent</code>、<code>ContextSnapshot</code>、<code>ContextPatch</code>、<code>ModelProfile</code>、<code>ModelRole</code>、<code>Plan</code>、<code>ToolSpec</code>、<code>ToolRequest</code>、<code>ToolResult</code>、<code>EventType</code>、<code>Event</code> 与 Hook 契约等公共类型。调用者传入 context，掌握取消和生命周期。接口不暴露平台内部实体、数据库行、厂商或 Agent 框架类型。</td></tr>
               <tr><td>SDK 内部</td><td>管理模型协议、请求生命周期、上下文维护与压缩、工具目录与调用、事件流、检查点和子 Agent 会话。限制轮数、时间、并发、队列和输出大小。子 Agent 与主 Agent 共用受控工具路径。SDK 不自行启动服务、迁移数据库、注册系统任务或创建包级全局运行状态。</td></tr>
               <tr><td>宿主注入端口</td><td><code>ModelPort</code> 定义统一模型调用。SDK 的 <code>ManagedModelClient</code> 实现协议与请求管理，并使用宿主注入的 <code>AuthenticatedTransportPort</code> 发送请求；宿主也可提供已验收的兼容 ModelPort。<code>SessionStore</code> 保存会话与检查点；<code>GatedToolRequestPort</code> 提交全部受控工具申请；<code>Observer</code> 接收脱敏事件；可信宿主通过固定版本 HookRegistry 登记扩展。模型凭证只在受控传输后端注入，SDK 不接收明文密钥或敏感认证头。</td></tr>
               <tr><td>平台扩展</td><td>项目知识、运维提示词、工具目录、规程、Harness 协议与工作流适配由平台提供。SDK 不导入平台的 internal 包，也不绑定 PostgreSQL、Docker、多云、Temporal、CGO 或某个运维项目。模型协议与厂商 PATCH 是 SDK 的可复用适配能力。项目资源操作仍由平台工具提供。可选框架实现留在适配模块，公共契约保持稳定。</td></tr>
-              <tr><td>执行安全</td><td>SDK 只生成工具执行申请。宿主 Harness 完成独立子 Agent 审核、实际预检、产物复核和适用人审。宿主执行器在执行时重新检验固定内容、目标、scope、版本与有效期。缺少必要宿主能力时只开放对话与计划，工具执行关闭。<code>approved=true</code> 等 SDK 标记不能形成执行授权。</td></tr>
+              <tr><td>执行安全</td><td>SDK 提交工具调用，默认进入检验模式。宿主 Harness 完成实际预检、独立审计、受控改写后的重检和适用人审；改写只修订该调用。宿主执行器在执行时重新检验固定内容、目标、scope、版本与有效期。缺少必要宿主能力时只开放对话与计划，工具执行关闭。<code>approved=true</code> 等 SDK 标记不能形成执行授权。</td></tr>
               <tr><td>密钥与结果</td><td>SDK 只处理剪贴板编号、非敏感备注和受控状态。模型输入、事件、工具结果、错误和会话持久化均先过滤敏感内容。工具查由宿主受控后端内部完成，明文不返回任何用户或 Agent。剪贴板接口、匹配和存储细节仍后续设计。</td></tr>
               <tr><td>Go Worker 与 SDK</td><td>Go Worker 负责本项目的版本化队列协议、租约与 SDK 生命周期。SDK 的可嵌入性不改变本平台的独立 Worker 容器边界。Worker 与 SDK 均按本项目的契约开发，并使用受控工具接口。</td></tr>
               <tr><td>接入验收</td><td>第二个 Go 宿主必须不依赖平台数据库与平台服务即可运行对话和计划。执行能力只在接入等价门禁后开放。复测公共 API、事件、取消、并发、子 Agent、旧调用方编译与越权负例。SDK 不能约束宿主另行编写的直接 I/O；宿主执行器与进程权限隔离必须一并验收。</td></tr>
@@ -1493,7 +1695,7 @@
           <div class="diagram-container" tabindex="0" aria-label="GoAgent SDK 架构图，可横向滚动">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 800" role="img" aria-labelledby="sdk-title sdk-desc">
               <title id="sdk-title">本平台与其他 Go 系统嵌入同一 GoAgent SDK</title>
-              <desc id="sdk-desc">本平台独立 Go Worker 和其他 Go 系统都调用独立 GoAgent SDK 的公共 API。SDK 运行时管理模型协议与请求、上下文维护与压缩、工具目录与调用，通过受控传输、会话、工具申请和观测端口调用宿主适配器。宿主 Harness 与执行器独立完成审核、预检、产物复核、适用人审和最终执行核验。SDK 不直接访问资产或凭证；无宿主门禁时只能对话和计划。共享代码不合并本平台的容器或权限边界。</desc>
+              <desc id="sdk-desc">本平台独立 Go Worker 和其他 Go 系统都调用独立 GoAgent SDK 的公共 API。SDK 运行时管理模型协议与请求、上下文维护与压缩、工具目录与调用，通过受控传输、会话、工具申请和观测端口调用宿主适配器。宿主 Harness 与执行器默认完成预检，再独立审计；受控改写保留同一次调用并重新检验。最终取得适用人审并核验执行。SDK 不直接访问资产或凭证；无宿主门禁时只能对话和计划。共享代码不合并本平台的容器或权限边界。</desc>
               <defs><marker id="sdk-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto-start-reverse"><path d="M0 0 L7 3.5 L0 7 Z" fill="var(--ink)" /></marker></defs>
               <rect x="0" y="0" width="1280" height="800" fill="var(--paper)" />
               <text x="48" y="48" class="diagram-heading">宿主复用同一代码，执行能力由各宿主的受控后端提供</text>
@@ -1532,7 +1734,7 @@
           <table>
             <thead><tr><th>模块</th><th>维护内容</th><th>固定边界</th></tr></thead>
             <tbody>
-              <tr><td>统一模型接口</td><td>请求、回复、内容块、流事件、工具调用、结束原因、token 用量与不透明续接引用。能力按端点、厂商、协议、模型、API 版本和 PATCH 版本登记。</td><td>公共 API 使用本项目 Go 类型。缺失能力明确报告不支持；不能把工具调用退化成普通文本，也不能静默丢字段或切换模型。</td></tr>
+              <tr><td>统一模型接口</td><td>请求、回复、内容块、流事件、工具调用、结束原因、token 用量与不透明续接引用。支持固定 ModelProfile 与 ModelRole 路由；功能角色参见<a href="#audit-model-roles">交叉审核</a>。能力按端点、厂商、协议、模型、API 版本和 PATCH 版本登记。</td><td>公共 API 使用本项目 Go 类型。缺失能力明确报告不支持；不能把工具调用退化成普通文本，也不能静默丢字段或切换模型。</td></tr>
               <tr><td>LLM 访问与请求管理</td><td>HTTP/JSON 与 SSE 基线、协议编码/解码、路由、超时、取消、限流、退避、并发与预算。可选传输方式按端口扩展。</td><td>只使用宿主批准的端点和凭证编号。模型返回的 URL 不能成为新的模型端点。协议适配器处理数据，鉴权与敏感头留在宿主受控后端。</td></tr>
               <tr><td>上下文管理</td><td>会话、轮次、任务目标、资料引用、工具调用与结果、上下文窗口、摘要、快照、分支和恢复。</td><td>保留固定约束与必要协议状态。压缩后的模型上下文不能代替事实库、执行申请、授权记录或审计。</td></tr>
               <tr><td>工具管理</td><td>内建基础工具、外部登记、命名空间、schema、能力、版本、调用状态、结果校验与关联。</td><td>登记由管理员或可信宿主完成。所有内建、外部和子 Agent 工具调用共用宿主门禁；工具描述与 MCP 注解不能授予权限。</td></tr>
@@ -1576,7 +1778,7 @@
               <a href="#goagent-tools" aria-label="工具登记与调用管理"><rect x="832" y="264" width="400" height="144" rx="8" class="diagram-focus" /><text x="852" y="294" class="node-label">工具登记与调用管理</text><text x="852" y="320" class="diagram-caption">内建基础 / 外部登记 / schema / 版本</text><text x="852" y="346" class="diagram-caption">固定校验 / 关联 / 受控申请 / 结果</text><text x="852" y="391" class="node-sub">one GatedToolRequestPort for all tools</text></a>
               <a href="#goagent-models" aria-label="第三方派生适配器"><rect x="48" y="528" width="240" height="144" rx="8" class="diagram-node" /><text x="68" y="558" class="node-label">第三方派生适配器</text><text x="68" y="584" class="diagram-caption">GLM / DeepSeek</text><text x="68" y="610" class="diagram-caption">继承基础 / 重写差异</text><text x="68" y="655" class="node-sub">extends protocol base / overrides</text></a>
               <a href="#agent-sdk" aria-label="宿主鉴权传输后端"><rect x="352" y="528" width="416" height="144" rx="8" class="diagram-node" /><text x="372" y="558" class="node-label">宿主鉴权传输后端</text><text x="372" y="584" class="diagram-caption">只接收受控端点与脱敏请求</text><text x="372" y="610" class="diagram-caption">凭证在后端注入，SDK 不见明文</text><text x="372" y="655" class="node-sub">AuthenticatedTransportPort / approved egress</text></a>
-              <a href="#execution" aria-label="宿主 Harness 与执行器"><rect x="832" y="528" width="400" height="144" rx="8" class="diagram-focus" /><text x="852" y="558" class="node-label">宿主 Harness 与执行器</text><text x="852" y="584" class="diagram-caption">JEV → 预检 → 复核 → 适用人审</text><text x="852" y="610" class="diagram-caption">最终核验 / 意图与幂等 / 独立审计</text><text x="852" y="655" class="node-sub">Bash DRY-RUN / complete SQL analysis</text></a>
+              <a href="#execution" aria-label="宿主 Harness 与执行器"><rect x="832" y="528" width="400" height="144" rx="8" class="diagram-focus" /><text x="852" y="558" class="node-label">宿主 Harness 与执行器</text><text x="852" y="584" class="diagram-caption">默认预检 → 审计/受控改写 → 人审</text><text x="852" y="610" class="diagram-caption">最终核验 / 意图与幂等 / 独立审计</text><text x="852" y="655" class="node-sub">Bash DRY-RUN / complete SQL analysis</text></a>
               <text x="352" y="690" class="diagram-caption">宿主受控后端隔离模型凭证与资产执行权限。PATCH 和工具注册不能改变这条边界。</text>
               <path d="M40 736 H1240" stroke="var(--rule-solid)" />
               <text x="48" y="762" class="diagram-caption">压缩不改变授权。模型请求重试不重做工具。签名与调用关联有效后，完整工具申请仍先检验，再执行。</text>
@@ -1619,21 +1821,105 @@
         <p>调用路径为“固定校验 → 选定协议与 PATCH → 编码 → 宿主鉴权传输 → 解码与归一化 → 固定输出校验 → Agent loop”。厂商托管的自动执行工具默认不启用。只有能证明同等审核、预检与审计边界的适配路径才可开放，不能让原生工具在宿主 Harness 之前自行执行。</p>
 
         <h4 id="goagent-requests">请求管理与流式处理</h4>
-        <p>一次逻辑请求固定模型配置、上下文快照、协议与 PATCH 版本、工具目录和预算。每次网络尝试另有 attempt ID。请求管理器控制排队、背压、并发、截止时间、取消、响应字节、上下文 token、输出预算和有限重试。统计记录实际选择的配置及估算与实际用量；未知费用或缺失用量不能填成零。</p>
+        <p>一次逻辑请求固定 ModelRole、实际 ModelProfile 与配置版本、上下文快照、协议与 PATCH 版本、工具目录和预算。每次网络尝试另有 attempt ID。请求管理器控制排队、背压、并发、截止时间、取消、响应字节、上下文 token、输出预算和有限重试。统计记录实际选择的配置及估算与实际用量；未知费用或缺失用量不能填成零。</p>
         <p>限流和暂时故障采用固定错误分类、退避、抖动与次数上限。参数、鉴权、能力或 schema 错误不自动反复重试。网络取消只能说明本地停止等待，不能证明远端生成或工具已停止。超时后无法确认远端状态时保存未知状态。模型生成重试与工具执行幂等分别管理，不能重放整个 Agent 轮次来修复断流。</p>
         <p>流式解码按协议维护事件与内容块索引。工具参数片段只用于缓冲，不派发工具。首版等待完整模型响应终态及完整参数，再执行固定 schema 与目录校验，并送宿主审核。截断 JSON、未知必要事件、块顺序错误、重复冲突 ID 或未完成响应均不能进入执行面。流式文本显示也先经过敏感内容过滤。</p>
         <p>模型路由与故障转移仅在宿主固定策略内进行。切换厂商、模型或协议时先检验能力与上下文表示，创建明确的新分支；不转移旧厂商 sidecar，也不丢掉未完成工具对。存在已提交或未知状态的工具申请时先恢复其结果，不能切模型后重做同一操作。</p>
 
-        <h4 id="goagent-context">上下文维护、快照与压缩</h4>
+        <h4 id="goagent-context">上下文编辑、快照与压缩</h4>
+        <p>上下文管理是独立 SDK 模块。它维护<strong>主上下文投影</strong>，即页面和后续主模型使用的有效内容。该投影支持改写、插入、删除与压缩；原始消息和审核协商留在独立日志。上下文编辑以版本化草稿进行，检验通过后形成新快照，不覆盖原始记录。</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>数据层</th><th>内容与职责</th><th>修改边界</th></tr></thead>
+            <tbody>
+              <tr><td>原始与检验记录</td><td>原始模型候选、主/审协商、每次修订、Hook Patch、来源和检验裁决。受限日志按追加方式保存并关联最终申请。</td><td>先脱敏，日志不含密钥明文。原始记录不可覆盖；旧候选不回灌主模型上下文。厂商不透明状态另存受控 sidecar，不进入普通日志。</td></tr>
+              <tr><td>上下文草稿</td><td>普通对话的派生文本、显式思考文本/摘要、资料块和临时说明；工具调用内容另受 Harness 控制。</td><td>普通内容可由受控编辑入口、ContextMaintenance 或已登记 Hook 提出 Patch。工具内容只能走专用受控改写入口。记录原文来源和改写者；插入内容不能冒充用户授权或更高优先级指令。</td></tr>
+              <tr><td>主上下文投影</td><td>已核验的普通内容、约束引用、事实来源，以及最终工具内容与真实状态。供页面展示和后续模型输入。</td><td>用版本比较提交新快照。最终工具位由框架从已冻结申请生成；模型或 Hook 不能直接写“已审计”标记、批准裁决或伪造执行成功。</td></tr>
+              <tr><td>执行与协议状态</td><td>已冻结执行规格、目标、产物、审批、真实结果；工具 ID/结果关联、原生签名和续接引用。</td><td>由 Harness、执行器和协议适配器维护。上下文可以引用或安全摘要，不改原始事实、签名、关联和授权。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>这里的“思考内容”指已显式输出且获准使用的文本、工作笔记或摘要。API 可编辑其普通上下文副本。模型未公开的内部思考不属于可读取对象；协议要求保留的原生思考、签名或不透明载荷仍按厂商契约保存，不作为普通文本覆写。</p>
+
+        <h4 id="context-patch-api">ContextPatch 与 HOOKS API</h4>
+        <p>SDK 公开版本化 <code>ContextDocument</code>、<code>ContextBlock</code>、<code>ContextPatch</code> 和 <code>ContextPatchPort</code>。块有稳定 BlockID、类型、来源、可编辑范围和版本。Patch 绑定分支、基准快照版本/摘要、操作者、原因、作用范围和有界操作列表；这些接口名称用于表达设计边界；具体工具及接口的详细要求在专项设计时确定，尚未实现。</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Patch 操作</th><th>允许用途</th><th>提交条件</th></tr></thead>
+            <tbody>
+              <tr><td>ReplaceBlock</td><td>改写获准的普通上下文、显式思考文本、说明或摘要。</td><td>保留来源与改写记录。工具调用内容、受保护约束、授权、原生协议状态和真实执行记录不接受普通 Patch 替换。</td></tr>
+              <tr><td>InsertBefore / InsertAfter</td><td>插入已授权资料、结构化说明或业务提示。</td><td>指定稳定锚点、内容类型和来源；角色与优先级由固定规则赋予，不能注入越权指令。</td></tr>
+              <tr><td>RemoveBlock</td><td>去掉草稿噪声、重复说明或允许裁剪的完成历史。</td><td>只移出投影，不删除原始日志。未完成工具两侧、必要状态和固定约束不可拆除。</td></tr>
+              <tr><td>CompactRange</td><td>将允许的历史范围改为结构化摘要和来源引用。</td><td>保留当前目标、最新用户要求、未知事项与工具状态；摘要不是执行事实或授权。</td></tr>
+              <tr><td>BindFinalToolCall</td><td>将同一工具位直接更新为最终审定内容和状态，保持调用编号，不创建第二次调用。</td><td>仅由框架根据 Harness 的可信回报生成。绑定最终申请摘要、检验引用及有效期；Hook 无权自行提交这一操作。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Hook 在候选冻结前返回 ContextPatch。框架校验编辑权限、基准版本、字段 schema、来源、固定约束、敏感内容、调用/结果关系、协议可编码性和输入预算，再由 SessionStore 按版本提交。冲突、非法补丁、超时或失败时保留旧快照并阻断当前阶段；不能应用一半后继续。每个运行固定 Hook 注册、顺序、范围和预算，Agent 不能自动启用任意 Hook。</p>
+        <p>ContextPatch 负责上下文编辑；厂商 PATCH 负责基础协议的派生适配。二者分别登记，均不能修改权限、审核、DRY-RUN、SQL 分析或审计规则。Hook 需要修改工具内容时，只能提出受控改写意见。Harness 在同一次调用内按允许边界修订并重新检验；普通 ContextPatch 不直接改工具内容。</p>
+
+        <h4 id="audited-tool-context">同一次工具调用：受控改写后标记【已审计】</h4>
+        <p class="note">abcd、bcad 仅是符号示例。它们不指定真实命令或具体工具。Bash、SQL 和其他受控工具都采用同一设计哲学。</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>阶段</th><th>同一次调用与日志</th><th>主上下文中的工具位</th></tr></thead>
+            <tbody>
+              <tr><td>默认检验</td><td>登记调用编号，保存原内容 <code>abcd</code>。按工具进行 DRY-RUN、SQL 分析或对应预检，不正式运行。</td><td>“工具调用检验中”；原稿不追加到后续主模型输入。</td></tr>
+              <tr><td>审计要求受控改写</td><td>Harness 将该调用内容直接改为 <code>bcad</code>，调用编号不变。日志保留 abcd、审计意见和修订；不是新工具调用。</td><td>仍为同一工具位，状态保持检验中。</td></tr>
+              <tr><td>修订内容检验通过</td><td>针对 bcad 重新完成匹配预检、独立复核和适用人审，冻结该调用的最终执行规格。</td><td><code>bcad【已审计】</code>，另显示待运行及有效检验引用。</td></tr>
+              <tr><td>运行或驳回</td><td>通过后执行器只运行 bcad；未通过则驳回或保持阻断。实际结果绑定该调用的最终内容。</td><td>同一工具位显示最终内容与真实状态，不再新增一条调用。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>SQL 工具也在同一次调用中受控改写待执行语句。改写后的完整 SQL 重新按目标类型和版本分析并审计；语法分析不能实际执行 SQL。Bash 调用 SQL 时，同时满足 Bash 和 SQL 检验。具体工具的详细规则留到专项需求设计。</p>
+        <p>主上下文和后续模型输入只使用该调用的最终审定内容。原稿与审核过程在日志中查阅，不覆盖或伪造已经冻结的执行规格、真实结果和授权。【已审计】是框架根据有效产物生成的状态，不是模型或 Hook 随意填写的文本。</p>
+        <p>SDK 的待执行内容与厂商原始载荷分别保存。受控改写保持同一逻辑调用编号及结果关联，修订版本用于校验匹配；原始签名、必要前缀和 sidecar 不做文本替换。具体协议投影在接入设计时验收。</p>
+        <p>必要的上下文重建或模型请求分支仍引用同一次逻辑调用，不重新派发工具或重复执行。不能安全表达最终内容时，阻断该适配路径；不静默带回原稿，也不伪造厂商签名或工具结果。</p>
+
+        <figure>
+          <div class="figure-head"><strong>同一次工具调用：默认检验、受控改写、运行或驳回</strong><label class="zoom"><input type="checkbox" aria-label="放大上下文定稿图">放大图形</label></div>
+          <div class="diagram-container" tabindex="0" aria-label="上下文定稿图，可横向滚动">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 760" role="img" aria-labelledby="context-edit-title context-edit-desc">
+              <title id="context-edit-title">同一次工具调用默认预检与审计，受控改写后运行或驳回</title>
+              <desc id="context-edit-desc">图表达工具调用的通用设计哲学。普通上下文可以经检验编辑；工具内容只能由 Harness 受控改写。一次调用默认先进行 Bash DRY-RUN、SQL 分析或相应预检，再由独立功能模型审计。通过时冻结最终内容，显示已审计并运行；需要修改时直接修订同一次调用的待执行内容，调用编号不变，然后回到预检和独立复核；不通过则驳回。原稿、审计协商和修订日志独立保存。主上下文中的原工具位直接更新为最终内容，不新增第二次工具调用。具体工具要求留到专项设计。</desc>
+              <defs><marker id="context-edit-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0 0 L7 3.5 L0 7 Z" fill="var(--ink)" /></marker></defs>
+              <rect x="0" y="0" width="1280" height="760" fill="var(--paper)" />
+              <text x="48" y="48" class="diagram-heading">工具内容只受控改写 · 调用编号始终不变 · 默认检验后运行或驳回</text>
+              <path d="M400 160 H464" class="diagram-edge" marker-end="url(#context-edit-arrow)" />
+              <path d="M816 160 H880" class="diagram-edge" marker-end="url(#context-edit-arrow)" />
+              <path d="M1056 216 V336" class="diagram-edge" marker-end="url(#context-edit-arrow)" />
+              <path d="M880 400 H816" class="diagram-edge" marker-end="url(#context-edit-arrow)" />
+              <path d="M1232 400 H1256 V80 H640 V104" class="diagram-edge" marker-end="url(#context-edit-arrow)" />
+              <text x="832" y="72" class="diagram-caption">受控改写后重检，仍为同一次调用</text>
+              <path d="M640 216 V280 H224 V336" class="diagram-evidence" marker-end="url(#context-edit-arrow)" />
+              <text x="1076" y="280" class="diagram-caption">通过 / 受控改写 / 驳回</text>
+              <text x="280" y="272" class="diagram-caption">原稿、协商和修订日志</text>
+              <text x="48" y="244" class="diagram-caption">普通内容经固定校验后提交快照</text>
+              <a href="#context-patch-api" aria-label="上下文草稿"><rect x="48" y="104" width="352" height="112" rx="8" class="diagram-node" /><text x="68" y="134" class="node-label">上下文草稿与 Hook Patch</text><text x="68" y="160" class="diagram-caption">显式思考 / 普通上下文 / 插入与改写</text><text x="68" y="199" class="node-sub">versioned draft / scoped patch / no approval</text></a>
+              <a href="#command-inspection" aria-label="同一次工具调用的默认预检"><rect x="464" y="104" width="352" height="112" rx="8" class="diagram-node" /><text x="484" y="134" class="node-label">同一次工具调用：默认预检</text><text x="484" y="160" class="diagram-caption">Bash DRY-RUN / SQL 完整分析</text><text x="484" y="199" class="node-sub">stable CallID / revision and hash</text></a>
+              <a href="#audit-model-roles" aria-label="功能模型交叉审核"><rect x="880" y="104" width="352" height="112" rx="8" class="diagram-focus" /><text x="900" y="134" class="node-label">功能模型交叉审核</text><text x="900" y="160" class="diagram-caption">Bash / SQL / 流程 / 关键审计角色</text><text x="900" y="199" class="node-sub">pinned Profiles / isolated review sessions</text></a>
+              <a href="#goagent-context" aria-label="追加式脱敏日志"><rect x="48" y="336" width="352" height="128" rx="8" class="diagram-node" /><text x="68" y="366" class="node-label">追加式脱敏日志</text><text x="68" y="392" class="diagram-caption">原稿 / 协商 / 所有版本与来源</text><text x="68" y="418" class="diagram-caption">不回灌主上下文 / 不覆盖原记录</text><text x="68" y="447" class="node-sub">immutable history / no secrets</text></a>
+              <a href="#goagent-context" aria-label="已核验主上下文投影"><rect x="464" y="336" width="352" height="128" rx="8" class="diagram-focus" /><text x="484" y="366" class="node-label">已核验主上下文投影</text><text x="484" y="392" class="diagram-caption">普通内容 + 工具 bcad【已审计】</text><text x="484" y="418" class="diagram-caption">直接更新原工具位 / 展示真实状态</text><text x="484" y="447" class="node-sub">CAS snapshot / validated protocol relations</text></a>
+              <a href="#execution" aria-label="Harness 与最终执行"><rect x="880" y="336" width="352" height="128" rx="8" class="diagram-focus" /><text x="900" y="366" class="node-label">Harness：受控改写与最终执行</text><text x="900" y="392" class="diagram-caption">abcd → bcad / 改写后重新检验</text><text x="900" y="418" class="diagram-caption">通过后冻结运行；不通过则驳回</text><text x="900" y="447" class="node-sub">same CallID / final revision and hash</text></a>
+              <path d="M40 528 H1240" stroke="var(--rule-solid)" />
+              <text x="48" y="570" class="diagram-caption">通用哲学：默认预检 → 独立审计 → 通过或受控改写 → 运行/驳回。改写不是新增调用。</text>
+              <text x="48" y="602" class="diagram-caption">Bash、SQL 和其他工具同理。普通 Hook 不能任意改工具内容。原稿和审计过程只在日志中保留。</text>
+              <text x="48" y="634" class="diagram-caption">执行时仍重新核验产物时效。上下文中的“已审计”不是永久执行许可，也不代表已经执行。</text>
+              <text x="48" y="704" class="diagram-technical">CONTROLLED REWRITE / SAME LOGICAL TOOL CALL / DEFAULT PREFLIGHT / INDEPENDENT AUDIT / EXECUTE OR REJECT</text>
+            </svg>
+          </div>
+          <figcaption>实线是同一次调用的检验、审计与受控改写循环；虚线表示追加日志。通过后，原工具位直接显示最终内容和【已审计】，不生成第二次调用。原稿与协商仅留在日志。图只表达设计哲学，具体工具要求后续单独设计。</figcaption>
+        </figure>
+
         <ol class="steps">
-          <li><strong>上下文管理器固定本轮约束。</strong><span>维护当前目标、最新用户指令、权限与环境引用、模板版本、事实来源与时效。系统约束与工具目录来自宿主，不由模型摘要重写。</span></li>
-          <li><strong>上下文管理器计算输入预算。</strong><span>为输出、思考与工具结果预留空间。按已登记模型使用 token 计数或带余量的估算；不假设所有模型使用同一 tokenizer。超限且无法安全压缩时暂停。</span></li>
-          <li><strong>压缩器只处理允许压缩的历史范围。</strong><span>优先裁剪重复展示与完成历史，再生成结构化摘要或资料引用。保留未完成的工具调用/结果关联。按协议保留或整体处理签名、前缀与续接状态，不能在受绑定的历史中随意挖洞。</span></li>
-          <li><strong>框架检验候选快照。</strong><span>摘要记录原始范围、来源引用、压缩策略及版本、生成配置与未确定项。检验约束、目标、关联完整性、敏感内容和协议可编码性。模型生成摘要时禁用工具，不能借压缩触发资产操作。</span></li>
-          <li><strong>SessionStore 按版本提交有效快照。</strong><span>采用版本比较防止覆盖并发新增消息。失败保留上一个有效快照。原始事件按宿主保存与访问策略保留；快照不是唯一审计或事实存储。</span></li>
-          <li><strong>Agent loop 使用快照继续本轮。</strong><span>对过期或冲突事实重新查询。摘要中的“已批准”或“已执行”只是描述，执行器仍从独立产物与实际记录核验。恢复与跨模型切换都先重新检验当前上下文及工具状态。</span></li>
+          <li><strong>上下文管理器固定本轮约束。</strong><span>维护当前目标、最新用户指令、权限与环境引用、模板版本、事实来源与时效。系统约束与工具目录来自宿主，不由模型或 Hook 重写。</span></li>
+          <li><strong>编辑入口形成候选 Patch 或压缩结果。</strong><span>按基准版本处理允许范围，保留来源。工具候选先在独立工作区定稿，主上下文不追加原稿与审核噪声。压缩保留未完成调用/结果关联及必要协议状态。</span></li>
+          <li><strong>上下文管理器计算输入预算。</strong><span>为输出、思考与工具结果预留空间。按已登记模型计数或带余量估算；超限且无法安全压缩时暂停。上下文维护模型不开放资产工具。</span></li>
+          <li><strong>框架检验完整候选快照。</strong><span>核验 Patch 权限、schema、约束、事实来源、敏感内容、工具关联、原生状态和协议可编码性。记录原始范围、策略、生成配置、版本及未确定项。</span></li>
+          <li><strong>SessionStore 按版本提交。</strong><span>版本比较防止覆盖并发消息。失败保留旧有效快照；原始与变更日志按受控策略保存。快照不是唯一审计、事实或执行授权来源。</span></li>
+          <li><strong>Agent loop 使用新快照继续。</strong><span>过期或冲突事实重新查询。执行器独立核验产物与实际状态。恢复和跨模型切换先检验上下文及工具状态，不能重放操作来修复文本。</span></li>
         </ol>
-        <p>上下文、长期资料、运维事实和执行审计分别保存。资料检索通过宿主端口取得已授权、脱敏且带来源的内容。提示词、日志、文档或工具结果中的指令不能覆盖固定权限。需要服务端压缩或缓存时单独登记其协议状态、存储与数据边界，不能用它替代本地授权记录。</p>
+        <p>上下文、长期资料、运维事实和执行审计分别保存。资料检索经宿主端口取得已授权、脱敏且带来源的内容。提示词、日志、文档和工具结果中的指令不能覆盖固定权限。服务端压缩、缓存或续接按独立策略登记，不替代本地授权与上下文编辑契约。</p>
 
         <h4 id="goagent-tools">内建与外部注册工具</h4>
         <p>工具目录支持内建基础工具和外部工具。内建可提供结构化数据处理、内容摘要、已授权资料检索与受限工作区读取；读取实现及权限由宿主提供。Bash、SQL、Docker、云资源和密钥操作由受控平台工具提供。内建与外部只是来源类别，不表示免检级别。</p>
@@ -1642,7 +1928,7 @@
         <ol class="steps">
           <li><strong>GoAgent SDK 整理完整工具候选。</strong><span>仅接受本轮目录中的工具，校验完整参数与调用 ID，绑定会话、运行、工具版本、项目/环境与目标。模型原生 call ID 用于协议关联，不能直接充当执行权限或跨轮次幂等证明。</span></li>
           <li><strong>SDK 提交 GatedToolRequestPort。</strong><span>内建、外部、MCP 与子 Agent 调用均使用该端口。工具实现不作为在 SDK 内任意执行的回调，也不能在注册或构造时提前操作资产。</span></li>
-          <li><strong>宿主 Harness 完成全部检验。</strong><span>独立 JEV 初审、真实预检、产物复核与适用人审。所有 Bash 有有效 DRY-RUN；所有 SQL 按目标产品与版本完整分析。缺任一必需条件均不执行。</span></li>
+          <li><strong>宿主 Harness 完成全部检验。</strong><span>默认真实预检，再独立审计与适用人审；受控改写保留同一调用，修订内容重新检验与独立复核。所有 Bash 有有效 DRY-RUN；所有 SQL 按目标产品与版本完整分析。缺任一必需条件均不执行。</span></li>
           <li><strong>宿主执行器最终核验并执行。</strong><span>核对同一申请内容、目标、scope、工具版本与产物时效。使用持久意图和稳定操作 ID。重复或未知结果先查询实际状态，不能依赖模型重试保证幂等。</span></li>
           <li><strong>SDK 校验受控结果并继续会话。</strong><span>结果先脱敏、限大小并校验 schema，再按原生协议关联到对应调用。并行调用分别审核；有依赖、冲突或未知副作用时不自动并行。失败与缺测保留明确状态。</span></li>
         </ol>
@@ -1658,8 +1944,8 @@
               <tr><td>运行</td><td><code>goagent.run.created</code><br><code>goagent.run.started</code><br><code>goagent.run.waiting_input</code><br><code>goagent.run.paused</code><br><code>goagent.run.resumed</code><br><code>goagent.run.cancel_requested</code><br><code>goagent.run.cancelled</code><br><code>goagent.run.completed</code><br><code>goagent.run.failed</code></td><td>SDK 已接受或完成对应的本地状态转换。cancel_requested 是取消意图；cancelled 表示本地运行结束，不证明外部操作停止或回滚。completed 不自动表示项目部署成功。</td></tr>
               <tr><td>模型请求</td><td><code>goagent.model.request.queued</code><br><code>goagent.model.request.started</code><br><code>goagent.model.request.retry_scheduled</code><br><code>goagent.model.request.cancel_requested</code><br><code>goagent.model.request.cancelled</code><br><code>goagent.model.request.completed</code><br><code>goagent.model.request.failed</code></td><td>关联固定逻辑 RequestID。完成须已取得并校验本次完整响应终态。取消不证明厂商已停止生成；重试事件不授权重做工具。</td></tr>
               <tr><td>请求尝试与流式</td><td><code>goagent.model.attempt.started</code><br><code>goagent.model.attempt.completed</code><br><code>goagent.model.attempt.failed</code><br><code>goagent.model.attempt.unknown</code><br><code>goagent.model.stream.delta</code><br><code>goagent.model.usage.reported</code></td><td>每次实际请求有独立 AttemptID。delta 只表示经过过滤的部分内容或进度，不能产生可执行工具。用量保留厂商报告来源；缺失字段为未知，不填零。必要协议载荷和完整思考不进入事件。</td></tr>
-              <tr><td>上下文</td><td><code>goagent.context.snapshot.created</code><br><code>goagent.context.snapshot.committed</code><br><code>goagent.context.snapshot.commit_conflict</code><br><code>goagent.context.compaction.started</code><br><code>goagent.context.compaction.completed</code><br><code>goagent.context.compaction.failed</code></td><td>created 与 compaction.completed 表示候选已形成；只有 committed 表示版本比较成功并保存有效快照。只公开版本、来源范围与脱敏引用，不发送原始上下文或协议 sidecar。</td></tr>
-              <tr><td>工具目录与申请</td><td><code>goagent.tool.catalog.accepted</code><br><code>goagent.tool.call.proposed</code><br><code>goagent.tool.call.rejected</code><br><code>goagent.tool.request.submitted</code><br><code>goagent.tool.request.status_received</code></td><td>目录已由可信宿主验收并固定版本。proposed 是完整候选，submitted 仅表示向门禁端口提交。status_received 记录已核验的宿主回报及来源引用，不由 SDK 自行宣布审核通过或执行成功。</td></tr>
+              <tr><td>上下文</td><td><code>goagent.context.snapshot.created</code><br><code>goagent.context.snapshot.committed</code><br><code>goagent.context.snapshot.commit_conflict</code><br><code>goagent.context.compaction.started</code><br><code>goagent.context.compaction.completed</code><br><code>goagent.context.compaction.failed</code><br><code>goagent.context.patch.proposed</code><br><code>goagent.context.patch.committed</code><br><code>goagent.context.patch.rejected</code><br><code>goagent.context.patch.commit_conflict</code></td><td>Patch 提案不表示生效；committed 只在校验及版本比较后产生。created 与 compaction.completed 表示候选已形成；只有 committed 表示版本比较成功并保存有效快照。只公开版本、来源范围与脱敏引用，不发送原始上下文或协议 sidecar。</td></tr>
+              <tr><td>工具目录与申请</td><td><code>goagent.tool.catalog.accepted</code><br><code>goagent.tool.call.proposed</code><br><code>goagent.tool.call.rejected</code><br><code>goagent.tool.request.submitted</code><br><code>goagent.tool.request.status_received</code></td><td>目录已由可信宿主验收并固定版本。proposed 是完整候选，submitted 仅表示向门禁端口提交。受控改写保持同一 CallID，状态关联当前修订；status_received 记录已核验的宿主回报，不由 SDK 自行宣布审核通过或成功。</td></tr>
               <tr><td>工具结果</td><td><code>goagent.tool.result.received</code><br><code>goagent.tool.result.validated</code><br><code>goagent.tool.result.rejected</code><br><code>goagent.tool.result.unknown</code></td><td>received 尚不代表 schema 与关联有效。validated 表示结果契约校验通过，结果本身仍可为失败或未知。实际执行状态依据宿主执行器记录；模型文本、finish_reason 和本地超时不能代替实际结果。</td></tr>
               <tr><td>检查点与子 Agent</td><td><code>goagent.checkpoint.saved</code><br><code>goagent.checkpoint.restored</code><br><code>goagent.subagent.created</code><br><code>goagent.subagent.joined</code></td><td>保存与恢复绑定 SessionStore 版本。子 Agent 自身运行仍产生 Run 事件，使用独立 RunID 和 ParentRunID。joined 表示取得受控子任务结果，不表示独立审核已经批准操作。</td></tr>
               <tr><td>Hook 诊断</td><td><code>goagent.hook.failed</code><br><code>goagent.hook.timed_out</code><br><code>goagent.hook.queue_overflow</code><br><code>goagent.hook.disabled</code></td><td>固定调度器向宿主 Observer 发送脱敏诊断和计数。该组不再分派给 Hook，防止 Hook 故障触发自身形成递归。具体业务通知由宿主独立规则处理。</td></tr>
@@ -1671,13 +1957,13 @@
         <p>平台运维事件单独使用 <code>devops.*</code> 命名空间和平台公共契约：<code>devops.inspection.started/passed/failed</code> 由 Harness 产生；<code>devops.execution.started/completed/failed/unknown</code> 由执行器产生；<code>devops.deployment.state_changed</code>、<code>devops.fact.updated/expired/conflict</code> 和 <code>devops.alert.opened/resolved/delivery_failed</code> 分别由流程、事实与旁路告警服务产生。斜线列出同一前缀下的独立枚举项。passed 只表示对应检验产物通过，执行器仍须最终核验。GoAgent SDK 不依赖平台包；宿主可通过显式桥接器接收这些已核验、脱敏的事件。</p>
 
         <h4 id="goagent-hooks">外部 HOOKS：事件订阅与 Before 扩展点</h4>
-        <p>Hook 是宿主在指定阶段调用的扩展函数。SDK 公开 <code>HookSpec</code>、<code>HookRegistry</code>、<code>ObserverHook</code>、<code>BeforeHook</code>、<code>HookPoint</code> 和 <code>HookDecision</code>，使其他 Go 系统可编写自己的实现。平台使用同一注册规则。管理员或可信宿主审核实现、版本、内容摘要、订阅范围、输入/返回 schema、顺序、超时、队列和并发上限后登记。重复 HookID 或无法确定的执行顺序拒绝登记。每个运行固定注册表版本；Agent、模型输出和动态远端发现不能自动注册或更新 Hook。</p>
+        <p>Hook 是宿主在指定阶段调用的扩展函数。SDK 公开 <code>HookSpec</code>、<code>HookRegistry</code>、<code>ObserverHook</code>、<code>BeforeHook</code>、<code>HookPoint</code>、<code>HookDecision</code>，以及受限 <code>ContextPatch</code> API，使其他 Go 系统可编写自己的实现。平台使用同一注册规则。管理员或可信宿主审核实现、版本、内容摘要、订阅范围、输入/返回 schema、顺序、超时、队列和并发上限后登记。重复 HookID 或无法确定的执行顺序拒绝登记。每个运行固定注册表版本；Agent、模型输出和动态远端发现不能自动注册或更新 Hook。</p>
         <div class="table-wrap">
           <table>
             <thead><tr><th>扩展形式</th><th>公共契约</th><th>允许的行为</th></tr></thead>
             <tbody>
               <tr><td>事件订阅 Hook</td><td><code>ObserverHook.Handle(context.Context, Event) error</code>。按 EventType 订阅，异步、有界投递；已有 Observer 继续接收脱敏观测。</td><td>展示进度、维护宿主的统计、日志与集成投影。读取事件副本，返回错误仅作诊断。After 事实事件没有重写返回值，不能修改 SDK 状态、工具结果或批准结论。</td></tr>
-              <tr><td>Before Hook</td><td><code>BeforeHook.Apply(context.Context, HookInput) (HookDecision, error)</code>。仅在下表枚举的候选冻结前调用。按固定顺序串行处理。</td><td>返回 Continue、Pause、Reject，或有限 Patch。Patch 仅接受声明的非敏感业务标签、已授权资料引用和更严格的业务约束。返回后再次执行固定校验，并生成新的完整候选。不得扩大权限、替换固定指令、改原生签名状态或写入门禁通过标记。</td></tr>
+              <tr><td>Before Hook</td><td><code>BeforeHook.Apply(context.Context, HookInput) (HookDecision, error)</code>。仅在下表枚举的候选冻结前调用。按固定顺序串行处理。</td><td>返回 Continue、Pause、Reject，或有限 Patch。Patch 按 HookPoint 与注册权限处理非敏感业务标签、已授权资料、更严格的约束，或获准的上下文改写/插入/删除。ContextPatch 沿用<a href="#context-patch-api">版本化上下文 API</a>。返回后重新校验并生成完整候选。不得扩大权限、替换固定指令、改原生签名状态或写入门禁通过标记。</td></tr>
               <tr><td>Hook 发起新工作</td><td>经宿主显式任务入口形成新的 RunID 或受控 ToolRequest，并绑定原因 EventID。不可同步重入当前运行或递归分派事件。</td><td>自动化建议和工具操作仍经统一申请路径。不得在 Hook 的构造、注册或回调中直接执行 Bash、SQL、云、Docker 或密钥操作。无宿主门禁时，Hook 产生的工具请求同样不执行。</td></tr>
             </tbody>
           </table>
@@ -1687,9 +1973,10 @@
             <thead><tr><th>公开 HookPoint</th><th>检验时点</th><th>保留的固定规则</th></tr></thead>
             <tbody>
               <tr><td><code>before.run.start</code></td><td>运行输入齐备后、进入 loop 前。可要求补充业务条件或暂停。</td><td>宿主身份、权限、目标与运行预算仍由框架检验；不能自行扩大 scope。</td></tr>
-              <tr><td><code>before.model.submit</code></td><td>候选模型请求形成后、固定版本与发送前。可添加已授权资料引用或业务标签。</td><td>固定指令、协议状态、工具目录、端点白名单、凭证隔离与预算不可重写。改变候选后重新检验。</td></tr>
+              <tr><td><code>before.model.submit</code></td><td>候选请求形成后、版本固定和发送前。可对获准普通上下文提出 Patch，或添加资料与标签。</td><td>固定指令、协议状态、工具目录、端点、凭证和预算不可重写。先提交有效快照再编码请求，不修改已发送请求。</td></tr>
+              <tr><td><code>before.context.edit</code></td><td>上下文草稿形成后、快照提交前。可改写显式思考/普通内容，插入资料或移除允许范围。</td><td>按基准版本和 BlockID 提交 ContextPatch。固定校验、工具关联和协议状态完整，版本比较通过后生效。</td></tr>
               <tr><td><code>before.context.compact</code></td><td>压缩候选范围形成后、生成摘要前。可要求保留更多已授权来源或拒绝压缩。</td><td>必要签名状态、未完成工具对与固定约束仍不可删除；最后通过版本比较提交。</td></tr>
-              <tr><td><code>before.tool.request</code></td><td>完整工具候选形成后、向 GatedToolRequestPort 提交前。可追加业务限制、暂停或拒绝。</td><td>工具名称、参数、目标、版本与 scope 不由该 Hook 重写。Hook 的 Continue 不表示批准。固定校验与宿主 Harness/Executor 全部继续执行。</td></tr>
+              <tr><td><code>before.tool.request</code></td><td>完整工具内容形成后、向 GatedToolRequestPort 提交前。可追加限制、暂停、拒绝或提出受控改写意见。</td><td>改写仅由 Harness 在同一调用内应用，不另建调用。普通 Hook 不能任意改工具内容；修订后重检。Continue 不是批准，冻结后不可改。</td></tr>
             </tbody>
           </table>
         </div>
@@ -1720,7 +2007,7 @@
               <a href="#goagent-tools" aria-label="完整工具候选"><rect x="48" y="112" width="240" height="104" rx="8" class="diagram-node" /><text x="68" y="142" class="node-label">完整工具候选</text><text x="68" y="168" class="diagram-caption">固定来源 / 关联 / 预算</text><text x="68" y="199" class="node-sub">not approved</text></a>
               <a href="#goagent-hooks" aria-label="Before Hook"><rect x="352" y="112" width="416" height="104" rx="8" class="diagram-node" /><text x="372" y="142" class="node-label">Before Hook</text><text x="372" y="168" class="diagram-caption">继续 / 暂停 / 拒绝 / 有限 Patch</text><text x="372" y="199" class="node-sub">trusted registry / failure blocks this phase</text></a>
               <a href="#goagent-verification" aria-label="SDK 固定校验"><rect x="832" y="112" width="400" height="104" rx="8" class="diagram-focus" /><text x="852" y="142" class="node-label">SDK 固定校验</text><text x="852" y="168" class="diagram-caption">候选冻结 / 固定权限与敏感边界</text><text x="852" y="199" class="node-sub">Hook Continue is not authorization</text></a>
-              <a href="#execution" aria-label="宿主 Harness 与执行器"><rect x="832" y="328" width="400" height="128" rx="8" class="diagram-focus" /><text x="852" y="358" class="node-label">宿主 Harness 与执行器</text><text x="852" y="384" class="diagram-caption">独立审核 / 预检 / 复核 / 适用人审</text><text x="852" y="410" class="diagram-caption">执行时最终核验与独立审计</text><text x="852" y="439" class="node-sub">Bash DRY-RUN / complete SQL analysis</text></a>
+              <a href="#execution" aria-label="宿主 Harness 与执行器"><rect x="832" y="328" width="400" height="128" rx="8" class="diagram-focus" /><text x="852" y="358" class="node-label">宿主 Harness 与执行器</text><text x="852" y="384" class="diagram-caption">默认预检 / 独立审计 / 适用人审</text><text x="852" y="410" class="diagram-caption">执行时最终核验与独立审计</text><text x="852" y="439" class="node-sub">Bash DRY-RUN / complete SQL analysis</text></a>
               <a href="#goagent-events" aria-label="实际状态与结果"><rect x="352" y="328" width="416" height="128" rx="8" class="diagram-node" /><text x="372" y="358" class="node-label">实际状态与结果</text><text x="372" y="384" class="diagram-caption">来源核验 / 必要记录先保存</text><text x="372" y="410" class="diagram-caption">失败与未知保留原状态</text><text x="372" y="439" class="node-sub">validated is not necessarily successful</text></a>
               <a href="#goagent-events" aria-label="公开事件封装"><rect x="48" y="328" width="240" height="128" rx="8" class="diagram-node" /><text x="68" y="358" class="node-label">公开事件封装</text><text x="68" y="384" class="diagram-caption">枚举 / 版本 / 来源</text><text x="68" y="410" class="diagram-caption">关联 ID / 脱敏副本</text><text x="68" y="439" class="node-sub">Event / EventData</text></a>
               <a href="#goagent-hooks" aria-label="有界事件队列"><rect x="48" y="560" width="240" height="112" rx="8" class="diagram-node" /><text x="68" y="590" class="node-label">有界事件队列</text><text x="68" y="616" class="diagram-caption">默认尽力 / 持久化可选</text><text x="68" y="655" class="node-sub">gaps / dedup / no blind replay</text></a>
@@ -1748,7 +2035,9 @@
 sdk/agent/                         # 独立、可发布的 Go 模块
   go.mod
   agent.go / ports.go / types.go  # 稳定公共 API
-  events.go / hooks.go            # 公开事件枚举、数据与 Hook 契约
+  events.go / hooks.go            # 集中事件枚举、数据与 Hook 契约
+  model_profiles.go / context_patch.go  # 角色与上下文编辑公共契约
+  contracts/                     # SDK 自持公共 schema 与兼容规则
   protocol/                      # 本项目的基础协议类型与派生接口
     chat.go / responses.go / claude.go / gemini.go
   providers/                     # 必须嵌入对应基础类型，每个厂商独立文件
@@ -1756,7 +2045,7 @@ sdk/agent/                         # 独立、可发布的 Go 模块
   internal/
     runtime/                     # loop / 子 Agent / 检查点
     llm/                         # 请求管理与固定校验
-    context/                     # 维护 / 预算 / 压缩 / 快照
+    context/                     # 草稿 / Patch / 定稿投影 / 预算 / 快照
     tools/                       # 目录 / 内建定义 / 受控申请
     events/                      # 脱敏封装 / 有界队列 / Hook 调度
     replay/                      # 脱敏协议语料与契约回放
@@ -1770,17 +2059,17 @@ platform/                         # 平台模块，不作为 SDK 硬依赖
     substrate/                   # Supervisor 托管的底座服务
     monitor-worker/              # 独立监控节点
   internal/
-    domain/                      # project / task / approval / fact
+    domain/                      # project / task / approval / fact / table contracts
     application/                 # 用例、状态机与端口
     adapters/
       agent/ / transport/ / storage/
       cloud/ / database/ / monitoring/
-  contracts/                     # 版本化服务协议与 schema
+  contracts/                     # 按职责域集中版本化契约与常量来源
     events/                      # 平台运维事件；独立于 SDK</code></pre>
         <p>各二进制只获得本职责需要的凭证与接口。只读观测端口和写操作端口分开。平台存储适配器没有向 Agent 暴露任意 SQL 的能力。管理员审核后的规程与模块固定版本启用；新增派生能力不得修改既有门禁。</p>
 
         <h3 id="go-workflows">首版流程与未来编排器</h3>
-        <p>首版状态机只覆盖已定义的项目部署流程。每个运行固定流程版本、步骤、输入、申请和证据。状态至少区分待检验、待审核、待人工输入、可执行、执行中、待确认实际结果、成功、暂停、失败与取消。暂停和故障恢复不自动恢复旧授权。</p>
+        <p>首版工作流状态机覆盖已定义的项目部署流程；运维表格先准入固定脚本；自然日维护按独立持久周期协议组织，经 Harness 逐次门禁运行，不开放任意流程编排。每个运行固定流程版本、步骤、输入、申请和证据。状态至少区分待检验、待审核、待人工输入、可执行、执行中、待确认实际结果、成功、暂停、失败与取消。暂停和故障恢复不自动恢复旧授权。</p>
         <p>编排状态在一个持久存储中作为唯一权威来源。状态变更采用版本比较，调度采用有界租约与隔离令牌，重复消息使用稳定幂等键。执行器的实际结果记录独立保存，并由流程核验后推进步骤。超时或网络断开造成未知结果时，流程进入待确认状态；无法确认就保持暂停。补偿是新的受控操作，也先检验再执行。</p>
         <p>数据库事务内保存状态和待发送事件，再由有界投递服务发送。此处的 outbox 表示事务内的待发送记录。接收方去重，旧租约持有者不得继续提交。平台升级须保留未完成运行使用的规程、处理器和执行版本；不能仅保留最新两个版本而使长期审批中的任务失去对应执行者。</p>
         <p>如果 Temporal 通过 SQL 门禁、部署成本与恢复检验，才可作为新的编排适配器。每个运行只绑定一个编排器。Temporal History 作为该运行的唯一流程状态来源，核心仅保存可重建、带新鲜度的查询投影。迁移在途状态须另行固定方案并检验，不能让两套存储同时推进同一流程。</p>
@@ -1829,11 +2118,11 @@ platform/                         # 平台模块，不作为 SDK 硬依赖
           <table>
             <thead><tr><th>阶段</th><th>可交付范围</th><th>进入下一阶段的条件</th></tr></thead>
             <tbody>
-              <tr id="go-p0"><td>P0 · 契约与兼容检验</td><td>固定模块依赖、协议、公共 SDK 类型、威胁边界与能力矩阵。原型验证真实 DRY-RUN、各 SQL 方言、CGO/双架构构建、持久恢复和候选框架工具路径。固定四种模型协议、厂商 PATCH、上下文压缩、工具目录、公开事件及 Hook 的契约与回归语料。</td><td>证明不支持的命令与 SQL 被拒绝；展开内容、目标与产物可绑定；SDK 独立依赖可构建。Temporal 内部 SQL 门禁未解决就保持候选禁用。只验证隔离原型，不开放实际资产执行。</td></tr>
-              <tr id="go-p1"><td>P1 · 平台骨架与 SDK v0</td><td>模块化 Go 控制接口、独立 Worker 协议、GoAgent SDK 的一种基础协议、请求管理、上下文快照、对话与计划、公共事件枚举、ObserverHook/BeforeHook、宿主端口和第二宿主样例。初始复测用 fake 模型、协议语料与隔离存储。</td><td>第二宿主无需平台服务即可运行；无门禁的工具请求执行次数为零。取消、限额、并发、子 Agent 和脱敏事件通过。第二宿主可按公开枚举实现 Hook；Hook 越权、超时、panic、慢订阅与重复通知均有明确处理。工具分片不提前派发，压缩失败不覆盖有效快照，必要协议状态保持可续接。需要持久化的内部 SQL 已先完成分析准入；未完成则相关存储功能禁用。</td></tr>
-              <tr id="go-p2"><td>P2 · Harness 与执行器</td><td>完成独立审核、真实 DRY-RUN、完整 SQL 分析、产物复核、危险操作人审、受控执行和独立审计的最小闭环。保存执行意图、幂等键和实际结果。内建、外部注册、Hook 发起及子 Agent 工具共用门禁。</td><td>在授权隔离环境验证一条受控脚本和一种受支持 SQL 路径。缺产物、过期、错 scope、目标变化、部分分析及审核故障均零执行。进程崩溃后先查结果，重复消息不重复变更。剪贴板仅验证引用边界，详细应用不提前展开。</td></tr>
-              <tr id="go-p3"><td>P3 · 项目流程与恢复</td><td>项目 Agent 生成、规程登记、限域部署状态机、人工审批和密钥待输入、暂停/取消、步骤补偿、租约与投递。所有步骤共用 P2 执行接口。</td><td>跨核心/Worker 重启、跨节点恢复、长等待和重复事件通过。旧流程按固定版本继续；新版本不改变在途授权。数据库状态与实际资产结果核对。未知结果停住，未获批准的补偿不运行。</td></tr>
-              <tr id="go-p4"><td>P4 · 一个项目的完整闭环</td><td>接入一个实际获授权的测试项目，完成 OSS 九步部署、系统服务与受控重启。接入独立监控、告警、CRONTAB 和事实地图。首批仅开放已验收的一个供应商与数据库类型。</td><td>在实际受控环境按项目要求验收健康、日志、权限、回退和事实新鲜度。关闭 Agent Worker 与核心后，纯指标采集和告警仍继续。JEV/预检不可用时脚本与 SQL 阻断。跨 VM 恢复及单一重启责任通过。</td></tr>
+              <tr id="go-p0"><td>P0 · 契约与兼容检验</td><td>固定模块依赖、协议、公共 SDK 类型、威胁边界与能力矩阵。原型验证真实 DRY-RUN、各 SQL 方言、CGO/双架构构建、持久恢复和候选框架工具路径。固定 schema/常量来源、模型角色/交叉审核、四种协议、厂商 PATCH、上下文编辑/定稿/压缩、工具目录、事件及 Hook 的契约和回归语料。</td><td>证明不支持的命令与 SQL 被拒绝；展开内容、目标与产物可绑定；SDK 独立依赖可构建。Temporal 内部 SQL 门禁未解决就保持候选禁用。只验证隔离原型，不开放实际资产执行。</td></tr>
+              <tr id="go-p1"><td>P1 · 平台骨架与 SDK v0</td><td>模块化 Go 控制接口、独立 Worker 协议、GoAgent SDK 的一种基础协议、请求管理、模型角色路由、上下文 Patch 与快照、对话与计划、公共事件枚举、ObserverHook/BeforeHook、宿主端口和第二宿主样例。初始复测用 fake 模型、协议语料与隔离存储。</td><td>第二宿主无需平台服务即可运行；无门禁的工具请求执行次数为零。取消、限额、并发、子 Agent 和脱敏事件通过。第二宿主可按公开枚举实现 Hook；Hook 越权、超时、panic、慢订阅与重复通知均有明确处理。普通上下文/显式思考改写和插入生效；非法 Patch、版本冲突保留旧快照。原始候选与审核协商不进入定稿后的主模型输入。工具分片不提前派发，调用关联及必要协议状态有效，压缩失败不覆盖快照。需要持久化的内部 SQL 已先完成分析准入；未完成则相关存储功能禁用。</td></tr>
+              <tr id="go-p2"><td>P2 · Harness 与执行器</td><td>完成角色/Profile 配置、关键操作交叉审核、真实 DRY-RUN、完整 SQL 分析、产物复核、人审、受控执行与独立审计的最小闭环。保存执行意图、幂等键和实际结果。内建、外部注册、Hook 发起及子 Agent 工具共用门禁。</td><td>在授权隔离环境验证一条受控脚本和一种受支持 SQL 路径。缺产物、过期、错 scope、目标变化、部分分析、角色缺失和审核冲突均零执行。同一次调用受控改为 bcad 后重新检验，旧产物失效；调用编号不变、只执行最终内容，投影与真实结果一致。进程崩溃后先查结果，重复消息不重复变更。剪贴板仅验证引用边界，详细应用不提前展开。</td></tr>
+              <tr id="go-p3"><td>P3 · 项目流程与恢复</td><td>项目 Agent 生成、规程登记、限域部署状态机、人工审批和密钥待输入、暂停/取消、步骤补偿、租约与投递。实现脚本准入先于表格创建、Harness 写入口、schema/统计变更审核、自然日固定脚本、受限后台分析、日快照及漏跑恢复。所有步骤共用 P2 执行接口。</td><td>跨核心/Worker 重启、跨节点恢复、长等待和重复事件通过。旧流程按固定版本继续；新版本不改变在途授权。数据库状态与实际资产结果核对。未知结果停住，未获批准的补偿不运行。</td></tr>
+              <tr id="go-p4"><td>P4 · 一个项目的完整闭环</td><td>接入一个实际获授权的测试项目，完成 OSS 九步部署、系统服务与受控重启。接入独立监控、告警、CRONTAB 和事实地图，验收首张通用运维表格、固定维护脚本与自然日调度。首批仅开放已验收的一个供应商与数据库类型。</td><td>在实际受控环境按项目要求验收健康、日志、权限、回退和事实新鲜度。关闭 Agent Worker 与核心后，纯指标采集和告警仍继续。JEV/预检不可用时脚本与 SQL 阻断。跨 VM 恢复及单一重启责任通过。脚本未准入禁止建表、直接写入拒绝、字段/统计变更拒绝、周期重复/漏跑、并发冲突和未知值测试通过。业务 Agent 停机时固定脚本仍可提交，检验失效时阻断；告警继续。</td></tr>
               <tr id="go-p5"><td>P5 · 多云与派生模块</td><td>逐产品扩展 Azure、阿里云、腾讯云；逐类型扩展 MySQL、PostgreSQL 派生数据库与自研监控处理器。按接口与组合实现 PATCH。逐项验收四种模型协议及 GLM/DeepSeek 派生适配器；证明父实现复用与重写生效。按 SDK 独立版本交付，不与某云产品绑定。</td><td>每个新增适配器有独立文件、能力声明、契约测试、失败恢复和版本矩阵。分析不全仍拒绝；冲突、缺测和解析失败不标健康。新处理器回放旧证据不重复告警、不执行修复；门禁逻辑保持固定。</td></tr>
               <tr id="go-p6"><td>P6 · SDK v1 与发布基线</td><td>稳定公共 SDK API，完成第二真实宿主接入。交付版本清单、升级/回退流程、支持矩阵、维护责任和运维恢复手册。</td><td>SDK 最低/当前 Go 版本与既有调用方通过。模型协议、流式、压缩、工具注册、事件/Hook 兼容与故障恢复矩阵通过，支持范围明确。服务协议、数据迁移、旧在途流程、资源限额和恢复通过。已知阻断缺陷为零；功能、测试、观测和文档同时齐备，才发布对应版本。</td></tr>
             </tbody>
