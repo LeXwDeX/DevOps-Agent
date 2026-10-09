@@ -1,7 +1,7 @@
 ---
 id: DESIGN-CORE
 title: core 层详细设计
-status: 草案（等用户确认后才开始写代码）
+status: 已定
 summary: 第一块开发范围：platform/internal/core 及其需要的 schema、model。包结构、核心类型、执行申请状态机、检验流水线、策略解析、修订与冻结、既定任务编排引擎、恢复即停止、事件、端口清单、测试清单和审核清单。
 load_when: 开发或审核 core 层时；开发任何依赖 core 的 provider 或 module 之前
 depends_on: [KERNEL, EXEC-MODEL, REVIEW-POLICY, HARNESS-TASKS, STATE-RECOVERY, SCHEMA-CONST, REPO-LAYOUT]
@@ -30,7 +30,7 @@ depends_on: [KERNEL, EXEC-MODEL, REVIEW-POLICY, HARNESS-TASKS, STATE-RECOVERY, S
 ```text
 internal/
   schema/
-    core/                 # 执行申请、执行预期、策略、任务定义的 JSON Schema 与生成类型
+    core/                 # 执行申请、执行预期、策略、任务定义的契约结构与校验（Go 编写）
     consts/               # 状态、读写类别、策略模式等枚举
     errcode/              # 错误码
   model/
@@ -276,11 +276,11 @@ core 在状态转换持久保存后，经 `EventSink` 产生 `devops.*` 事件�
 6. 端口都有内存测试替身和端口契约测试，供后面的 provider 复用。
 7. 没有已知的阻断缺陷；非阻断问题列入报告。
 
-## 11. 本块需要确认的点
+## 11. 已确认的决定
 
-| 点 | 建议 |
+| 点 | 决定 |
 |---|---|
-| schema 格式 | 对外契约用 JSON Schema，生成 Go 类型和校验器（具体生成工具在开工时选一个并固定版本） |
+| schema 层 | 常量体和配置定义的集合，直接用 Go 编写，不依赖代码生成 |
 | 摘要算法与规范化 | 字段排序 JSON + SHA-256 |
 | 条件表达式 | 用第 7.3 节的最小语法，自己实现小型解析器，不引入通用脚本引擎 |
 | 预授权 | 不在本块，放到编排之后的块 |

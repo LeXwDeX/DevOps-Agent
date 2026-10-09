@@ -51,7 +51,7 @@ depends_on: [KERNEL, COMPONENTS, SQL, SCHEMA-CONST, REPO-LAYOUT]
 | 调用链 | 候选：OpenTelemetry Go，按需采用。 | SDK 注入观测接口，不创建全局 exporter。敏感参数不进入 span 属性。首版不依赖还需另行检验的日志信号管线。 |
 | 监控旁路 | 独立存储、计算和通知（K-25）。 | 采集组件和自研模块见 [监控](../30-features/36-monitoring.md)。第三方监控组件走组件准入。 |
 | 外部命令守卫 | [destructive_command_guard（dcg）](https://github.com/Dicklesworthstone/destructive_command_guard)，Rust 独立二进制，打进 runtime 镜像。 | 不调用模型。二进制和规则包固定版本，由管理员登记（K-20），走组件准入。用法见 [审核与策略](../20-execution/22-review-and-policy.md) 第 2.2 节。P0 核实许可证、机器可读调用方式和 SQL 覆盖（Q11）。 |
-| Schema 与代码生成 | P0 选定（见 [Schema 与常量](52-schema-and-constants.md) 第 6.1 节）。 | 生成结果必须确定，可在 CI 重新生成并比对。 |
+| Schema 层 | 直接用 Go 编写常量、配置和契约结构，不依赖代码生成（见 [Schema 与常量](52-schema-and-constants.md) 第 6.1 节）。 | 一项一个定义源；文档枚举与代码常量在 CI 比对。 |
 | 测试与依赖检查 | 基线：race detector、Go fuzzing、`govulncheck`、Testcontainers Go。 | race 只能发现已运行路径上的竞态。fuzz 检验解析和输入边界。真实服务检验 SQL 方言、事务和恢复。测试结果、依赖许可和维护状态写入发布记录。缺少关键测试时，不能宣称该能力可用。见 [测试与发布](55-testing-and-release.md)。 |
 
 ## 4. 组件准入（K-23）
@@ -117,7 +117,7 @@ Temporal 提供持久工作流和独立的 Temporal Worker，适合长期等待�
 | Eino / Google ADK Go | 工具回调、并行调用、子 Agent、流式、取消和恢复路径都能接到统一申请端口；框架执行器无法绕过。 |
 | Moby client | 节点代理的最小原型：按冻结申请创建、启动、停止容器，并采集指纹。 |
 | 云 SDK | 每个首批产品的 DryRun 含义、幂等支持和状态查询方式（P4 只开放一个厂商）。 |
-| Schema 生成 | 选定格式和生成工具；生成结果确定、可比对。 |
+| Schema 导出 | 需要对外提供 JSON Schema 时，从 Go 定义导出，结果确定、可比对。 |
 
 PoC 只在隔离环境运行，不接触真实项目资产。
 

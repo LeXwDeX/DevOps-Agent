@@ -49,7 +49,7 @@ flowchart LR
 | 事项 | 做法 |
 |---|---|
 | 模块导入路径 | 已定：`github.com/LeXwDeX/DevOps-Agent/sdk/agent` 与 `github.com/LeXwDeX/DevOps-Agent/platform`（[53](53-repo-layout.md) 第 1 节） |
-| schema 格式与生成工具 | 按 [52](52-schema-and-constants.md) 第 6.1 节评估后提给用户确认 |
+| schema 层形式 | 已定：直接用 Go 编写常量、配置和契约结构，不依赖代码生成（[52](52-schema-and-constants.md) 第 6.1 节） |
 | P1 的模型 API key | 已定：P1 只用一个模型 API key（测试环境用 DeepSeek），作为第一个 K 放在 runtime 挂载的 `data/vault/` 下，由模型出口代理读取（[11](../10-architecture/11-components-and-boundaries.md) 第 5.3 节）。凭证库完整设计（Q10）在 P2 接入资产凭证前完成 |
 | Q11 dcg 核实 | 已选定 destructive_command_guard。核实许可证、机器可读调用方式和 SQL 覆盖（第五步），结论提给用户 |
 | 底座门禁形态 | 已定：底座内置最小门禁，首版每步人工确认（[12](../10-architecture/12-deployment-substrate.md) 第 6.1 节） |
@@ -83,7 +83,7 @@ flowchart LR
 
 | 测试 | 证明什么 |
 |---|---|
-| schema 往返与生成一致性 | 重新生成无差异；正例通过、负例拒绝 |
+| schema 校验与常量比对 | 文档枚举与代码常量一致；正例通过、负例拒绝 |
 | 枚举稳定性 | 对外字符串不变；文档与代码集合一致 |
 | 执行申请状态转换表 | 只允许 [21](../20-execution/21-execution-model.md) 第 8 节定义的合法转换；非法转换被拒绝 |
 | 内容摘要规范化 | 同内容同摘要；改动任一字节摘要改变 |

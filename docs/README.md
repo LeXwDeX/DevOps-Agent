@@ -71,7 +71,7 @@ depends_on: []
 | [55-testing-and-release](50-engineering/55-testing-and-release.md) | 复测与发布质量门槛 | 测试与发布 | 已定 |
 | [56-bootstrap-guide](50-engineering/56-bootstrap-guide.md) | 起底开发指引：第一步做什么 | 开始写代码前 | 已定 |
 | **60 详细设计** | | | |
-| [61-core-layer](60-design/61-core-layer.md) | core 层详细设计：状态机、检验流水线、策略解析、修订冻结、编排引擎、端口与测试 | 开发或审核 core 层 | 草案 |
+| [61-core-layer](60-design/61-core-layer.md) | core 层详细设计：状态机、检验流水线、策略解析、修订冻结、编排引擎、端口与测试 | 开发或审核 core 层 | 已定 |
 
 ## 任务路由
 

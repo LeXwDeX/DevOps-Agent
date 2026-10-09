@@ -58,7 +58,7 @@ go.work                  # 只在本地使用，不作为构建输入
 
 | 层 | 目录 | 放什么 | 不放什么 |
 |---|---|---|---|
-| schema | `internal/schema/` | 版本化契约定义（JSON Schema 等）、由它生成的 Go 类型与校验器、集中常量和枚举、错误码（K-22） | 业务逻辑 |
+| schema | `internal/schema/` | 常量体和配置定义的集合：枚举、常量、错误码、配置结构、带版本的对外契约结构及其校验函数，直接用 Go 编写，不依赖代码生成（K-22） | 业务逻辑 |
 | model | `internal/model/` | 领域数据模型：项目、环境、执行申请、执行预期、指纹、策略、SOP（既定任务）与版本、运行、事实、K 引用等结构体与校验 | 流程、I/O |
 | core | `internal/core/` | 内核：执行申请生命周期与状态机、"先检验，再执行"流水线（执行预期、指纹、自审结论、dcg、策略、人工审核、冻结、受控改写）、既定任务编排引擎、恢复即停止、`devops.*` 事件、各类端口（接口）定义 | 任何外部 I/O；厂商类型；具体业务功能 |
 | provider | `internal/provider/` | core 端口的实现和外部对接：PostgreSQL 存储、dcg、凭证库、模型出口、执行通道（SSH、跳板）、云厂商、数据库方言解析、Docker、沙盒、HTTP 与任务队列传输 | 业务规则 |
@@ -71,7 +71,7 @@ platform/
     core/  agent-worker/  harness/  scheduler/  executor/  model-proxy/
     substrate/  monitor-worker/  migrate/
   internal/
-    schema/                # 契约、生成类型、常量、错误码
+    schema/                # 常量、枚举、错误码、配置结构、对外契约
     model/                 # 领域数据模型
     core/                  # 内核与端口
       request/  pipeline/  policy/  review/  fingerprint/  orchestrator/
@@ -102,7 +102,7 @@ platform/
 
 | 约定 | 说明 |
 |---|---|
-| schema 管对外，model 管对内 | schema 的生成类型只用于边界：HTTP/JSON、任务队列、事件、持久化的 JSON 字段、工具与策略定义。进入系统后转换成 model 类型。转换函数放在边界所在的层（provider 或 module），每个转换都有往返测试。 |
+| schema 管定义，model 管领域 | schema 里的对外契约结构只用于边界：HTTP/JSON、任务队列、事件、持久化的 JSON 字段、工具与策略定义。进入系统后转换成 model 类型。转换函数放在边界所在的层（provider 或 module），每个转换都有往返测试。 |
 | model 只有数据和自校验 | 结构体、构造函数、`Validate()`、不可变值对象（例如内容摘要、版本号）。不含流程，不调用任何接口。 |
 | core 是纯逻辑加端口 | 状态机、流水线、策略解析、编排都写成可以在内存里跑完的代码。需要外部能力时声明接口，放在 `core/ports`。时间、ID 生成也走端口，便于测试。 |
 | 测试替身随 core 提供 | `core/coretest` 提供每个端口的内存实现（fake），供 core、module 和契约测试使用。provider 的真实实现必须通过同一套端口契约测试。 |
