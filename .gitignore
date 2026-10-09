@@ -305,3 +305,10 @@ native/fts5_cjk/*.so
 
 # hermes
 hermes/
+
+# Go 多模块本地开发文件，不提交（见 docs/50-engineering/53-repo-layout.md 第 1 节）
+go.work
+go.work.sum
+
+# Claude Code 个人设置
+.claude/settings.local.json
