@@ -78,7 +78,7 @@ func validStrings(v reflect.Value) bool {
 	if t.Implements(jsonMarshalerType) {
 		return true
 	}
-	if t.Implements(textMarshalerType) && (v.Kind() != reflect.Pointer || !v.IsNil()) {
+	if t.Implements(textMarshalerType) && (v.Kind() != reflect.Pointer || !v.IsNil()) && v.CanInterface() {
 		text, err := v.Interface().(encoding.TextMarshaler).MarshalText()
 		return err != nil || utf8.Valid(text)
 	}
@@ -106,7 +106,11 @@ func validStrings(v reflect.Value) bool {
 	case reflect.Struct:
 		for i := 0; i < t.NumField(); i++ {
 			f := t.Field(i)
-			if !f.IsExported() || f.Tag.Get("json") == "-" {
+			if f.Tag.Get("json") == "-" {
+				continue
+			}
+			// 未导出的字段不会被序列化，但嵌入的未导出结构体类型的导出字段会被提升，照样要查。
+			if !f.IsExported() && !(f.Anonymous && f.Type.Kind() == reflect.Struct) {
 				continue
 			}
 			if !validStrings(v.Field(i)) {

@@ -152,6 +152,12 @@ func TestInvalidUTF8Rejected(t *testing.T) {
 		Rendered string   `json:"rendered"`
 		Keys     []string `json:"keys"`
 	}
+	// 嵌入的未导出结构体：encoding/json 会提升它的导出字段，所以也要查。
+	type embedded struct{ Promoted string }
+	type outer struct {
+		embedded
+		Name string `json:"name"`
+	}
 	bad := map[string]any{
 		"string":         "echo \xff",
 		"map key":        map[string]int{"a\xfe": 1},
@@ -161,6 +167,7 @@ func TestInvalidUTF8Rejected(t *testing.T) {
 		"struct slice":   rec{Rendered: "ok", Keys: []string{"k", "\xfe"}},
 		"truncated rune": "abc\xe2\x82",
 		"raw message":    json.RawMessage("\"a\xff\""),
+		"promoted field": outer{embedded: embedded{Promoted: "p\xff"}, Name: "ok"},
 	}
 	for name, v := range bad {
 		t.Run(name, func(t *testing.T) {

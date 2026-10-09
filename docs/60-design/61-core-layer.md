@@ -179,7 +179,7 @@ stateDiagram-v2
 
 执行前的最后核验 `pipeline.PreExecute(request)` 由执行器所在进程调用：核对冻结摘要、重新采集指纹并比对。摘要不一致 → 返回 `core.digest_mismatch`，不执行；检验时采集到了指纹，而执行前指纹不一致或采集不到 → `target_changed`（`core.fingerprint_changed`），不执行。
 
-检验时指纹不可用（第 4 步标记，申请因此转了人工），且人工已对当前 Revision 和 Digest 点了 ▶ 执行：执行前不做指纹比对，照常执行。人工是在知道没有指纹的情况下批准的；否则这类申请批准后永远执行不了。`devops.execution.started` 事件和开始执行的审计记录里带 `fingerprint_unavailable_human_confirmed: true` 和说明"指纹不可用，人工已确认"。检验时指纹不可用而没有人工批准就已冻结的申请（正常流程不会出现），仍按 `target_changed` 处理。
+检验时指纹不可用（第 4 步标记，申请因此转了人工），且人工已对当前 Revision 和 Digest 点了 ▶ 执行：执行前不做指纹比对，照常执行。人工是在知道没有指纹的情况下批准的；否则这类申请批准后永远执行不了。`devops.execution.started` 事件和开始执行的审计记录里带 `fingerprint_unavailable_human_confirmed: true` 和说明"指纹不可用，人工已确认"。检验时指纹不可用而没有人工批准就已冻结的申请，以及指纹记录缺失或状态不是 `collected` / `unavailable` 的申请（都不是检验写下的结果，正常流程不会出现），仍按 `target_changed` 处理。
 
 核验通过后先持久保存 `executing`（即"开始执行"记录，产生 `devops.execution.started`），再写开始审计，再调用 `ExecutorPort`。开始审计写不进去时不调用执行器，申请直接结束为 `failed`，所以 `failed` 也包括"执行器没有被调用"。哪个二进制调用这些函数，在装配时决定。
 

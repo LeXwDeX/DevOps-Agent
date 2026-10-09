@@ -489,3 +489,42 @@ func TestUnavailableFingerprintWithoutApprovalIsTargetChanged(t *testing.T) {
 		t.Error("executor called")
 	}
 }
+
+// 人工 ▶ 之后指纹记录缺失或状态不合法（不是检验写下的 unavailable）：不跳过比对，按 target_changed 处理，不执行。
+// 跳过比对只对"检验时明确记为 unavailable 且人工已确认"的申请生效。
+func TestHumanApprovalDoesNotSkipComparisonWithoutRecordedUnavailableFingerprint(t *testing.T) {
+	for name, fp := range map[string]*request.Fingerprint{
+		"nil fingerprint":    nil,
+		"invalid status":     {Status: "bogus"},
+		"empty status":       {},
+		"collected no value": {Status: consts.FingerprintCollected},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newFixture(t)
+			f.setPolicy(consts.PolicyManual)
+			r := f.inspect(input())
+			wantState(t, r, consts.RequestAwaitingReview)
+			if _, err := f.svc.Review(bg, r.CallID, reviewOf(r, consts.ActionExecute)); err != nil {
+				t.Fatal(err)
+			}
+			stored := f.get(r.CallID)
+			stored.Fingerprint = fp
+			fd, err := stored.FreezeDigest()
+			if err != nil {
+				t.Fatal(err)
+			}
+			stored.Frozen.Digest = fd
+			f.env.Requests.Seed(stored)
+
+			out, err := f.svc.Execute(bg, r.CallID)
+			wantCode(t, err, errcode.FingerprintChanged)
+			wantState(t, out, consts.RequestTargetChanged)
+			if f.env.Executor.Calls() != 0 {
+				t.Error("executor called")
+			}
+			if _, ok := hasType(f.env.Requests.Events(), events.ExecutionStarted); ok {
+				t.Error("execution.started emitted")
+			}
+		})
+	}
+}

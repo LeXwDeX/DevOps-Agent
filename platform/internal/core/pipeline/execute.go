@@ -35,7 +35,7 @@ const (
 //     （保存 devops.call.target_changed），返回 core.fingerprint_changed，不执行。
 //   - 检验时指纹不可用（申请因此转了人工），且人工已对当前修订和摘要点 ▶ 执行：不做指纹比对，照常执行，
 //     在 devops.execution.started 事件和审计里记"指纹不可用，人工已确认"。
-//     检验时指纹不可用而没有人工批准的，按 target_changed 处理。
+//     检验时指纹不可用而没有人工批准的，以及指纹记录缺失或状态不合法的（不是检验写下的），按 target_changed 处理。
 func (s *Service) PreExecute(ctx context.Context, id ids.CallID) error {
 	t, err := s.begin(ctx, id)
 	if err != nil {
@@ -59,10 +59,12 @@ func (s *Service) preExecute(ctx context.Context, t *txn) (confirmed bool, err e
 		return false, errcode.Newf(errcode.DigestMismatch, "call %s changed after freezing", r.CallID)
 	}
 	if r.Fingerprint == nil || r.Fingerprint.Status != consts.FingerprintCollected {
-		if review.ApprovedFor(r) {
+		// 只有检验时明确记为 unavailable、且人工已对当前修订和摘要点 ▶ 的申请才跳过比对。
+		// 指纹缺失或状态不合法不是检验的结论（检验总会写下 collected 或 unavailable），按目标变化处理。
+		if r.Fingerprint != nil && r.Fingerprint.Status == consts.FingerprintUnavailable && review.ApprovedFor(r) {
 			return true, nil
 		}
-		// 没有人工批准就冻结在这种状态：正常流程不会出现。按目标变化处理，不执行。
+		// 没有人工批准，或指纹记录不是检验写下的：正常流程不会出现。按目标变化处理，不执行。
 		return false, s.targetChanged(ctx, t, "no collected fingerprint at inspection")
 	}
 	fp, err := s.d.Fingerprint.Collect(ctx, r.Clone())
