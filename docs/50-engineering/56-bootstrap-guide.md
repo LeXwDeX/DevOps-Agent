@@ -11,8 +11,8 @@ depends_on: [INDEX, KERNEL, OPEN-QUESTIONS, REPO-LAYOUT, PHASES, SCHEMA-CONST, G
 
 ## 1. 什么时候可以写代码
 
-- 只有用户明确要求实现后，才开始写源码（K-30）。在那之前只维护设计文档。
-- 用户要求实现时，只做用户要求的范围。范围不清楚时先问。
+- 只有用户明确要求实现后，才开始写源码（K-30）。用户已要求实现 1.0，按 [阶段交付](54-phases-and-acceptance.md) 第 1.1 节一块一块做。
+- 只做当前块的范围。范围有不清楚的地方，按第 6 节自己会审，采用推荐做法。
 - 实现从 P0 开始，按 [阶段交付](54-phases-and-acceptance.md) 的顺序推进。不跳阶段。
 - 文档里写的是设计，不代表已经实现。不要根据文档假设某个模块已经存在。
 
@@ -56,7 +56,7 @@ flowchart LR
 
 **第二步：建目录**
 
-按 [53](53-repo-layout.md) 建立 `sdk/agent/` 和 `platform/` 的目录骨架：`cmd/` 下九个入口目录、`internal/` 下 `schema`、`model`、`core`、`provider`、`module` 五层，以及 `assets/`、`migrations/`、`deploy/`、`test/`。之后按 [54](54-phases-and-acceptance.md) 第 1.1 节，从 core 开始一块一块做，每块先出详细设计，开发完审核通过再进下一块。只有用户明确要求后才创建 `go.mod`。
+按 [53](53-repo-layout.md) 建立 `sdk/agent/` 和 `platform/` 的目录骨架：`cmd/` 下九个入口目录、`internal/` 下 `schema`、`model`、`core`、`provider`、`module` 五层，以及 `assets/`、`migrations/`、`deploy/`、`test/`。之后按 [54](54-phases-and-acceptance.md) 第 1.1 节，从 core 开始一块一块做，每块先出详细设计，开发完审核通过再进下一块。建 core 块时创建 `platform/go.mod`；`sdk/agent/go.mod` 在开始 SDK 块时创建。
 
 **第三步：定义首批 schema（按顺序）**
 
@@ -161,7 +161,7 @@ P1 的验收条件见 [54](54-phases-and-acceptance.md)。
 
 1. 查 [待定事项](../00-overview/04-open-questions.md)，按"当前默认"实现。
 2. 实现保持可改：把待定的部分放在接口或配置后面，不写死在多处。
-3. 不自行决定待定项。需要决定时问用户，说清楚选项和影响。
+3. 设计没写清楚、互相矛盾或缺细节时，自己会审，采用推荐做法，继续工作。把决定写进对应文档，并列进审核报告的"采用的决定"。要改变待定项的当前默认或已定设计时，先问用户，说清楚选项、影响和推荐项。
 4. 用户确认后，把结论写进对应文档，并从 04 删除该项。
 5. 发现新的待定问题：在 04 里新增一项，写明问题、当前默认做法和相关文档，并告诉用户。
 6. 待定项会影响验收时，在阶段验收里写明按哪个默认做法验收。
@@ -185,6 +185,7 @@ P1 的验收条件见 [54](54-phases-and-acceptance.md)。
 
 ## 8. 协作
 
-- 协作分工见仓库根目录的 `AGENTS.md`。
-- 有源码之后，查结构优先用代码知识图，并检查索引覆盖。
-- 交付前的最终方案和最终代码要经过终审。
+- 协作分工、什么时候问用户、Git 与 PR 规则见仓库根目录的 `AGENTS.md`。
+- 本地快速检查用 `scripts/check.sh`，CI 运行同一个脚本。新增检查项加进这个脚本。
+- 有源码之后，查结构时有代码知识图就优先用它，并检查索引覆盖。
+- 每块交付前的最终方案和最终 diff 要经过终审。

@@ -59,6 +59,6 @@ depends_on: [GLOSSARY, KERNEL]
 
 ## 7. 当前阶段
 
-- 项目在设计阶段。本文档库是唯一设计来源。
-- 不写 Go 代码，不创建 `go.mod` 或实际 SDK，不处理 Hermes 源码。
-- 只有用户明确要求实现后，才开始源码工作（K-30）。开工方法见 [起底开发指引](../50-engineering/56-bootstrap-guide.md)。
+- 本文档库是唯一设计来源。文档内容是设计，不代表功能已经实现（K-30）。
+- 代码按层一块一块实现，方法见 [阶段交付](../50-engineering/54-phases-and-acceptance.md) 第 1.1 节和 [起底开发指引](../50-engineering/56-bootstrap-guide.md)。
+- 哪些能力已经可用，以代码、测试和发布清单为准（见 [测试与发布](../50-engineering/55-testing-and-release.md)）。不处理 Hermes 源码。
