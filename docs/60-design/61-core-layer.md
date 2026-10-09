@@ -48,7 +48,9 @@ internal/
     recovery/             # 恢复即停止
     events/               # devops.* 事件构造
     ports/                # 全部端口接口
-    coretest/             # 每个端口的内存测试替身
+    coretest/             # 每个端口的内存测试替身和端口契约测试
+    flowtest/             # 只含测试：流水线、编排、恢复联合跑通
+  archtest/               # 只含测试：依赖方向检查
 ```
 
 依赖：`core/*` 只导入 `model`、`schema` 和标准库。`core` 内部子包之间单向依赖，`pipeline` 和 `orchestrator` 在最上层。指纹的采集和比对放在 `pipeline`，不单设 `fingerprint` 包。`devops.*` 事件常量放在 `core/events`。
@@ -198,7 +200,7 @@ stateDiagram-v2
 
 规则的匹配键：`action` 层按 provider 或工具加功能名；`zone` 层按 provider 或工具加权限区；`global` 层按 provider 或工具；`system` 层不带键。一条规则可以只写 `allow_auto` 不写 Mode，它不给出 Mode，只参与第 2 步。
 
-读写类别到权限区：`read_only` → `read`；其余类别和 `unknown` → `write`。
+权限区：已登记单元用登记时声明的权限区（22 第 4.2 节）。没有声明，或是独立命令，按读写类别推出：`read_only` → `read`；其余类别和 `unknown` → `write`。
 
 ### 6.3 转人工判断 `Escalate`
 
@@ -246,6 +248,7 @@ stateDiagram-v2
 - 任务步骤进入 `target_changed` 时，运行停止。登记过的步骤不由 Agent 修订。
 - 运行开始时绑定任务版本，之后不变（第 2.7 节）。
 - 步骤的内容和执行预期由 `Registry` 端口按任务参数和前序输出生成，core 不实现模板语法。
+- 步骤申请只由编排引擎创建。`pipeline.Submit` 和 `Revise` 拒绝 `task_step` 来源（`core.source_not_supported`），因为这个来源的自审记为不适用。
 
 ### 7.4 任务运行状态
 
@@ -253,7 +256,7 @@ stateDiagram-v2
 
 | 当前步骤或事件 | 运行状态 |
 |---|---|
-| 运行已创建，必需参数齐全 | `pending` |
+| 运行已创建，必需参数齐全 | `pending`（不单独保存：同一次保存直接进入 `running`，并产生 `devops.task.started`） |
 | 缺必需参数或 K | `awaiting_input`；补齐后回到 `pending` |
 | 当前步骤在 `draft`、`checking`、`frozen`、`executing` | `running` |
 | 当前步骤在 `awaiting_review`、`awaiting_revision` | `awaiting_review` |
