@@ -34,6 +34,17 @@ const (
 	ReviewStale          Code = "core.review_stale"
 	TaskInvalid          Code = "core.task_invalid"
 	RunInvalidState      Code = "core.run_invalid_state"
+
+	// provider 与配置
+	StorageUnavailable     Code = "storage.unavailable"
+	StorageDecodeFailed    Code = "storage.decode_failed"
+	ModelGWUnavailable     Code = "modelgw.unavailable"
+	ModelGWUnauthorized    Code = "modelgw.unauthorized"
+	ModelGWBadRequest      Code = "modelgw.bad_request"
+	ModelGWTooLarge        Code = "modelgw.too_large"
+	ModelGWRedirectRefused Code = "modelgw.redirect_refused"
+	ModelGWUpstreamError   Code = "modelgw.upstream_error"
+	ConfigForbiddenEnv     Code = "config.forbidden_env"
 )
 
 // Info 描述一个错误码：含义、是否可重试、对应的申请状态（可为空）。
@@ -45,28 +56,37 @@ type Info struct {
 }
 
 var catalog = map[Code]Info{
-	InvalidTransition:    {InvalidTransition, "状态转换不在状态机表内", false, ""},
-	TerminalState:        {TerminalState, "对象已在终态，不再转换", false, ""},
-	ScopeViolation:       {ScopeViolation, "目标超出会话的项目或环境范围", false, "rejected"},
-	UnitMismatch:         {UnitMismatch, "已登记单元的版本或摘要与登记不一致", false, "rejected"},
-	FrozenImmutable:      {FrozenImmutable, "申请已冻结，内容不可再改", false, "frozen"},
-	InvalidRevisionSrc:   {InvalidRevisionSrc, "修订来源只能是自审或人工点评", false, ""},
-	CASConflict:          {CASConflict, "乐观锁版本冲突，需重新读取后重试", true, ""},
-	NotFound:             {NotFound, "对象不存在", false, ""},
-	InvalidArgument:      {InvalidArgument, "参数缺失、非法或枚举值未知", false, ""},
-	DigestMismatch:       {DigestMismatch, "内容摘要与预期不一致", false, ""},
-	FingerprintChanged:   {FingerprintChanged, "执行前指纹与检验时不一致，目标已变化", false, "target_changed"},
-	CanonicalUnsupported: {CanonicalUnsupported, "内容无法规范化（不支持的类型或数值）", false, ""},
-	ExprSyntax:           {ExprSyntax, "条件表达式语法错误", false, ""},
-	ExprType:             {ExprType, "条件表达式类型错误：未知路径、类型不符或结果非布尔", false, ""},
-	ExprMissingField:     {ExprMissingField, "条件表达式运行时缺少所需字段", false, ""},
-	ExprLimit:            {ExprLimit, "条件表达式超出长度、嵌套或列表上限", false, ""},
-	ExpectationInvalid:   {ExpectationInvalid, "执行预期不合格：必填项缺失或与范围不一致", false, "awaiting_revision"},
-	SourceNotSupported:   {SourceNotSupported, "当前版本流水线不接受该申请来源", false, ""},
-	AlreadyExists:        {AlreadyExists, "对象已存在", false, ""},
-	ReviewStale:          {ReviewStale, "人工批准绑定的修订或摘要已不是当前值", false, ""},
-	TaskInvalid:          {TaskInvalid, "任务定义登记校验未通过", false, ""},
-	RunInvalidState:      {RunInvalidState, "任务运行当前状态不允许该操作", false, ""},
+	InvalidTransition:      {InvalidTransition, "状态转换不在状态机表内", false, ""},
+	TerminalState:          {TerminalState, "对象已在终态，不再转换", false, ""},
+	ScopeViolation:         {ScopeViolation, "目标超出会话的项目或环境范围", false, "rejected"},
+	UnitMismatch:           {UnitMismatch, "已登记单元的版本或摘要与登记不一致", false, "rejected"},
+	FrozenImmutable:        {FrozenImmutable, "申请已冻结，内容不可再改", false, "frozen"},
+	InvalidRevisionSrc:     {InvalidRevisionSrc, "修订来源只能是自审或人工点评", false, ""},
+	CASConflict:            {CASConflict, "乐观锁版本冲突，需重新读取后重试", true, ""},
+	NotFound:               {NotFound, "对象不存在", false, ""},
+	InvalidArgument:        {InvalidArgument, "参数缺失、非法或枚举值未知", false, ""},
+	DigestMismatch:         {DigestMismatch, "内容摘要与预期不一致", false, ""},
+	FingerprintChanged:     {FingerprintChanged, "执行前指纹与检验时不一致，目标已变化", false, "target_changed"},
+	CanonicalUnsupported:   {CanonicalUnsupported, "内容无法规范化（不支持的类型或数值）", false, ""},
+	ExprSyntax:             {ExprSyntax, "条件表达式语法错误", false, ""},
+	ExprType:               {ExprType, "条件表达式类型错误：未知路径、类型不符或结果非布尔", false, ""},
+	ExprMissingField:       {ExprMissingField, "条件表达式运行时缺少所需字段", false, ""},
+	ExprLimit:              {ExprLimit, "条件表达式超出长度、嵌套或列表上限", false, ""},
+	ExpectationInvalid:     {ExpectationInvalid, "执行预期不合格：必填项缺失或与范围不一致", false, "awaiting_revision"},
+	SourceNotSupported:     {SourceNotSupported, "当前版本流水线不接受该申请来源", false, ""},
+	AlreadyExists:          {AlreadyExists, "对象已存在", false, ""},
+	ReviewStale:            {ReviewStale, "人工批准绑定的修订或摘要已不是当前值", false, ""},
+	TaskInvalid:            {TaskInvalid, "任务定义登记校验未通过", false, ""},
+	RunInvalidState:        {RunInvalidState, "任务运行当前状态不允许该操作", false, ""},
+	StorageUnavailable:     {StorageUnavailable, "数据库连接或执行失败", true, ""},
+	StorageDecodeFailed:    {StorageDecodeFailed, "持久化文档的 SchemaID、字段或枚举不认识", false, ""},
+	ModelGWUnavailable:     {ModelGWUnavailable, "模型接入变量缺失或无效，模型不可用", false, ""},
+	ModelGWUnauthorized:    {ModelGWUnauthorized, "模型出口代理的客户端凭证无效", false, ""},
+	ModelGWBadRequest:      {ModelGWBadRequest, "模型请求体不合格", false, ""},
+	ModelGWTooLarge:        {ModelGWTooLarge, "模型请求或响应超过大小上限", false, ""},
+	ModelGWRedirectRefused: {ModelGWRedirectRefused, "模型服务返回重定向，代理不跟随", false, ""},
+	ModelGWUpstreamError:   {ModelGWUpstreamError, "模型服务超时或连接失败", true, ""},
+	ConfigForbiddenEnv:     {ConfigForbiddenEnv, "容器收到了环境变量表之外或不该收到的环境变量", false, ""},
 }
 
 // Lookup 查询错误码的登记信息。
