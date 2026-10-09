@@ -5,7 +5,7 @@
 ## 1. 目标
 
 - 交付 DevOps-Agent 1.0：本地用 Docker 部署；LLM 的 URL 和 key 通过 Docker 环境变量传入；1.0 的 LLM API 支持 OpenAI Chat Completions 格式。
-- 用户已经要求实现（K-30）。代码按层一块一块写，全自动推进，见第 3、4 节。
+- 用户已经要求实现（K-30）。代码按层一块一块写，全自动推进，见第 3、4 节。当前做哪一块，以项目指令为准。
 - 平台与 Agent 模块使用 Go。Hermes 只作设计参考，不是部署组件、协议接入或源码兼容目标。不处理 Hermes 源码。
 
 ## 2. 工作依据
@@ -29,7 +29,8 @@
 | 进入下一块 | 审核线程判定通过后，自动进入下一块，不等用户。 |
 | 改变 1.0 目标（第 1 节） | 停下问用户。 |
 | 合并 PR | 审核线程判定通过、`scripts/check.sh` 和 CI 全绿后，开 PR 的线程自己合并，见第 6 节。不问用户。 |
-| 其他不可撤销的操作（删除远端分支、发布、对外发消息） | 停下问用户。 |
+| 删数据、动生产、对外发消息、强推 `main` | 停下问用户。 |
+| 合并后 GitHub 自动删除已合并的 `claude/` 分支 | 预期行为，不问用户。不手动删除其他远端分支。 |
 | 需要用户的账号、密钥或设备 | 停下问用户。 |
 | 本文和项目指令冲突 | 以项目指令为准。在线程里指出冲突，并修改本文使两者一致。 |
 
@@ -84,7 +85,7 @@
 - 合并方式只用 merge commit（`merge_method: merge`）。不使用 squash merge，也不用 rebase merge。
 - 不开启 GitHub 的自动合并功能。它只看 CI，不看审核线程的结论。
 - 不直接推送 `main`，不强推任何分支。所有改动经 PR 进入 `main`。
-- 上一块的 PR 还没合并时，下一块的分支从上一块分支的最新提交开出。PR 描述第一行写"依赖 #上一块 PR，先合并它"。按顺序合并。因为只用 merge commit，先后合并不会冲突。
+- 上一块的 PR 还没合并时，下一块的分支从上一块分支的最新提交开出。PR 描述第一行写"依赖 #上一块 PR，先合并它"。按顺序合并。有冲突时，把 `main` 合并进分支解决。
 - 不改写已推送的公共历史。需要同步 `main` 时，把 `main` 合并进分支。
 - 两个线程改同一文件时，后开工的线程基于最新 `main` 做小而集中的改动；冲突时以先开工的线程为准。
 - CI 运行 `scripts/check.sh --vuln`（`.github/workflows/ci.yml`）。CI 红灯时先修复，不带着红灯交付。
@@ -96,8 +97,19 @@
 - Go 版本基线是 Go 1.27.1（`docs/50-engineering/51-go-stack.md` 第 2 节）。环境变量 `GOTOOLCHAIN=go1.27.1+auto` 让旧版 Go 自动下载这个版本。
 - 云端会话启动时，`.claude/hooks/session-start.sh` 准备 Go 工具链并下载依赖。
 - 云端会话没有 Docker 守护进程。需要 Docker 的测试（例如 Testcontainers）在 CI 或本地运行，测试在没有 Docker 时跳过，并在输出里说明。
-- 权限配置在 `.claude/settings.json`：常用开发命令和合并 PR 免确认；GitHub 自动合并、绕过 PR 写文件、推送 `main` 和强推被禁止；Read 工具不读取 `.env` 文件。仓库里不放 `.env`（K-31）。
+- 权限配置在 `.claude/settings.json`：常用开发命令和合并 PR 免确认；只读类 Docker 命令和 `docker compose -p devops-agent` 免确认，影响整台机器的 Docker 命令被禁止；GitHub 自动合并和绕过 PR 写文件被禁止；Read 工具不读取 `.env` 文件。仓库里不放 `.env`（K-31）。
+- `.claude/hooks/guard-git-push.sh` 在每条 Bash 命令前检查 `git push`：推 `main`、强推、删除远端分支、`--mirror`、`--all` 一律拒绝。
+- 权限配置和钩子只防误操作，不是安全边界：`go`、`find`、`xargs` 等命令本身能运行任意程序。真正的约束是本文的规则。
 - 新增检查项（例如依赖方向检查、枚举比对）时，加进 `scripts/check.sh`，保持 Agent、开发者和 CI 用同一个入口。
+
+### 7.1 测试环境
+
+| 项 | 内容 |
+|---|---|
+| 测试机 | `root@192.168.33.110`（Ubuntu 24.04，Docker 29.5，Docker Compose 插件 v5.1，用 `docker compose` 调用） |
+| 目录边界 | 只在 `/DATA/AppData/AGENT-OPS` 内创建、修改和删除文件。 |
+| Docker 边界 | 只操作本项目的容器、镜像、网络和卷。Compose 项目名固定为 `devops-agent`（`docker compose -p devops-agent`）。不运行影响整台机器的命令，例如 `docker system prune`、`docker rm` 其他容器。操作前先确认对象属于本项目。 |
+| LLM 端点 | `DEVOPS_LLM_BASE_URL=https://llms.ycgame.com/v1`，OpenAI Chat Completions 格式。key 用 `DEVOPS_LLM_API_KEY` 传入（`docs/10-architecture/11-components-and-boundaries.md` 第 5.4 节）。key 不写进仓库、文档或 PR。 |
 
 ## 8. 设计要点（详见内核规则）
 

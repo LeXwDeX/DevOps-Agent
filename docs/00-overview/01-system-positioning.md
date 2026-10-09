@@ -54,7 +54,7 @@ depends_on: [GLOSSARY, KERNEL]
 
 - 平台与 Agent 模块使用 Go。Agent 能力封装为独立的 GoAgent SDK。
 - 首版两个应用容器：core（核心控制服务、Agent Worker）和 runtime（Harness、调度、执行器、模型出口代理）。PostgreSQL 和监控旁路单独部署。
-- 镜像只含程序；配置、密钥和数据全部外部挂载（K-31）。
+- 镜像只含程序；配置、密钥和数据全部来自外部挂载或环境变量表里的环境变量（K-31）。
 - 详见 [组件与边界](../10-architecture/11-components-and-boundaries.md) 和 [Go 技术选型](../50-engineering/51-go-stack.md)。
 
 ## 7. 当前阶段

@@ -33,7 +33,15 @@
       "Bash(git ls-remote:*)",
       "Bash(git blame:*)",
       "Bash(git grep:*)",
-      "Bash(docker:*)",
+      "Bash(docker ps:*)",
+      "Bash(docker logs:*)",
+      "Bash(docker images:*)",
+      "Bash(docker inspect:*)",
+      "Bash(docker build:*)",
+      "Bash(docker version:*)",
+      "Bash(docker info:*)",
+      "Bash(docker compose -p devops-agent:*)",
+      "Bash(docker compose version:*)",
       "Bash(ls:*)",
       "Bash(cat:*)",
       "Bash(head:*)",
@@ -89,7 +97,21 @@
       "Bash(git push --force:*)",
       "Read(./**/.env)",
       "Read(./**/.env.local)",
-      "Read(./**/.env.*.local)"
+      "Read(./**/.env.*.local)",
+      "Bash(docker system:*)",
+      "Bash(docker rm:*)",
+      "Bash(docker rmi:*)",
+      "Bash(docker kill:*)",
+      "Bash(docker stop:*)",
+      "Bash(docker volume rm:*)",
+      "Bash(docker volume prune:*)",
+      "Bash(docker image prune:*)",
+      "Bash(docker container prune:*)",
+      "Bash(docker network prune:*)",
+      "Bash(docker builder prune:*)",
+      "Bash(docker container rm:*)",
+      "Bash(docker image rm:*)",
+      "Bash(docker network rm:*)"
     ]
   },
   "hooks": {
@@ -100,6 +122,18 @@
             "type": "command",
             "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.sh",
             "timeout": 600
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-git-push.py\"",
+            "timeout": 15
           }
         ]
       }
