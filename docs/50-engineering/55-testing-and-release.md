@@ -48,7 +48,7 @@ depends_on: [KERNEL, EXEC-MODEL, REVIEW-POLICY, STATE-RECOVERY, GO-STACK]
 | 冻结后尝试改内容 | 被拒绝 | K-15 |
 | 执行器收到摘要不符的内容 | 不执行 | [11](../10-architecture/11-components-and-boundaries.md) 第 2 节 |
 | Hook 或上下文补丁改工具内容 | 被拒绝 | K-14 |
-| 独立命令在自动模式下 | 仍需人工 | K-10、Q1 |
+| 独立命令在自动模式下 | 仍需人工 | K-10 |
 | `EXPLAIN ANALYZE` 作为预演 | 不被接受 | [24](../20-execution/24-sql.md) 第 3 节 |
 | SQL 方言不支持或解析失败 | 转人工 | Q7 |
 | Bash 内嵌 SQL 提取不完整 | 转人工 | [24](../20-execution/24-sql.md) 第 6 节 |
