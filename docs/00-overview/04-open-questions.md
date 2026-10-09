@@ -39,13 +39,11 @@ depends_on: [KERNEL]
 
 | 编号 | 问题 | 当前默认 | 相关文档 |
 |---|---|---|---|
-| Q8 | Harness、执行器、持久调度服务、凭证库、PostgreSQL、审计的具体部署形态和容器划分；执行器的"开始执行"记录存在哪个库。 | 见组件文档第 5 节草案。 | [组件与边界](../10-architecture/11-components-and-boundaries.md) |
 | Q9 | 平台管理模块细节：SSO 协议、MFA 方式、角色与多人审批；底座管理入口在核心停机时如何认证。 | 首版单人；结构和接口预留。 | [平台管理](../30-features/38-platform-admin.md) |
-| Q10 | 凭证库：K 命名、存储加密、主密钥、备份、迁移、轮换。 | 待设计。 | [密钥](../20-execution/25-secrets.md) |
+| Q10 | 凭证库：K 命名、存储加密、主密钥、备份、迁移、轮换。 | 待设计，在 P2 接入资产凭证前完成。P1 只用一个模型 API key，放在 runtime 挂载的 `data/vault/` 下。 | [密钥](../20-execution/25-secrets.md) |
 | Q12 | 每个具体工具的能力、输入输出、预演方式和改写边界。 | 逐个做详细需求设计后再定。 | [工具包装](../20-execution/26-tool-wrapping.md) |
 | Q23 | 底座部署、更新、回退平台组件和迁移平台库时，用底座自带门禁还是走 Harness？ | 底座内置最小门禁，复用执行申请 schema 和审核语义，首版一律人工 ▶ / ✕；审计先写底座本地追加日志，审计库可用后同步。 | [部署底座](../10-architecture/12-deployment-substrate.md) 第 6.1 节 |
 | Q24 | 工具沙盒由谁创建（需要宿主权限）？首版启用哪条路径？ | 首版只启用 Docker 只读工作区路径，由独立的沙盒后端创建，执行器不挂 Docker socket；MicroVM 快照路径暂不启用。 | 同上第 10 节 |
-| Q25 | `sdk/agent` 和 `platform` 两个 Go 模块的发布路径（导入路径）。 | 未定，P0 开工前由用户确定。 | [仓库布局](../50-engineering/53-repo-layout.md) |
 | Q15 | Temporal 是否作为长流程编排器？ | 候选。按组件准入（K-23）、部署成本和恢复要求评估；首版用平台自带的限域状态机。 | [Go 技术选型](../50-engineering/51-go-stack.md) |
 
 ## 功能

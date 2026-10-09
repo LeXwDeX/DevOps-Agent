@@ -48,9 +48,9 @@ flowchart LR
 
 | 事项 | 做法 |
 |---|---|
-| 模块发布路径 | 问用户，固定 `sdk/agent` 和 `platform` 的导入路径 |
+| 模块导入路径 | 已定：`github.com/LeXwDeX/DevOps-Agent/sdk/agent` 与 `github.com/LeXwDeX/DevOps-Agent/platform`（[53](53-repo-layout.md) 第 1 节） |
 | schema 格式与生成工具 | 按 [52](52-schema-and-constants.md) 第 6.1 节评估后提给用户确认 |
-| Q10 凭证库最小设计 | P1 需要用模型 API key，所以 P0 要有最小设计；提给用户确认 |
+| P1 的模型 API key | 已定：P1 只用一个模型 API key（测试环境用 DeepSeek），作为第一个 K 放在 runtime 挂载的 `data/vault/` 下，由模型出口代理读取（[11](../10-architecture/11-components-and-boundaries.md) 第 5.3 节）。凭证库完整设计（Q10）在 P2 接入资产凭证前完成 |
 | Q11 dcg 选型 | 做评估（第五步），结论提给用户 |
 | 底座门禁形态 | 按 [12](../10-architecture/12-deployment-substrate.md) 第 6.1 节的当前默认做，提给用户确认 |
 

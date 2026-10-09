@@ -201,7 +201,7 @@ environments:
 
 - 项目容器由执行器调用目标主机的 Docker Engine（见 [工具包装](../20-execution/26-tool-wrapping.md) 第 3 节）。Agent 不持有 Docker socket（K-18）。
 - 厂商托管的容器产品用独立的产品适配器。云 API 不是 Docker socket。
-- 平台自身的核心和 Worker 容器由底座管理（见 [部署底座](../10-architecture/12-deployment-substrate.md)），不经过本层。
+- 平台自身的 core 和 runtime 容器由底座管理（见 [部署底座](../10-architecture/12-deployment-substrate.md)），不经过本层。
 - 容器重启由容器重启策略管理，属于预授权（K-11，见 [项目部署](32-project-deployment.md) 第 6 节）。
 
 ## 11. 文件组织约定

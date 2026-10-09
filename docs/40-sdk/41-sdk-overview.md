@@ -15,7 +15,7 @@ depends_on: [KERNEL, GLOSSARY, COMPONENTS, EXEC-MODEL, REVIEW-POLICY, SECRETS, S
 - 其他 Go 系统可以在自己的进程里嵌入 SDK。本平台的 Agent Worker 也只是嵌入 SDK 的一个宿主。
 - SDK 负责：模型访问与请求管理、会话与上下文、计划、工具目录与工具申请、模型自审、公开事件、Hook 扩展和检查点。
 - SDK 不负责：执行门禁、策略判定、凭证、资产操作。这些属于宿主的 Harness 和执行器（K-18）。
-- SDK 的可嵌入性不改变本平台的容器边界。Agent Worker 仍是独立容器，不持有凭证和宿主权限（见 [组件与边界](../10-architecture/11-components-and-boundaries.md)）。
+- SDK 的可嵌入性不改变本平台的容器边界。Agent Worker 仍是独立进程（首版在 core 容器内，与凭证所在的 runtime 容器分开），不持有凭证和宿主权限（见 [组件与边界](../10-architecture/11-components-and-boundaries.md)）。
 - 本文的类型名和接口名用来表达边界。具体签名在实现前的专项设计中确定（K-30）。
 
 ## 2. 结构图

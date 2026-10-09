@@ -297,6 +297,6 @@ monitoring/parsers/
 ## 16. 未定事项
 
 - Q4：恢复后调度计划暂停还是照常。
-- Q8：监控旁路和其他组件的部署形态。
+- 监控旁路为独立节点，部署形态见 [组件与边界](../10-architecture/11-components-and-boundaries.md) 第 5 节。
 
 见 [待定事项](../00-overview/04-open-questions.md)。

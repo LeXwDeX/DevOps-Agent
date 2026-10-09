@@ -1,7 +1,7 @@
 ---
 id: SUBSTRATE
 title: 部署底座与运行环境
-status: 已定（平台组件的容器划分为草案，见 Q8）
+status: 已定
 summary: 平台自身怎么部署和维护：宿主系统、Supervisor、底座控制服务、节点代理和 Docker Engine 的职责；单一重启责任方；跨 VM 分发；受控环境模板；部署包；核心外的底座管理入口；工具隔离与工作区。
 load_when: 部署平台自身；开发底座控制服务、节点代理或部署包；调整容器划分、网络或资源；开发工具沙盒与工作区时
 depends_on: [KERNEL, GLOSSARY, COMPONENTS, STATE-RECOVERY, EXEC-MODEL]
@@ -27,33 +27,24 @@ depends_on: [KERNEL, GLOSSARY, COMPONENTS, STATE-RECOVERY, EXEC-MODEL]
 | 节点代理 | 本机 Docker Engine | 接收已认证的部署申请，核验冻结摘要和指纹，调用**本机** Docker API，返回实际状态。 | 不接受未认证或未冻结的申请；不调用其他 VM 的 Docker。 |
 | Docker Engine | 平台组件容器 | 按各容器已审核的配置创建、启动、停止、删除容器；按各自的重启策略维护运行状态。 | 不决定部署内容。 |
 
-Docker 管理权限（本机 socket）只授予节点代理。核心容器、Agent Worker、Harness 和执行器容器都不挂载本机 Docker socket。Agent Worker 的限制另见 K-18。
+Docker 管理权限（本机 socket）只授予节点代理。core 和 runtime 两个容器都不挂载本机 Docker socket。Agent Worker 的限制另见 K-18。
 
 > 节点代理和执行器是两个不同的组件。节点代理属于底座，只管理平台自身容器；执行器属于执行权限域，操作项目目标。两者权限域分开。
 
 ## 3. 底座管理的平台组件
 
-底座除了核心和 Worker，还要管理 [组件与边界](11-components-and-boundaries.md) 第 5 节中的其他组件。具体容器划分是草案（Q8）。
+容器划分和挂载表以 [组件与边界](11-components-and-boundaries.md) 第 5 节为准（K-31）。
 
-| 组件 | 首版形态（草案，Q8） | 重启责任方 | 持久状态 | 底座管理动作 |
+| 对象 | 内容 | 重启责任方 | 持久状态 | 底座管理动作 |
 |---|---|---|---|---|
-| 核心容器 | 一个容器 | Docker Engine | 容器外：核心业务库、事实库 | 部署、启停、更新、回退、查看日志与健康 |
-| Agent Worker | 一个容器，独立资源限额 | Docker Engine | 无独有持久状态；任务在核心的任务队列里 | 同上；可单独重启，不影响核心 |
-| Harness | 一个容器 | Docker Engine | 容器外：Harness 库 | 同上 |
-| 持久调度服务 | 与 Harness 同容器两个进程，或独立容器 | Docker Engine（同容器时，两个进程的拉起由容器内唯一的进程管理者负责，见第 4 节） | 容器外：调度服务库 | 同上 |
-| 执行器 | 独立容器，单独运行身份 | Docker Engine | 容器外："开始执行"记录与执行结果（存放位置随 Q8 定）；审计追加写 | 同上 |
-| 模型出口代理 | 独立容器，单独运行身份 | Docker Engine | 无 | 同上；变更允许的模型端点要发新配置版本 |
-| PostgreSQL | 独立容器或托管数据库 | Docker Engine（容器时）/ 托管方 | 数据卷在容器外 | 部署、升级、备份、恢复、迁移执行 |
-| 凭证库 | 独立存储（Q10） | 视形态而定 | 容器外 | 部署与备份；不读出 V |
-| 审计存储 | 独立库或 schema，追加写 | 随 PostgreSQL | 容器外 | 部署与备份；不提供修改和删除 |
-| 监控旁路 | 独立 VM | 监控 VM 上的 Docker Engine 或 systemd | 监控自己的存储 | 可以用底座分发部署；运行时不依赖底座、核心或 Worker（K-25） |
+| core 容器 | 核心控制服务、Agent Worker（两个进程） | Docker Engine | 全部在外部：PostgreSQL 的核心业务库与事实库；`data/core/` | 部署、启停、更新、回退、查看日志与健康 |
+| runtime 容器 | Harness、持久调度服务、执行器、模型出口代理（四个进程） | Docker Engine | 全部在外部：PostgreSQL 的 Harness 库、调度库、审计库；`data/vault/`、`data/artifacts/` | 同上；变更允许的模型端点要发新配置版本 |
+| PostgreSQL | 独立容器或托管数据库 | Docker Engine（容器时）/ 托管方 | 外部磁盘 `pgdata/` | 部署、升级、备份、恢复、迁移执行 |
+| 凭证库 | runtime 容器挂载的 `data/vault/`（Q10） | 随 runtime | 外部磁盘 | 部署与加密备份；不读出 V |
+| 审计存储 | PostgreSQL 中独立的库或 schema，追加写 | 随 PostgreSQL | 外部 | 部署与备份；不提供修改和删除 |
+| 监控旁路 | 独立 VM | 监控 VM 上的 Docker Engine 或 systemd | 监控自己的外部磁盘 | 可以用底座分发部署；运行时不依赖底座、core 或 runtime（K-25） |
 
-规则：
-
-- 删除容器不等于删除业务状态。所有持久状态都在容器外（见 [状态与恢复](13-state-and-recovery.md) 第 1 节）。
-- 核心、Harness、审计使用不同的库或 schema 和不同的数据库账号。迁移账号和运行账号分开。
-- 平台数据库迁移是一次受控执行（K-23），由底座发起，不在服务启动时自动运行。见第 6.3 节。
-- Worker 的模型任务输出绑定任务版本。任务已停止或已重新分配后，迟到的输出不能触发执行（见 [状态与恢复](13-state-and-recovery.md) 第 3 节）。模型失败只让相关任务降级，核心仍返回任务状态。
+部署前，底座按挂载表创建宿主目录，核对属主和权限；缺失或不符就不启动容器。
 
 ## 4. 单一重启责任方
 
@@ -64,7 +55,7 @@ Docker 管理权限（本机 socket）只授予节点代理。核心容器、Age
 | Docker daemon、supervisord | 宿主系统 | 让 Supervisor 托管 Docker daemon |
 | 底座控制服务、节点代理 | Supervisor | 再用 systemd 单独拉起同一进程 |
 | 平台组件容器 | Docker Engine 的重启策略 | 在宿主上再用 Supervisor 拉起同一容器；在容器外用脚本循环 `docker start` |
-| 同一容器内的多个进程（例如 Harness 与调度服务同容器） | 容器内唯一的进程管理者 | 容器内进程管理者和 Docker 重启策略同时重启同一个进程 |
+| 容器内的多个进程（core 的两个进程、runtime 的四个进程） | 不单独重启。容器入口进程在任一子进程退出时退出，由 Docker Engine 重启整个容器 | 容器内再设进程管理者单独拉起子进程 |
 
 规则：
 
@@ -154,8 +145,8 @@ flowchart TB
 | 内容 | 说明 |
 |---|---|
 | 镜像 | 每个平台组件各自的固定镜像 digest。镜像标签不能代替摘要。 |
-| 配置 | 每个组件的版本化配置，以 `config_revision` 标识。非敏感参数和密钥 K 引用分开记录。 |
-| 状态映射 | 各组件的数据库、schema、账号、数据卷、备份位置；核心与 Worker 之间的任务队列映射。 |
+| 配置 | 每个容器的版本化配置，以 `config_revision` 标识，部署时写入外部配置目录并只读挂载。非敏感参数和密钥 K 引用分开记录。镜像里不含配置（K-31）。 |
+| 状态映射 | 各组件的数据库、schema、账号；挂载表中每个宿主目录的路径、属主、权限和备份位置。 |
 | 迁移集 | 平台各库的迁移文件版本。 |
 | 出厂资产包 | 内置 dcg 规则包、内置 mask 规则、内置命令模板等的固定版本。导入后由管理员登记才生效（K-20）。 |
 | 兼容声明 | 支持的宿主系统、CPU 架构（amd64 / arm64）、Docker 运行时版本。 |
@@ -223,7 +214,6 @@ flowchart TB
 
 ## 11. 待定事项
 
-- Q8：Harness、执行器、调度服务、凭证库、PostgreSQL、审计的具体容器划分。
 - Q9：底座入口和平台管理的 SSO、MFA。
 - Q10：凭证库的存储、加密、备份和迁移。
 - 底座自带门禁与 Harness 的关系（第 6.1 节，Q23）。

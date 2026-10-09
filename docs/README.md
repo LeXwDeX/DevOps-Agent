@@ -25,7 +25,7 @@ depends_on: []
 |---|---|
 | [01 系统定位](00-overview/01-system-positioning.md) | 做什么、不做什么、当前阶段、能力清单 |
 | [02 术语表](00-overview/02-glossary.md) | 统一用词与旧称对照 |
-| [03 内核规则](00-overview/03-kernel-rules.md) | K-01 至 K-30，规则唯一定义源 |
+| [03 内核规则](00-overview/03-kernel-rules.md) | K-01 至 K-31，规则唯一定义源 |
 
 ## 目录
 
@@ -37,7 +37,7 @@ depends_on: []
 | [03-kernel-rules](00-overview/03-kernel-rules.md) | 内核规则 K-xx | 必读 | 已定 |
 | [04-open-questions](00-overview/04-open-questions.md) | 待定事项及当前默认 | 遇到 Qn 时 | 持续维护 |
 | **10 架构** | | | |
-| [11-components-and-boundaries](10-architecture/11-components-and-boundaries.md) | 组件、职责、权限边界、通信、首版部署形态 | 开发任何模块前 | 已定 / 部署形态草案 |
+| [11-components-and-boundaries](10-architecture/11-components-and-boundaries.md) | 组件、职责、权限边界、通信；core + runtime 容器划分与挂载表 | 开发任何模块前 | 已定 / 部署形态草案 |
 | [12-deployment-substrate](10-architecture/12-deployment-substrate.md) | Docker 底座、Supervisor、跨 VM 分发、运行环境模板、工具隔离 | 部署平台自身、容器与沙盒相关开发 | 已定 |
 | [13-state-and-recovery](10-architecture/13-state-and-recovery.md) | 状态位置、恢复即停止、迁移 | 存储、状态机、备份恢复 | 已定 |
 | **20 执行** | | | |

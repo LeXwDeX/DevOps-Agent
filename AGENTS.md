@@ -11,7 +11,7 @@
 
 - 每次工作先读必读集：`docs/00-overview/01-system-positioning.md`、`02-glossary.md`、`03-kernel-rules.md`。
 - 其余文档按 `docs/README.md` 的"任务路由"按需加载，不要一次读全部。
-- 规则的唯一定义源是 `docs/00-overview/03-kernel-rules.md`（K-01 至 K-30）。其他文档只引用编号。
+- 规则的唯一定义源是 `docs/00-overview/03-kernel-rules.md`（K-01 至 K-31）。其他文档只引用编号。
 - 待定事项在 `docs/00-overview/04-open-questions.md`（Qn）。按"当前默认"做，不要自行改变决定；需要决定时问用户。
 
 ## 设计要点（详见内核规则）
@@ -24,6 +24,7 @@
 - 密钥 K→V：模型只传 K，执行器以环境变量注入 V，没有读取 V 的接口；按 mask 规则遮盖（K-16、K-17）。
 - 恢复即停止：恢复后不续跑任务，由人工决定（K-24）。系统内不设破窗通道（K-26）。
 - 首版单人使用；平台管理模块的 SSO、MFA 结构预留。
+- 首版两个应用容器：core（核心控制服务、Agent Worker，不持凭证）和 runtime（Harness、调度、执行器、模型出口代理，持凭证）。镜像只含程序，配置、密钥和数据全部外部挂载（K-31）。
 
 ## 文档维护
 

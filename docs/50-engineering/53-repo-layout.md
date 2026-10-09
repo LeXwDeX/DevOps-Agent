@@ -25,7 +25,7 @@ depends_on: [KERNEL, COMPONENTS, SUBSTRATE, SCHEMA-CONST]
 - 建议不提交 `go.work`。CI 和发布构建用 `GOWORK=off` 分别构建两个模块。
 - SDK 必须能在仓库外、没有 `go.work`、没有本地 `replace` 的条件下单独构建，并被第二宿主导入。
 - 平台不能用本地 `replace` 掩盖它对 SDK 已发布版本的依赖。
-- 模块的发布路径（导入路径）在实现启动前固定（Q25）。
+- 模块导入路径跟随项目仓库：`github.com/LeXwDeX/DevOps-Agent/sdk/agent` 与 `github.com/LeXwDeX/DevOps-Agent/platform`。SDK 按 Go 子目录模块规则打标签（`sdk/agent/vX.Y.Z`）。
 
 ## 2. 顶层目录
 
@@ -94,7 +94,8 @@ platform/
 说明：
 
 - `cmd/<二进制>/` 只做依赖装配：决定这个二进制拿哪些适配器和哪些凭证。业务逻辑不写在 `cmd` 里。
-- Harness 与持久调度服务即使同容器部署（Q8），也是两个二进制。
+- 每个常驻进程一个二进制。首版打成两个镜像：core 镜像含 `core`、`agent-worker`；runtime 镜像含 `harness`、`scheduler`、`executor`、`model-proxy`（见 [组件与边界](../10-architecture/11-components-and-boundaries.md) 第 5 节）。同容器的进程使用不同运行身份。
+- 镜像只含二进制和静态文件，不含配置（K-31）。`deploy/` 下的配置模板在部署时写入外部配置目录。
 - `migrate` 不是常驻服务。它只持有迁移账号，由底座在一次受控执行中调用（见 [部署底座](../10-architecture/12-deployment-substrate.md) 第 6.3 节）。
 - 包内单元测试和 `testdata/` 放在各自包里；`test/` 只放跨二进制的契约测试和语料。
 
@@ -145,7 +146,7 @@ flowchart LR
 | monitor-worker | 监控旁路自己的存储和只读采集配置（见 [监控](../30-features/36-monitoring.md)） | 写操作凭证；依赖核心或 Worker |
 | migrate | 迁移账号 | 运行期业务账号以外的任何凭证 |
 
-具体的账号划分和凭证库形态随 Q8、Q10 定。
+容器划分和挂载表见 [组件与边界](../10-architecture/11-components-and-boundaries.md) 第 5 节。凭证库的完整形态随 Q10 定。
 
 ## 7. 登记资产目录
 
