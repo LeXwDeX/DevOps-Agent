@@ -49,7 +49,7 @@ depends_on: [KERNEL, EXEC-MODEL, REVIEW-POLICY]
 
 ## 5. dcg 的 SQL 规则
 
-dcg 规则包至少覆盖：`DROP`、`TRUNCATE`、不带 `WHERE` 的 `DELETE` / `UPDATE`、`GRANT` / `REVOKE`、修改用户和密码。命中转人工（Q2）。
+dcg 规则包至少覆盖：`DROP`、`TRUNCATE`、不带 `WHERE` 的 `DELETE` / `UPDATE`、`GRANT` / `REVOKE`、修改用户和密码。命中转人工（K-08）。
 
 ## 6. Bash 调用 SQL
 
