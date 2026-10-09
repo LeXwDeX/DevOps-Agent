@@ -10,6 +10,7 @@ import (
 	"github.com/LeXwDeX/DevOps-Agent/platform/internal/core/events"
 	"github.com/LeXwDeX/DevOps-Agent/platform/internal/core/pipeline"
 	"github.com/LeXwDeX/DevOps-Agent/platform/internal/core/ports"
+	corereq "github.com/LeXwDeX/DevOps-Agent/platform/internal/core/request"
 	"github.com/LeXwDeX/DevOps-Agent/platform/internal/model/request"
 	"github.com/LeXwDeX/DevOps-Agent/platform/internal/schema/consts"
 	"github.com/LeXwDeX/DevOps-Agent/platform/internal/schema/errcode"
@@ -61,9 +62,10 @@ func TestSubmitRejectsBadInput(t *testing.T) {
 	_, err := f.svc.Submit(bg, in)
 	wantCode(t, err, errcode.InvalidArgument)
 	in = input()
-	in.Source = consts.SourceTaskStep // 缺少任务引用
+	in.Source = consts.SourceTaskStep // 步骤申请只由编排引擎创建，不经 Submit
+	in.Task = &request.TaskRef{RunID: "run-1", StepID: "A"}
 	_, err = f.svc.Submit(bg, in)
-	wantCode(t, err, errcode.InvalidArgument)
+	wantCode(t, err, errcode.SourceNotSupported)
 	if n := len(f.env.Requests.Events()); n != 0 {
 		t.Errorf("failed submits saved %d events", n)
 	}
@@ -470,7 +472,26 @@ func TestTaskStepSelfReviewNotApplicable(t *testing.T) {
 	in.Source = consts.SourceTaskStep
 	in.Task = &request.TaskRef{RunID: "run-1", StepID: "A"}
 	in.Submission.SelfReview = nil
-	r := f.inspect(in)
+	// task_step 不经 Submit（只由编排引擎创建）：这里像引擎一样直接建草稿写入存储，再检验。
+	if _, err := f.svc.Submit(bg, in); err == nil {
+		t.Fatal("Submit accepted a task_step request")
+	} else {
+		wantCode(t, err, errcode.SourceNotSupported)
+	}
+	draft, err := corereq.New(corereq.NewParams{
+		CallID: "call-step", Source: in.Source, SessionID: in.SessionID, Task: in.Task,
+		Scope: in.Scope, Content: in.Content, Expectation: in.Expectation, Submission: in.Submission, Now: f.env.Clock.Now(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.env.Requests.Create(bg, draft, nil); err != nil {
+		t.Fatal(err)
+	}
+	r, err := f.svc.Inspect(bg, draft.CallID)
+	if err != nil {
+		t.Fatalf("Inspect: %v", err)
+	}
 	wantState(t, r, consts.RequestFrozen) // not_applicable 不算缺失
 	if r.Checks.SelfReview == nil || r.Checks.SelfReview.Verdict != consts.VerdictNotApplicable {
 		t.Errorf("self review = %+v", r.Checks.SelfReview)

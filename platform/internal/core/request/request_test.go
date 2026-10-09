@@ -384,3 +384,23 @@ func TestReviseChain(t *testing.T) {
 		t.Fatal("type")
 	}
 }
+
+func TestReviseRefusesTaskStep(t *testing.T) {
+	// 登记过的步骤不由 Agent 修订（61 第 7.3 节）：否则改写后的内容会以步骤身份免去自审。
+	c, e := newContent()
+	for _, st := range []consts.RequestState{consts.RequestChecking, consts.RequestAwaitingRevision, consts.RequestTargetChanged} {
+		r := revisable(t, st)
+		r.Source = consts.SourceTaskStep
+		r.Task = &mreq.TaskRef{RunID: "run-1", StepID: "A"}
+		before := r.Clone()
+		for _, src := range consts.RevisionSources() {
+			_, err := Revise(r, c, e, src, now)
+			if code, _ := errcode.CodeOf(err); code != errcode.SourceNotSupported {
+				t.Errorf("%s/%s: err = %v", st, src, err)
+			}
+			if !reflect.DeepEqual(r, before) {
+				t.Errorf("%s: r changed on refused revision", st)
+			}
+		}
+	}
+}

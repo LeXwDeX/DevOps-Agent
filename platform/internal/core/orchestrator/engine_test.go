@@ -773,3 +773,44 @@ func TestConcurrentStartsShareCache(t *testing.T) {
 		t.Fatalf("runs = %d", len(runs))
 	}
 }
+
+func TestAdvanceUsesStoredRequestNotCallersCopy(t *testing.T) {
+	// 调用方的副本只是线索：存储里仍是 draft 时，副本说"succeeded"也不能推进。
+	f := newFixture(t)
+	run, req := f.start()
+	forged := f.storedReq(req.CallID)
+	forged.State = consts.RequestSucceeded
+	forged.Execution = &mreq.Execution{Outcome: consts.RequestSucceeded, Result: &mreq.ExecutionResult{Output: map[string]any{"n": 1}}}
+	_, next, err := f.eng.Advance(ctx, run.RunID, forged)
+	mustCode(t, err, errcode.InvalidArgument)
+	if next != nil {
+		t.Fatal("forged copy created the next step")
+	}
+	if got := f.storedRun(run.RunID); got.State != consts.RunRunning || got.Current != "A" || got.Version != 1 {
+		t.Fatalf("run changed by a forged copy: %+v", got)
+	}
+	// 修订号对不上也一样
+	wrongRev := f.storedReq(req.CallID)
+	wrongRev.Revision++
+	_, _, err = f.eng.Advance(ctx, run.RunID, wrongRev)
+	mustCode(t, err, errcode.InvalidArgument)
+	// 版本落后：cas_conflict，重读后重试即可
+	stored := f.setState(req, consts.RequestSucceeded, func(r *mreq.ExecutionRequest) {
+		r.Execution = &mreq.Execution{Outcome: consts.RequestSucceeded, Result: &mreq.ExecutionResult{Output: map[string]any{"n": 7}}}
+	})
+	stale := stored.Clone()
+	stale.Version--
+	stale.Execution.Result.Output = map[string]any{"n": 99}
+	_, _, err = f.eng.Advance(ctx, run.RunID, stale)
+	mustCode(t, err, errcode.CASConflict)
+	// 以存储里的输出为准，不是副本里的
+	fresh := f.storedReq(req.CallID)
+	fresh.Execution.Result.Output = map[string]any{"n": 99}
+	got, next, err := f.eng.Advance(ctx, run.RunID, fresh)
+	if err != nil || next == nil || next.Task.StepID != "B" {
+		t.Fatalf("advance: %v next %+v", err, next)
+	}
+	if out := got.Steps[0].Output; out["n"] != 7 {
+		t.Fatalf("recorded output %v, want the stored output", out)
+	}
+}

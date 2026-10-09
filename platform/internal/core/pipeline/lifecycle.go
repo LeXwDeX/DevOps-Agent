@@ -36,12 +36,18 @@ func supportedSource(src consts.RequestSource) error {
 
 // Submit 登记一个新的执行申请：分配 CallID，创建 draft，同一次保存里带 devops.call.proposed。
 // 不做检验；调用方接着调用 Inspect。
+//
+// 来源 task_step 不经 Submit：步骤申请只由编排引擎按登记的任务定义生成并直接写入存储
+// （61 第 7.3 节）。否则任何提交方都能用这个来源免去模型自审（K-06）。返回 core.source_not_supported。
 func (s *Service) Submit(ctx context.Context, in SubmitInput) (*request.ExecutionRequest, error) {
 	if !in.Source.Valid() {
 		return nil, errcode.Newf(errcode.InvalidArgument, "unknown request source %q", in.Source)
 	}
 	if err := supportedSource(in.Source); err != nil {
 		return nil, err
+	}
+	if in.Source == consts.SourceTaskStep {
+		return nil, errcode.New(errcode.SourceNotSupported, "task_step requests are created by the orchestrator, not submitted")
 	}
 	now := s.d.Clock.Now()
 	r, err := corereq.New(corereq.NewParams{

@@ -14,6 +14,9 @@ import (
 //     frozen 及之后（frozen、executing、succeeded、mismatched、failed、unknown）返回
 //     core.frozen_immutable（K-15）；draft、awaiting_review、rejected、stopped 返回 core.invalid_transition。
 //   - src 只能是 self_review 或 human_comment，否则返回 core.invalid_revision_source。
+//   - 来源为 task_step 的申请不能修订，返回 core.source_not_supported：步骤内容由 Registry
+//     按登记的任务定义生成，登记过的步骤不由 Agent 修订（61 第 7.3 节）；否则改写后的内容会以
+//     "既定任务步骤"的身份免去模型自审（K-06）。目标变化时运行停止，重跑是一次新的运行。
 //   - 成功时：Revision 加一，Content 和 Expectation 换成新值（深拷贝），Digest 重算，
 //     Checks、Fingerprint、Frozen、Rejection、Execution 清空，Submission 清空
 //     （自审和 Hook 输入都针对旧内容，新修订由调用方重新填写），Reviews 保留为历史
@@ -34,6 +37,9 @@ func Revise(r *request.ExecutionRequest, content request.Content, exp request.Ex
 	}
 	if !src.Valid() {
 		return nil, errcode.Newf(errcode.InvalidRevisionSrc, "revision source %q", src)
+	}
+	if r.Source == consts.SourceTaskStep {
+		return nil, errcode.Newf(errcode.SourceNotSupported, "call %s is a registered task step and cannot be revised", r.CallID)
 	}
 
 	next := r.Clone()

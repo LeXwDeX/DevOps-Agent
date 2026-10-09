@@ -36,7 +36,9 @@ var stepStopReason = map[consts.RequestState]consts.StopReason{
 // 没有分支匹配，或分支条件求值出错（例如缺字段），运行 stopped，原因 no_branch_matched，
 // 错误码写在 Detail 里：缺字段是停止，不是"假"。
 // 运行已在终态返回 core.run_invalid_state；申请不是当前步骤的当前申请返回 core.invalid_argument。
-// 返回的申请只在创建了下一步时非 nil，由调用方送进流水线。
+// 调用方传入的申请只是副本：引擎按 CallID 重读存储里的记录，Version 落后返回 core.cas_conflict
+// （重读后重试），状态或修订号对不上返回 core.invalid_argument；推进只依据存储里的状态和输出，
+// 不依据副本的说法。返回的申请只在创建了下一步时非 nil，由调用方送进流水线。
 func (e *Engine) Advance(ctx context.Context, runID string, step *mreq.ExecutionRequest) (*task.Run, *mreq.ExecutionRequest, error) {
 	if step == nil {
 		return nil, nil, errcode.New(errcode.InvalidArgument, "step request is required")
@@ -52,6 +54,10 @@ func (e *Engine) Advance(ctx context.Context, runID string, step *mreq.Execution
 		return nil, nil, errcode.Newf(errcode.RunInvalidState, "run %s is %s", runID, run.State)
 	}
 	idx, err := currentRecord(run, step)
+	if err != nil {
+		return nil, nil, err
+	}
+	step, err = e.storedStep(ctx, step)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -91,6 +97,24 @@ func (e *Engine) Advance(ctx context.Context, runID string, step *mreq.Execution
 		return nil, nil, errcode.Newf(errcode.InvalidArgument, "unhandled request state %q", step.State)
 	}
 	return e.stopRun(ctx, run, idx, step.State, reason, stepDetail(step), expected, now)
+}
+
+// storedStep 按 CallID 重读存储里的申请，并核对调用方的副本与它一致：
+// Version 落后（或超前）返回 core.cas_conflict；同一 Version 下状态或修订号不同，副本就不是
+// 存储里的记录，返回 core.invalid_argument。返回存储里的记录，之后的推进都以它为准。
+func (e *Engine) storedStep(ctx context.Context, step *mreq.ExecutionRequest) (*mreq.ExecutionRequest, error) {
+	stored, err := e.d.Requests.Get(ctx, step.CallID)
+	if err != nil {
+		return nil, err
+	}
+	if stored.Version != step.Version {
+		return nil, errcode.Newf(errcode.CASConflict, "call %s: stored version %d, caller holds %d; re-read and retry", step.CallID, stored.Version, step.Version)
+	}
+	if stored.State != step.State || stored.Revision != step.Revision {
+		return nil, errcode.Newf(errcode.InvalidArgument, "call %s: caller's copy (%s, revision %d) differs from the stored record (%s, revision %d)",
+			step.CallID, step.State, step.Revision, stored.State, stored.Revision)
+	}
+	return stored, nil
 }
 
 // currentRecord 核对申请就是运行当前步骤的当前申请，返回它在 run.Steps 里的下标。
