@@ -194,6 +194,7 @@ sdk/agent/
 
 | 规则 | 说明 |
 |---|---|
+| 厂商自定义字段一律用派生适配器 | DeepSeek 等厂商的自定义字段（不只 `reasoning_content`），都写在该厂商的派生适配器里（42 第 3 节的"派生"，旧称 PATCH）。基础适配器不加任何厂商字段。新发现一个自定义字段，就在对应派生适配器里加处理和语料，升适配器版本（K-21） |
 | 基础适配器保持标准 | `ChatAdapterBase` 只处理标准字段。回复里的未知字段不丢弃，原样放进 `Response.Sidecar`（只读的原始 JSON），不获得执行含义（42 第 5 节） |
 | 派生适配器强制嵌入 | `DeepSeekAdapter` 嵌入 `ChatAdapterBase`，只重写"读取回复"（`NormalizeResponse`、`DecodeEvent`）和"回传历史"（`EncodePayload`）。基础流程通过构造时传入的扩展接口调用这些方法，保证从最外层派生对象分派（42 第 3.2 节） |
 | 读取回复 | `reasoning_content` 变成 `thinking` 内容块，放在文本块之前。流式时 `delta.reasoning_content` 变成 thinking 增量 |
