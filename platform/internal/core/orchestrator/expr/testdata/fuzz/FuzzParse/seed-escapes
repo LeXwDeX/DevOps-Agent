@@ -1,0 +1,2 @@
+go test fuzz v1
+string("\"\\u00e9\\ud83d\\ude00\\n\" == s")
