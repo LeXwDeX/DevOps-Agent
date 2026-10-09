@@ -52,82 +52,85 @@ go.work                  # 只在本地使用，不作为构建输入
 
 ## 4. 平台模块
 
+### 4.1 代码分层
+
+平台代码按五层组织。每一层只依赖它下面的层。
+
+| 层 | 目录 | 放什么 | 不放什么 |
+|---|---|---|---|
+| schema | `internal/schema/` | 版本化契约定义（JSON Schema 等）、由它生成的 Go 类型与校验器、集中常量和枚举、错误码（K-22） | 业务逻辑 |
+| model | `internal/model/` | 领域数据模型：项目、环境、执行申请、执行预期、指纹、策略、SOP（既定任务）与版本、运行、事实、K 引用等结构体与校验 | 流程、I/O |
+| core | `internal/core/` | 内核：执行申请生命周期与状态机、"先检验，再执行"流水线（执行预期、指纹、自审结论、dcg、策略、人工审核、冻结、受控改写）、既定任务编排引擎、恢复即停止、`devops.*` 事件、各类端口（接口）定义 | 任何外部 I/O；厂商类型；具体业务功能 |
+| provider | `internal/provider/` | core 端口的实现和外部对接：PostgreSQL 存储、dcg、凭证库、模型出口、执行通道（SSH、跳板）、云厂商、数据库方言解析、Docker、沙盒、HTTP 与任务队列传输 | 业务规则 |
+| module | `internal/module/` | 业务功能模块，在 core 之上组合：项目与会话、SOP 登记与版本、运维大盘与页面视图、事实地图、运维表格、监控对接、平台管理、项目部署 | 直接调用 provider；绕过 core 执行任何操作 |
+
 ```text
 platform/
   go.mod
-  cmd/                     # 每个二进制一个目录，只做依赖装配
-    core/                  # 核心容器内的控制服务
-    agent-worker/          # Agent Worker，嵌入 GoAgent SDK
-    harness/               # 执行门禁与既定任务编排
-    scheduler/             # 持久调度服务
-    executor/              # 执行器，唯一操作项目目标的进程
-    model-proxy/           # 模型出口代理
-    substrate/             # 底座：底座控制服务与节点代理（Supervisor 托管）
-    monitor-worker/        # 监控旁路节点
-    migrate/               # 平台库迁移入口，只由底座作为受控执行调用
+  cmd/                     # 每个二进制一个目录，只做装配：把 provider 接到 core 的端口上
+    core/  agent-worker/  harness/  scheduler/  executor/  model-proxy/
+    substrate/  monitor-worker/  migrate/
   internal/
-    domain/                # 业务规则与端口定义
-      project/  session/  request/  task/  policy/
-      approval/  fact/  table/  secretref/  deploy/
-    application/           # 用例、状态机、端口编排
-    adapters/              # 端口的具体实现
-      transport/           # HTTP/JSON、任务队列、节点通道
-      storage/             # pgx + sqlc；按库分包
-      agent/               # SDK 宿主端口实现（只供 agent-worker）
-      cloud/               # 云适配器：抽象层、厂商对接、数据库类型派生，见 35 第 11 节
-      database/            # SQL 方言解析与分类，见 24
-      monitoring/          # 自研监控模块与派生解析器，见 36
-      docker/              # Moby client（底座节点代理与执行器分别装配）
-      secrets/             # 凭证库访问（只供 executor、model-proxy）
-      dcg/                 # dcg 调用适配
-      sandbox/             # 工具沙盒后端，见 12 第 10 节
-    contracts/             # 按职责域集中的 schema、生成类型、常量与错误码
-      request/  policy/  tool/  task/  model/  deploy/  errors/
-    events/                # 平台运维事件 devops.*，独立于 SDK
+    schema/                # 契约、生成类型、常量、错误码
+    model/                 # 领域数据模型
+    core/                  # 内核与端口
+      request/  pipeline/  policy/  review/  fingerprint/  orchestrator/
+      recovery/  events/  ports/
+    provider/              # 端口实现与外部对接
+      storage/  dcg/  vault/  modelgw/  exec/  cloud/  sqldialect/
+      docker/  sandbox/  transport/  monitoring/
+    module/                # 业务模块
+      project/  session/  sop/  console/  factmap/  opstable/
+      monitor/  admin/  deploy/
   assets/                  # 出厂登记资产的源文件，见第 7 节
   migrations/              # 版本化 SQL 迁移文件，按库分目录
     core/  harness/  scheduler/  audit/  config/
-  deploy/                  # 每个二进制的镜像构建文件、部署包模板、环境模板、supervisord 配置模板
+  deploy/                  # 镜像构建文件、部署包模板、环境模板、supervisord 配置模板
   test/                    # 跨二进制的契约测试、负例语料、故障注入用例
 ```
 
 说明：
 
-- `cmd/<二进制>/` 只做依赖装配：决定这个二进制拿哪些适配器和哪些凭证。业务逻辑不写在 `cmd` 里。
+- `cmd/<二进制>/` 只做装配：决定这个二进制拿哪些 provider、哪些凭证、启用哪些 module。业务逻辑不写在 `cmd` 里。
 - 每个常驻进程一个二进制。首版打成两个镜像：core 镜像含 `core`、`agent-worker`；runtime 镜像含 `harness`、`scheduler`、`executor`、`model-proxy`（见 [组件与边界](../10-architecture/11-components-and-boundaries.md) 第 5 节）。同容器的进程使用不同运行身份。
 - 镜像只含二进制和静态文件，不含配置（K-31）。`deploy/` 下的配置模板在部署时写入外部配置目录。
 - `migrate` 不是常驻服务。它只持有迁移账号，由底座在一次受控执行中调用（见 [部署底座](../10-architecture/12-deployment-substrate.md) 第 6.3 节）。
 - 包内单元测试和 `testdata/` 放在各自包里；`test/` 只放跨二进制的契约测试和语料。
+- 名字说明：`internal/core/` 是代码里的内核层，和"core 容器""核心控制服务"不是一回事。
+
+### 4.2 SDK 的分层
+
+`sdk/agent/` 内部按同样的思路理解：公共 API 在模块根目录；协议基础适配器和厂商派生适配器相当于 provider 层；运行循环、上下文和工具管理相当于 core 层。具体目录以 [SDK 概览](../40-sdk/41-sdk-overview.md) 第 13 节为准。
 
 ## 5. 依赖方向
 
-平台采用"传输接口 → 应用用例 → 业务规则"的调用方向。业务规则定义所需的端口；适配器实现端口。
-
 ```mermaid
 flowchart LR
-    CMD["cmd/*<br/>依赖装配"] --> T["adapters/transport<br/>传输接口"]
-    CMD --> AD["其他 adapters<br/>存储 / 云 / 数据库 / 监控 / Docker / 凭证"]
-    T --> APP["application<br/>应用用例"]
-    APP --> DOM["domain<br/>业务规则与端口"]
-    AD -. 实现端口 .-> DOM
-    DOM --> CON["contracts<br/>schema / 常量"]
-    APP --> CON
-    AD --> CON
-    T --> CON
-    EV["events<br/>devops.*"] --> CON
+    CMD["cmd/*<br/>装配"] --> MOD["module<br/>业务模块"]
+    CMD --> PRO["provider<br/>端口实现"]
+    MOD --> CORE["core<br/>内核与端口"]
+    PRO -. 实现端口 .-> CORE
+    CORE --> MODEL["model<br/>领域模型"]
+    MOD --> MODEL
+    PRO --> MODEL
+    MODEL --> SCH["schema<br/>契约 / 常量"]
+    CORE --> SCH
+    MOD --> SCH
+    PRO --> SCH
 ```
 
 规则：
 
 | 规则 | 说明 |
 |---|---|
-| 业务规则不依赖适配器 | `domain` 和 `application` 不导入任何 `adapters` 包。 |
-| 厂商类型留在适配器 | 云 SDK、数据库驱动、Moby client、框架类型只出现在 `adapters` 下。 |
-| contracts 是叶子 | `contracts` 不导入平台其他包。 |
+| core 不依赖外部 | `core` 不导入 `provider`、`module`，也不做任何外部 I/O。外部能力都通过 `core/ports` 里的接口使用。 |
+| module 不碰 provider | `module` 只通过 core 的接口使用外部能力，不直接导入 `provider`。所有实际操作都经过 core 的流水线。 |
+| provider 不含业务规则 | `provider` 只实现端口和做格式转换。厂商类型（云 SDK、数据库驱动、Moby client、框架类型）只出现在这里。 |
+| schema 是叶子 | `schema` 不导入平台其他包。 |
 | SDK 不依赖平台 | `sdk/agent` 不导入 `platform` 的任何包。 |
-| 只有 Worker 依赖 SDK | 只有 `cmd/agent-worker` 和 `adapters/agent` 导入 SDK。Harness 接收的是 HTTP/JSON 执行申请，不依赖 SDK 类型。 |
+| 只有 Worker 依赖 SDK | 只有 `cmd/agent-worker` 和对应的 provider 导入 SDK。Harness 接收的是 HTTP/JSON 执行申请，不依赖 SDK 类型。 |
 | 只读与写入端口分开 | 只读观测端口和写操作端口是两个接口，不合并。 |
-| 不暴露任意 SQL | 存储适配层只提供固定查询的类型化接口。 |
+| 不暴露任意 SQL | 存储 provider 只提供固定查询的类型化接口。 |
 | 自动检查 | CI 用依赖检查（基于 `go list`）验证上述规则，见 [测试与发布](55-testing-and-release.md)。 |
 
 ## 6. 各二进制只拿本职责凭证
@@ -174,8 +177,8 @@ platform/assets/
 
 ## 8. 云适配器与监控解析器
 
-- 云适配器（抽象层、厂商对接、数据库类型派生）的目录见 [云服务商](../30-features/35-cloud-providers.md) 第 11 节，放在 `platform/internal/adapters/cloud/` 下。
-- 自研监控模块和派生解析器的目录见 [监控](../30-features/36-monitoring.md) 第 10 节，放在 `platform/internal/adapters/monitoring/` 下。
+- 云适配器（抽象层、厂商对接、数据库类型派生）的目录见 [云服务商](../30-features/35-cloud-providers.md) 第 11 节，放在 `platform/internal/provider/cloud/` 下。
+- 自研监控模块和派生解析器的目录见 [监控](../30-features/36-monitoring.md) 第 10 节，放在 `platform/internal/provider/monitoring/` 下。
 - provider schema 的出厂版本放在 `platform/assets/providers/`（第 7 节），随适配器版本一起登记。
 - 共同规则：每个产品或派生类型一个独立文件；派生类型必须嵌入对应的基础类型，只重写差异，通过接口分派（K-28）；登记并固定父类型与派生版本。
 

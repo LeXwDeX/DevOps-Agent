@@ -56,7 +56,7 @@ flowchart LR
 
 **第二步：建目录**
 
-按 [53](53-repo-layout.md) 建立 `sdk/agent/` 和 `platform/` 的目录骨架：`cmd/` 下九个入口目录、`internal/` 下 `domain`、`application`、`adapters`、`contracts`、`events`，以及 `assets/`、`migrations/`、`deploy/`、`test/`。只有用户明确要求后才创建 `go.mod`。
+按 [53](53-repo-layout.md) 建立 `sdk/agent/` 和 `platform/` 的目录骨架：`cmd/` 下九个入口目录、`internal/` 下 `schema`、`model`、`core`、`provider`、`module` 五层，以及 `assets/`、`migrations/`、`deploy/`、`test/`。之后按 [54](54-phases-and-acceptance.md) 第 1.1 节，从 core 开始一块一块做，每块先出详细设计，开发完审核通过再进下一块。只有用户明确要求后才创建 `go.mod`。
 
 **第三步：定义首批 schema（按顺序）**
 

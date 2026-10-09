@@ -33,6 +33,11 @@
 - 用户确认待定项后，把结论写进对应文档，并从 `04-open-questions.md` 删除。
 - 每篇文档保留 YAML front matter（id、title、status、summary、load_when、depends_on），并同步更新 `docs/README.md` 的目录和任务路由。
 
+## 开发节奏
+
+- 代码分五层：schema、model、core、provider、module（见 `docs/50-engineering/53-repo-layout.md` 第 4.1 节）。
+- 从 core 开始，一块一块做：详细设计 → 用户确认 → 开发 → 主对话 Agent 审核 → 用户看审核报告后进入下一块（见 `docs/50-engineering/54-phases-and-acceptance.md` 第 1.1 节）。
+
 ## 协作分工
 
 - `SOL` 是用户主要对话模型，调度其他 Agent 进行方案、编码与会审，支持并行。
