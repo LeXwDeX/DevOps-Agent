@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "env": {
+    "GOTOOLCHAIN": "go1.27.1+auto",
+    "GOWORK": "off"
+  },
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Bash(go:*)",
+      "Bash(gofmt:*)",
+      "Bash(scripts/check.sh:*)",
+      "Bash(./scripts/check.sh:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git switch:*)",
+      "Bash(git add:*)",
+      "Bash(git rm:*)",
+      "Bash(git mv:*)",
+      "Bash(git commit:*)",
+      "Bash(git fetch:*)",
+      "Bash(git pull:*)",
+      "Bash(git push:*)",
+      "Bash(git merge:*)",
+      "Bash(git stash:*)",
+      "Bash(git restore:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git ls-files:*)",
+      "Bash(git ls-remote:*)",
+      "Bash(git blame:*)",
+      "Bash(git grep:*)",
+      "Bash(docker ps:*)",
+      "Bash(docker logs:*)",
+      "Bash(docker images:*)",
+      "Bash(docker inspect:*)",
+      "Bash(docker build:*)",
+      "Bash(docker version:*)",
+      "Bash(docker info:*)",
+      "Bash(docker compose -p devops-agent:*)",
+      "Bash(docker compose version:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "Bash(grep:*)",
+      "Bash(rg:*)",
+      "Bash(find:*)",
+      "Bash(sed:*)",
+      "Bash(awk:*)",
+      "Bash(sort:*)",
+      "Bash(uniq:*)",
+      "Bash(diff:*)",
+      "Bash(jq:*)",
+      "Bash(tree:*)",
+      "Bash(file:*)",
+      "Bash(which:*)",
+      "Bash(cd:*)",
+      "Bash(xargs:*)",
+      "Bash(cut:*)",
+      "Bash(tr:*)",
+      "Bash(dirname:*)",
+      "Bash(basename:*)",
+      "Bash(date:*)",
+      "Bash(test:*)",
+      "Bash(pwd)",
+      "Bash(echo:*)",
+      "Bash(mkdir:*)",
+      "Bash(touch:*)",
+      "Bash(cp:*)",
+      "Bash(mv:*)",
+      "Bash(chmod:*)",
+      "WebSearch",
+      "WebFetch(domain:pkg.go.dev)",
+      "WebFetch(domain:proxy.golang.org)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:docs.docker.com)",
+      "WebFetch(domain:platform.openai.com)",
+      "mcp__github",
+      "mcp__hearthbot",
+      "mcp__claude-code-remote"
+    ],
+    "deny": [
+      "mcp__github__enable_pr_auto_merge",
+      "mcp__github__create_or_update_file",
+      "mcp__github__push_files",
+      "mcp__github__delete_file",
+      "Bash(git push origin +main:*)",
+      "Bash(git push origin HEAD:main:*)",
+      "Bash(git push origin main:*)",
+      "Bash(git push -f:*)",
+      "Bash(git push --force:*)",
+      "Read(./**/.env)",
+      "Read(./**/.env.local)",
+      "Read(./**/.env.*.local)",
+      "Bash(docker system:*)",
+      "Bash(docker rm:*)",
+      "Bash(docker rmi:*)",
+      "Bash(docker kill:*)",
+      "Bash(docker stop:*)",
+      "Bash(docker volume rm:*)",
+      "Bash(docker volume prune:*)",
+      "Bash(docker image prune:*)",
+      "Bash(docker container prune:*)",
+      "Bash(docker network prune:*)",
+      "Bash(docker builder prune:*)",
+      "Bash(docker container rm:*)",
+      "Bash(docker image rm:*)",
+      "Bash(docker network rm:*)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.sh",
+            "timeout": 600
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-git-push.py\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}
