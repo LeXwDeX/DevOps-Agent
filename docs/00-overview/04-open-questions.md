@@ -37,7 +37,7 @@ depends_on: [KERNEL]
 | 编号 | 问题 | 当前默认 | 相关文档 |
 |---|---|---|---|
 | Q9 | 平台管理模块细节：SSO 协议、MFA 方式、角色与多人审批；底座管理入口在核心停机时如何认证。 | 首版单人；结构和接口预留。 | [平台管理](../30-features/38-platform-admin.md) |
-| Q10 | 凭证库：K 命名、存储加密、主密钥、备份、迁移、轮换。 | 待设计，在 P2 接入资产凭证前完成。P1 只用一个模型 API key，放在 runtime 挂载的 `data/vault/` 下。 | [密钥](../20-execution/25-secrets.md) |
+| Q10 | 凭证库：K 命名、存储加密、主密钥、备份、迁移、轮换。 | 待设计，在 P2 接入资产凭证前完成。P1 的凭证库只存输入侧自动转 K 的值。模型 API key 不进凭证库，由模型接入变量传入（[组件与边界](../10-architecture/11-components-and-boundaries.md) 第 5.4 节）。 | [密钥](../20-execution/25-secrets.md) |
 | Q12 | 每个具体工具的能力、输入输出、预演方式和改写边界。 | 逐个做详细需求设计后再定。 | [工具包装](../20-execution/26-tool-wrapping.md) |
 | Q24 | 工具沙盒由谁创建（需要宿主权限）？首版启用哪条路径？ | 首版只启用 Docker 只读工作区路径，由独立的沙盒后端创建，执行器不挂 Docker socket；MicroVM 快照路径暂不启用。 | [部署底座](../10-architecture/12-deployment-substrate.md) 第 10 节 |
 | Q15 | Temporal 是否作为长流程编排器？ | 候选。按组件准入（K-23）、部署成本和恢复要求评估；首版用平台自带的限域状态机。 | [Go 技术选型](../50-engineering/51-go-stack.md) |

@@ -55,6 +55,9 @@ depends_on: [KERNEL, EXEC-MODEL, REVIEW-POLICY, STATE-RECOVERY, GO-STACK]
 | 命令内容里出现 V | 被拒绝 | [25](../20-execution/25-secrets.md) 第 3 节 |
 | 执行输出含 V（例如 `echo $变量`） | 输出被 mask | K-17 |
 | 任何接口尝试读取 V | 没有这样的接口 | K-16 |
+| 检查 core 容器、Harness、持久调度服务、执行器及其子进程的环境 | 没有模型接入变量；core 容器收到它们时拒绝启动 | [11](../10-architecture/11-components-and-boundaries.md) 第 5.4 节 |
+| 模型接入变量缺失、地址不是 `https` 或 key 为空 | 模型请求被拒绝；报告只写变量名，不写值；其他服务照常 | 同上 |
+| 模型端点返回重定向，或请求指向其他地址 | 不跟随，不发送 | 同上 |
 | Agent 尝试登记工具或启用 Hook | 被拒绝 | K-20 |
 | 外部内容里出现指令 | 不执行，上报疑似注入 | K-19 |
 | 既定任务没有分支匹配 | 停止，转人工 | [23](../20-execution/23-harness-tasks.md) 第 2.3 节 |
