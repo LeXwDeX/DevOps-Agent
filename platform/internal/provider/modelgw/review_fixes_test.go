@@ -167,7 +167,7 @@ func TestBaseURLExplicitPortValidation(t *testing.T) {
 			t.Error("invalid port configuration must reject without contacting upstream")
 		}
 	}
-	for _, host := range []string{"model.example", "model.example:443", "model.example:65535", "[::1]", "[::1]:443", "[::1]:65535"} {
+	for _, host := range []string{"model.example", "model.example:1", "model.example:443", "model.example:65535", "[::1]", "[::1]:1", "[::1]:443", "[::1]:65535"} {
 		cfg := LoadConfig(env(map[string]string{EnvBaseURL: "https://" + host + "/v1", EnvAPIKey: testKey}))
 		if !cfg.Available() {
 			t.Errorf("valid explicit or default port %q was rejected", host)
@@ -417,6 +417,131 @@ func TestClientCancelLogsSeparateOutcome(t *testing.T) {
 		}
 		if record["status"] != float64(499) || record["outcome"] != "client_cancelled" || record["code"] != nil {
 			t.Fatal("client cancellation must not be reported as upstream failure")
+		}
+	}
+}
+
+// failureClientWriter 在指定写入或 flush 失败时同步取消原始客户端 context。
+// 精确控制失败阶段，避免用网络断开或睡眠猜测取消时序。
+type failureClientWriter struct {
+	header      http.Header
+	cancel      context.CancelFunc
+	writeError  bool
+	shortWrite  bool
+	failFlushAt int
+	flushes     int
+	writes      int
+	statuses    []int
+}
+
+func (w *failureClientWriter) Header() http.Header {
+	if w.header == nil {
+		w.header = make(http.Header)
+	}
+	return w.header
+}
+
+func (w *failureClientWriter) WriteHeader(status int) { w.statuses = append(w.statuses, status) }
+
+func (w *failureClientWriter) Write(b []byte) (int, error) {
+	w.writes++
+	if w.writeError || w.shortWrite {
+		if w.cancel != nil {
+			w.cancel()
+		}
+		if w.writeError {
+			return 0, io.ErrClosedPipe
+		}
+		return len(b) - 1, nil
+	}
+	return len(b), nil
+}
+
+func (w *failureClientWriter) FlushError() error {
+	w.flushes++
+	if w.flushes == w.failFlushAt {
+		if w.cancel != nil {
+			w.cancel()
+		}
+		return io.ErrClosedPipe
+	}
+	return nil
+}
+
+func TestClientWriteFailuresHaveAccurateLogOutcome(t *testing.T) {
+	for _, cancelled := range []bool{false, true} {
+		mode := "ordinary failure"
+		if cancelled {
+			mode = "client cancels during failure"
+		}
+		for _, tc := range []struct {
+			name, response      string
+			stream              bool
+			writeError, short   bool
+			flushAt, wantWrites int
+		}{
+			{"buffered write", "safe chunk", false, true, false, 0, 1},
+			{"buffered short write", "safe chunk", false, false, true, 0, 1},
+			{"initial flush", "unused", true, false, false, 1, 0},
+			{"chunk write", "safe chunk", true, true, false, 0, 1},
+			{"chunk short write", "safe chunk", true, false, true, 0, 1},
+			{"chunk flush", "safe chunk", true, false, false, 2, 1},
+			{"final Close write", testKey[:5], true, true, false, 0, 1},
+			{"final Close short write", testKey[:5], true, false, true, 0, 1},
+			{"final Close flush", testKey[:5], true, false, false, 2, 1},
+		} {
+			t.Run(mode+"/"+tc.name, func(t *testing.T) {
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				w := &failureClientWriter{writeError: tc.writeError, shortWrite: tc.short, failFlushAt: tc.flushAt}
+				if cancelled {
+					w.cancel = cancel
+				}
+				var logs bytes.Buffer
+				p, err := New(validConfig(), Options{ClientAuth: StaticTokenAuth(clientToken), Logger: slog.New(slog.NewJSONHandler(&logs, nil)), Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+					ct := "application/json"
+					if tc.stream {
+						ct = "text/event-stream"
+					}
+					return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {ct}}, Body: io.NopCloser(strings.NewReader(tc.response))}, nil
+				})})
+				if err != nil {
+					t.Fatal(err)
+				}
+				body := validBody
+				if tc.stream {
+					body = `{"model":"m","messages":[],"stream":true}`
+				}
+				aborted := false
+				func() {
+					defer func() {
+						if v := recover(); v != nil {
+							if v != http.ErrAbortHandler {
+								panic(v)
+							}
+							aborted = true
+						}
+					}()
+					p.ServeHTTP(w, authorizedRequest(ctx, strings.NewReader(body)))
+				}()
+				var record map[string]any
+				if err := json.Unmarshal(logs.Bytes(), &record); err != nil {
+					t.Fatal(err)
+				}
+				if cancelled {
+					if record["status"] != float64(499) || record["outcome"] != "client_cancelled" || record["code"] != nil {
+						t.Errorf("cancelled write failure log status=%v outcome=%v code=%v", record["status"], record["outcome"], record["code"])
+					}
+				} else if record["status"] != float64(200) || record["code"] != string(errcode.ModelGWUpstreamError) || record["outcome"] != nil {
+					t.Errorf("ordinary write failure log status=%v outcome=%v code=%v", record["status"], record["outcome"], record["code"])
+				}
+				if !aborted {
+					t.Error("failed committed response must abort rather than append a clean terminator")
+				}
+				if len(w.statuses) != 1 || w.statuses[0] != 200 || w.writes != tc.wantWrites {
+					t.Error("write failure must not append JSON or another response status after committed headers")
+				}
+			})
 		}
 	}
 }

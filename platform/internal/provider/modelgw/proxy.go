@@ -357,8 +357,19 @@ func (p *Proxy) buffered(w http.ResponseWriter, resp *http.Response, timeout *up
 	}
 	h.Set("Content-Length", strconv.Itoa(len(b)))
 	w.WriteHeader(resp.StatusCode)
-	_, _ = w.Write(b)
+	if n, err := w.Write(b); err != nil || n != len(b) {
+		return clientWriteFailure(clientCtx, resp.StatusCode)
+	}
 	return result{status: resp.StatusCode}
+}
+
+// clientWriteFailure 只处理已提交响应的失败，不追加错误 JSON 或完整结束标记。
+// 日志保留已提交的状态和错误码；原客户端已取消时单独记录 499。
+func clientWriteFailure(clientCtx context.Context, status int) result {
+	if clientCtx.Err() != nil {
+		return result{status: 499, clientCancelled: true, abort: true}
+	}
+	return result{status: status, code: errcode.ModelGWUpstreamError, abort: true}
 }
 
 type forwardedHeader struct {
@@ -431,7 +442,7 @@ func (p *Proxy) stream(w http.ResponseWriter, resp *http.Response, timeout *upst
 	w.WriteHeader(resp.StatusCode)
 	rc := http.NewResponseController(w)
 	if err := rc.Flush(); err != nil && !errors.Is(err, http.ErrNotSupported) {
-		return result{status: resp.StatusCode, code: errcode.ModelGWUpstreamError}
+		return clientWriteFailure(clientCtx, resp.StatusCode)
 	}
 	mw := p.mk.writer(flushWriter{w: w, rc: rc})
 
@@ -449,7 +460,7 @@ func (p *Proxy) stream(w http.ResponseWriter, resp *http.Response, timeout *upst
 				return result{status: resp.StatusCode, code: errcode.ModelGWUpstreamError, abort: true}
 			}
 			if _, werr := mw.Write(buf[:n]); werr != nil { // 客户端写失败
-				return result{status: resp.StatusCode, code: errcode.ModelGWUpstreamError}
+				return clientWriteFailure(clientCtx, resp.StatusCode)
 			}
 		}
 		if err == io.EOF {
@@ -457,7 +468,7 @@ func (p *Proxy) stream(w http.ResponseWriter, resp *http.Response, timeout *upst
 				return result{status: resp.StatusCode, code: errcode.ModelGWUpstreamError, abort: true}
 			}
 			if err := mw.Close(); err != nil {
-				return result{status: resp.StatusCode, code: errcode.ModelGWUpstreamError}
+				return clientWriteFailure(clientCtx, resp.StatusCode)
 			}
 			return result{status: resp.StatusCode}
 		}
