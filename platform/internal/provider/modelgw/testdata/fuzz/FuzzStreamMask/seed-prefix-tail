@@ -1,0 +1,5 @@
+go test fuzz v1
+[]byte("tail SECRETKE")
+string("SECRETKEY")
+[]byte("")
+[]byte("\x02")

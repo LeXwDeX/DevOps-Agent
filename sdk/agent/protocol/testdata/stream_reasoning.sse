@@ -1,0 +1,16 @@
+: keep-alive
+
+data: {"id":"c3","model":"deepseek","choices":[{"index":0,"delta":{"role":"assistant","content":null,"reasoning_content":""},"finish_reason":null}]}
+
+data: {"id":"c3","model":"deepseek","choices":[{"index":0,"delta":{"content":null,"reasoning_content":"2+2 "},"finish_reason":null}]}
+
+data: {"id":"c3","model":"deepseek","choices":[{"index":0,"delta":{"content":null,"reasoning_content":"is 4."},"finish_reason":null}]}
+
+data: {"id":"c3","model":"deepseek","choices":[{"index":0,"delta":{"content":"The answer ","reasoning_content":null},"finish_reason":null}]}
+
+data: {"id":"c3","model":"deepseek","choices":[{"index":0,"delta":{"content":"is 4."},"finish_reason":null}]}
+
+data: {"id":"c3","model":"deepseek","choices":[{"index":0,"delta":{"content":""},"finish_reason":"stop"}],"usage":{"prompt_tokens":8,"completion_tokens":20,"total_tokens":28}}
+
+data: [DONE]
+

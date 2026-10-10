@@ -1,0 +1,1 @@
+{"id":"chatcmpl-13","model":"deepseek","choices":[{"index":0,"message":{"role":"assistant","content":null,"reasoning_content":"Let me think about this for a long"},"finish_reason":"length"}],"usage":{"prompt_tokens":8,"completion_tokens":16,"total_tokens":24}}

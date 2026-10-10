@@ -1,0 +1,1 @@
+{"id":"chatcmpl-4","model":"gpt-x","choices":[{"index":0,"message":{"role":"assistant","content":"partial"},"finish_reason":"function_call"}]}

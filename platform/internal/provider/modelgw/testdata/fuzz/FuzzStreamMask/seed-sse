@@ -1,0 +1,5 @@
+go test fuzz v1
+[]byte("data: {\"x\":1}\n\n")
+string("SECRETKEY")
+[]byte("\x03\x09")
+[]byte("\x01\x02\x03")

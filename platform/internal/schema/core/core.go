@@ -6,5 +6,7 @@ package core
 const (
 	ExecutionRequestV1 = "devops.execution.request/v1"
 	TaskRunV1          = "devops.task.run/v1"
+	TaskDefinitionV1   = "devops.task.definition/v1"
 	EventV1            = "devops.event/v1"
+	AuditRecordV1      = "devops.audit.record/v1"
 )

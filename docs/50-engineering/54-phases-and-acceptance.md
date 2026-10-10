@@ -36,7 +36,8 @@ flowchart LR
 | 顺序 | 块 | 内容 |
 |---|---|---|
 | 1 | core | 内核层，连同它直接需要的 schema 和 model：执行申请与状态机、检验流水线、策略解析、审核与冻结、受控改写、既定任务编排引擎、恢复即停止、事件、端口定义。只用测试替身（fake）实现端口，不接任何真实外部系统 |
-| 2 | provider | 首批端口实现：PostgreSQL 存储、dcg、凭证库最小版、模型出口代理（OpenAI Chat Completions 格式，端点和 key 来自模型接入变量，见 [11](../10-architecture/11-components-and-boundaries.md) 第 5.4 节）、执行通道 |
+| 2a | provider 第一块 | PostgreSQL 存储（执行申请、修订日志、任务、outbox、审计）、系统时钟与 ID、模型出口代理（OpenAI Chat Completions 格式，端点和 key 来自模型接入变量，见 [62](../60-design/62-provider-storage-modelgw.md)） |
+| 2b | provider 第二块 | dcg、凭证库最小版、执行通道 |
 | 3 | module | 逐个业务模块，每个模块一块：会话与对话 → SOP 登记与版本 → 运维大盘与页面视图 → 其余模块 |
 
 审核：
