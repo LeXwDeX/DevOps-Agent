@@ -37,7 +37,7 @@ type Options struct {
 	Timeout time.Duration
 	// MaxRequestBytes 是请求体上限，默认 4 MiB。
 	MaxRequestBytes int64
-	// MaxResponseBytes 是非流式响应体上限，默认 16 MiB。
+	// MaxResponseBytes 同时限制非流式上游响应体和遮盖后输出，默认 16 MiB。
 	MaxResponseBytes int64
 	// Transport 可选，主要给测试注入信任。nil 时用 TLS 1.2 以上、默认校验的传输。
 	Transport http.RoundTripper
@@ -182,7 +182,8 @@ func (p *Proxy) unauthorized(w http.ResponseWriter) result {
 	return p.fail(w, http.StatusUnauthorized, errcode.ModelGWUnauthorized, "invalid client credentials")
 }
 
-// fail 写出统一的 JSON 错误。文本先 mask 再序列化，序列化后再 mask 一次。
+// fail 写出统一的 JSON 错误。自由文本先 mask 再序列化，
+// 固定字段名和集中错误码是公共协议元数据，保持不变。
 func (p *Proxy) fail(w http.ResponseWriter, status int, code errcode.Code, msg string) result {
 	var body struct {
 		Error struct {
@@ -193,7 +194,6 @@ func (p *Proxy) fail(w http.ResponseWriter, status int, code errcode.Code, msg s
 	body.Error.Code = string(code)
 	body.Error.Message = p.mk.str(msg)
 	b, _ := json.Marshal(body)
-	b = p.mk.bytes(b)
 	h := w.Header()
 	h.Set("Content-Type", "application/json")
 	h.Set("Content-Length", strconv.Itoa(len(b)))
@@ -204,7 +204,6 @@ func (p *Proxy) fail(w http.ResponseWriter, status int, code errcode.Code, msg s
 
 func (p *Proxy) status(w http.ResponseWriter) result {
 	b, _ := json.Marshal(p.cfg.Status())
-	b = p.mk.bytes(b)
 	h := w.Header()
 	h.Set("Content-Type", "application/json")
 	h.Set("Content-Length", strconv.Itoa(len(b)))
@@ -323,7 +322,11 @@ func (p *Proxy) buffered(w http.ResponseWriter, resp *http.Response, timedOut *a
 	if int64(len(b)) > p.maxResp {
 		return p.fail(w, http.StatusBadGateway, errcode.ModelGWTooLarge, "upstream response too large")
 	}
-	b = p.mk.bytes(b)
+	masked, ok := p.mk.boundedBytes(b, p.maxResp)
+	if !ok {
+		return p.fail(w, http.StatusBadGateway, errcode.ModelGWTooLarge, "upstream response too large")
+	}
+	b = masked
 	h := w.Header()
 	if ct := resp.Header.Get("Content-Type"); ct != "" {
 		h.Set("Content-Type", p.mk.str(ct))

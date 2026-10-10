@@ -3,7 +3,6 @@ package modelgw
 import (
 	"bytes"
 	"io"
-	"strings"
 )
 
 // maskWriter 是流式 mask：把写入内容里每个 key 的精确值换成 mask 文本。
@@ -92,13 +91,60 @@ type masker struct {
 }
 
 func newMasker(key string) masker {
-	mask := MaskText
-	if key != "" && strings.Contains(mask, key) {
-		// 极短 key 可能命中固定标记。MaskText 不含 *，因此备用标记
-		// 不会包含任何命中 MaskText 的 key，也不重新输出被遮盖的值。
-		mask = "*"
+	kb, mask := []byte(key), []byte(MaskText)
+	if markerCanRecreateKey(kb, mask) {
+		mask = fallbackMarker(kb)
 	}
-	return masker{key: []byte(key), mask: []byte(mask)}
+	return masker{key: kb, mask: mask}
+}
+
+func fallbackMarker(key []byte) []byte {
+	const candidates = "*~!? "
+	// key 中不存在的单字节隔断所有替换边界。
+	// 合法 key 不含空白，所以至少空格可选。
+	for _, candidate := range []byte(candidates) {
+		if bytes.IndexByte(key, candidate) < 0 {
+			return []byte{candidate}
+		}
+	}
+	// 无效但非空的 key 也要遮盖，不能假定存在未使用的候选字节。
+	// 候选多于两个，总有一个不同于 key 的首尾字节。重复次数大于
+	// key 内该字节的最长连续段：标记不在 key 内，也无法在边界拼出 key。
+	chosen := candidates[0]
+	for _, candidate := range []byte(candidates) {
+		if candidate != key[0] && candidate != key[len(key)-1] {
+			chosen = candidate
+			break
+		}
+	}
+	longest, run := 0, 0
+	for _, b := range key {
+		if b == chosen {
+			run++
+			longest = max(longest, run)
+		} else {
+			run = 0
+		}
+	}
+	return bytes.Repeat([]byte{chosen}, longest+1)
+}
+
+// markerCanRecreateKey 检查标记内部和两端是否可能重新拼出 key。
+// key 跨越整个标记时也不安全；这时标记本身是 key 的子串。
+func markerCanRecreateKey(key, marker []byte) bool {
+	if len(key) == 0 {
+		return false
+	}
+	if bytes.Contains(marker, key) || bytes.Contains(key, marker) {
+		return true
+	}
+	bound := min(len(key)-1, len(marker))
+	for n := 1; n <= bound; n++ {
+		if bytes.Equal(key[len(key)-n:], marker[:n]) || bytes.Equal(key[:n], marker[len(marker)-n:]) {
+			return true
+		}
+	}
+	return false
 }
 
 func (m masker) bytes(b []byte) []byte {
@@ -106,6 +152,30 @@ func (m masker) bytes(b []byte) []byte {
 		return b
 	}
 	return bytes.ReplaceAll(b, m.key, m.mask)
+}
+
+// boundedBytes 同时限制原始内容和遮盖结果。先计算长度，再分配结果。
+// 扩张先用除法检查上限，不计算可能溢出的乘积。
+func (m masker) boundedBytes(b []byte, limit int64) ([]byte, bool) {
+	limit = min(limit, int64(int(^uint(0)>>1)))
+	inputLen := int64(len(b))
+	if inputLen > limit {
+		return nil, false
+	}
+	if len(m.key) == 0 {
+		return b, true
+	}
+	matches := int64(bytes.Count(b, m.key))
+	if matches == 0 {
+		return b, true
+	}
+	growth := int64(len(m.mask)) - int64(len(m.key))
+	if growth > 0 && matches > (limit-inputLen)/growth {
+		return nil, false
+	}
+	// 正增长已证明 inputLen + matches*growth <= limit；负增长的绝对值
+	// 不超过 inputLen，因为匹配不重叠。ReplaceAll 的长度计算不会溢出。
+	return bytes.ReplaceAll(b, m.key, m.mask), true
 }
 
 func (m masker) str(s string) string {

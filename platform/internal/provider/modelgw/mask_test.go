@@ -20,7 +20,7 @@ func (c *chunkRecorder) Write(p []byte) (int, error) {
 // streamMask 按 sizes 切块写入 maskWriter，返回输出。
 func streamMask(full, key string, sizes []int) string {
 	rec := &chunkRecorder{}
-	mw := newMaskWriter(rec, []byte(key), []byte(MaskText))
+	mw := newMasker(key).writer(rec)
 	rest := []byte(full)
 	for i := 0; len(rest) > 0; i++ {
 		n := 1
@@ -150,6 +150,10 @@ func FuzzStreamMask(f *testing.F) {
 	f.Add([]byte("xxSECRETyy"), "SECRET", []byte{}, []byte{1})
 	f.Add([]byte("aaaaaaaa"), "aa", []byte{0, 4}, []byte{2, 1})
 	f.Add([]byte(""), "k", []byte{0, 0, 0}, []byte{5})
+	f.Add([]byte("bb["), "b[", []byte{}, []byte{1})
+	f.Add([]byte("]bb"), "]b", []byte{}, []byte{1, 2})
+	f.Add([]byte("*~!?b["), "*~!?b[", []byte{0}, []byte{1})
+	f.Add([]byte("prefix suffix"), "*~!? "+MaskText, []byte{3}, []byte{1, 4})
 	f.Fuzz(func(t *testing.T, data []byte, key string, ins []byte, sizes []byte) {
 		if len(key) == 0 || len(key) > 32 || len(ins) > 16 {
 			t.Skip()
@@ -159,10 +163,13 @@ func FuzzStreamMask(f *testing.F) {
 		for i, s := range sizes {
 			ns[i] = int(s)%17 + 1
 		}
-		want := strings.ReplaceAll(full, key, MaskText)
+		want := newMasker(key).str(full)
 		got := streamMask(full, key, ns)
 		if got != want {
 			t.Fatalf("key=%q sizes=%v\ngot  %q\nwant %q", key, ns, got, want)
+		}
+		if strings.Contains(got, key) {
+			t.Fatal("mask replacement recreated the key")
 		}
 	})
 }
