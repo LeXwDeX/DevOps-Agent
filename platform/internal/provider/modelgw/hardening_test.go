@@ -343,10 +343,10 @@ func TestStreamingReportsWriterFailures(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			timer := time.NewTimer(time.Hour)
-			defer timer.Stop()
+			timeout := newUpstreamTimeout(time.Hour, func() {})
+			defer timeout.stop()
 			resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(tc.body))}
-			res := p.stream(tc.w, resp, timer)
+			res := p.stream(tc.w, resp, timeout, context.Background())
 			if res.code != errcode.ModelGWUpstreamError {
 				t.Fatal("stream writer failure was recorded as success")
 			}
