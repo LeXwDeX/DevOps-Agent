@@ -25,3 +25,6 @@ go.work.sum
 *~
 .DS_Store
 Thumbs.db
+
+# 本机的 Hermes 参考源码，只作设计参考，不提交
+/hermes/
