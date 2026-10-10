@@ -96,7 +96,7 @@
 
 - 本地快速检查：`scripts/check.sh`。它对每个 Go 模块运行 `gofmt`、`go vet`、`go test -race`，并设置 `GOWORK=off`。
 - 加 `--vuln` 时另外运行 `govulncheck`。云端会话访问不到 `vuln.go.dev`，这一项只在 CI 跑。
-- Go 版本基线是 Go 1.27.1（`docs/50-engineering/51-go-stack.md` 第 2 节）。环境变量 `GOTOOLCHAIN=go1.27.1+auto` 让旧版 Go 自动下载这个版本。
+- Go 版本基线是 Go 1.27.2（`docs/50-engineering/51-go-stack.md` 第 2 节）。环境变量 `GOTOOLCHAIN=go1.27.2+auto` 让旧版 Go 自动下载这个版本。
 - 云端会话启动时，`.claude/hooks/session-start.sh` 准备 Go 工具链并下载依赖。
 - 云端会话没有 Docker 守护进程。需要 Docker 的测试（例如 Testcontainers）在 CI 或本地运行，测试在没有 Docker 时跳过，并在输出里说明。
 - 权限配置在 `.claude/settings.json`：常用开发命令和合并 PR 免确认；只读类 Docker 命令和 `docker compose -p devops-agent` 免确认，影响整台机器的 Docker 命令被禁止；GitHub 自动合并和绕过 PR 写文件被禁止；Read 工具不读取 `.env` 文件。仓库里不放 `.env`（K-31）。
