@@ -5,7 +5,7 @@
 ## 1. 目标
 
 - 交付 DevOps-Agent 1.0：本地用 Docker 部署；LLM 的 URL 和 key 通过 Docker 环境变量传入；1.0 的 LLM API 支持 OpenAI Chat Completions 格式。
-- 用户已经要求实现（K-30）。代码按层一块一块写，全自动推进，见第 3、4 节。当前做哪一块，以项目指令为准。
+- 用户已经要求实现（K-30）。代码按层一块一块写，全自动推进，见第 3、4 节。当前做哪一块，以项目指令为准。core 之后的任务、验证方式和边界列在 `plans/dev-ledger.md`（开发台账）。
 - 平台与 Agent 模块使用 Go。Hermes 只作设计参考，不是部署组件、协议接入或源码兼容目标。不处理 Hermes 源码。
 
 ## 2. 工作依据
@@ -76,10 +76,11 @@
 - 块线程和审核线程是两个独立的上下文。审核线程不读块线程的对话，只读文档、PR 和审核报告。
 - 主对话调度子 Agent 时，在指令里写清范围、要改的文件和完成标准。
 - 子 Agent 不直接回复用户。结果交回主对话。
+- 外部 Agent（例如 Codex）可以担任块线程的设计和编码，按 `plans/dev-ledger.md` 第 2 节工作。它不能判定审核通过；审核仍由 Claude 项目的审核线程做。
 
 ## 6. Git 与 PR
 
-- 每个工作线程用一个分支，名称以 `claude/` 开头。不直接推送 `main`。
+- 每个工作线程用一个分支，名称以 `claude/` 开头；外部 Agent（例如 Codex）用 `codex/` 开头，见 `plans/dev-ledger.md` 第 2 节。不直接推送 `main`。
 - 推送后开 PR。PR 描述写清改了什么；块交付的 PR 带审核报告。
 - 合并全自动：审核线程判定通过，且 `scripts/check.sh` 和 CI 在 PR 最新提交上全绿后，由开 PR 的线程合并。
 - 合并方式只用 merge commit（`merge_method: merge`）。不使用 squash merge，也不用 rebase merge。
