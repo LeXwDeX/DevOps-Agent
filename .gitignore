@@ -25,3 +25,6 @@ go.work.sum
 *~
 .DS_Store
 Thumbs.db
+
+# 交接给外部 Agent 的本地文件（例如 provider 草稿 bundle），不提交（见 plans/dev-ledger.md 第 3 节）
+/.handoff/

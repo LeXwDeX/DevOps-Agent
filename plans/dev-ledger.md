@@ -11,7 +11,7 @@
 | 项 | 状态 | 位置 |
 |---|---|---|
 | core 层（schema、model、core） | 已合并，PR #2，合并提交 `2fc2551` | `platform/internal/{schema,model,core}`，设计见 `docs/60-design/61-core-layer.md` |
-| core 的已知限制 | 见 61 第 11 节和下表 L08 的"边界" | 例如：模板展开由 Registry 和 Harness 负责；`core/request` 的状态转换函数是导出的 |
+| core 的已知限制 | 见 61 第 8.3 节、第 11 节"本块不做"，以及 L08 验证第 7 项 | 例如：步骤内容和执行预期由 `Registry` 端口生成，core 不展开模板；`core/request` 的状态转换函数是导出的 |
 | provider 第一块草稿 | 未推送到 GitHub。存放在 git bundle 里 | 见第 3 节"provider 草稿" |
 | SDK 模块 | 只有目录骨架和 `go.mod`（`go 1.26`） | `sdk/agent/` |
 | `platform/cmd/*`、`deploy/`、`test/`、`migrations/*` | 空目录 | `platform/` |
@@ -67,7 +67,7 @@ flowchart LR
 | 引入 51 第 3 节以外的第三方依赖。确实需要时先写准入说明（51 第 4 节），在 PR 里单独列出 | 51 第 3、4 节 |
 | 提交真实密钥、`.env`、真实模型 key。测试只用假 key | K-16、K-31 |
 | 在日志、错误、测试输出里打印 `DEVOPS_LLM_API_KEY` 的值 | K-17、11 第 5.4 节 |
-| 服务启动时自动运行数据库迁移 | K-23、12 第 6.3 节 |
+| 服务启动时自动运行数据库迁移 | 12 第 6.3 节；51 第 3 节 |
 | 恢复后自动续跑任务 | K-24 |
 | 在 M1 里开放任何工具执行 | 54 P1"开放能力" |
 | 读写本地仓库里的 `hermes/` 目录 | AGENTS.md 第 1 节 |
@@ -173,7 +173,7 @@ L02、L03、L04 可以并行。L20、L21 不依赖 M1，可以随时开始。
 |---|---|
 | 目标 | 把草稿里已完成的部分合进 `main`：62 设计、54 的 2a/2b 拆分、9 个错误码、`provider/system`、`provider/modelgw`。 |
 | 依据 | 62 全文（重点第 4、5.1 至 5.3、6、8、9 节）；11 第 5.4 节；25 第 7 节；K-17、K-31 |
-| 做 | 按第 3 节恢复分支。本 PR 只保留上面列出的部分。`pgstore`、`pgtest`、`migrations`、`sdk/agent` 的改动移到 L02、L03（可以在本分支上 `git restore --source=main` 这些路径，再在 L02、L03 的分支上从 `provider-wip` 取回）。补齐 62 第 8 节里"时钟与 ID""接入变量""代理""mask""core 检查"五类测试中缺的部分。 |
+| 做 | 按第 3 节恢复分支。本 PR 只保留上面列出的部分。`pgstore`、`pgtest`、`migrations`、`sdk/agent` 的改动移到 L02、L03：在本分支上去掉这些路径的改动（`main` 上已有的文件用 `git restore --source=main`，草稿新增的目录用 `git rm -r`），再在 L02、L03 的分支上从 `provider-wip` 取回。注意：草稿基于 `3b58672`，之后 core 的审核修复改了 `core/ports/ports.go`、`model/request`、`model/task` 和 `coretest`。合并后先 `go build ./...` 和 `go vet ./...`，按 `main` 的端口签名改草稿，再补测试。补齐 62 第 8 节里"时钟与 ID""接入变量""代理""mask""core 检查"五类测试中缺的部分。 |
 | 不做 | `cmd/model-proxy` 装配（L06）；客户端凭证文件的位置（L04）。 |
 | 产出 | `docs/60-design/62-*.md`；`docs/README.md` 目录与路由；`schema/errcode` 新增码；`platform/internal/provider/system/`；`platform/internal/provider/modelgw/`；archtest 的 provider 规则。 |
 | 验证 | 1. `scripts/check.sh` 通过。2. `cd platform && GOWORK=off go test -race -run . ./internal/provider/...` 通过。3. fuzz 种子：`go test -run Fuzz ./internal/provider/modelgw/`。4. 负例测试至少包括：`http://` 地址、带用户名的地址、带查询参数的地址、以 `/chat/completions` 结尾的地址、空 key、含空白的 key，各自让 `Status()` 为 `invalid` 或 `missing`，原因里不含值。5. 上游返回 302 时代理返回 502 `modelgw.redirect_refused`，上游不收到第二个请求。6. key 跨两个流式块时，客户端收到的内容里没有 key。7. 不可用时上游收到 0 次请求。8. `ForbidInCore` 遇到任一变量返回 `config.forbidden_env`，错误文本只含变量名。 |
@@ -186,7 +186,7 @@ L02、L03、L04 可以并行。L20、L21 不依赖 M1，可以随时开始。
 |---|---|
 | 目标 | core 存储端口的 PostgreSQL 实现：`RequestStore`、`RevisionLog`、`TaskStore`、`EventSink`（outbox）、`AuditSink`。 |
 | 依据 | 62 第 3 节、第 7 至 9 节；61 第 8.2、8.3 节；13 第 3 节；45 第 6.1 节；K-05、K-23 |
-| 做 | 从 `provider-wip` 取回 `pgstore`、`pgtest`、`platform/migrations/{harness,config,audit}` 和 `migrations.go`，补齐测试。 |
+| 做 | 从 `provider-wip` 取回 `pgstore`、`pgtest`、`platform/migrations/{harness,config,audit}` 和 `migrations.go`。草稿写在 core 审核修复之前，先按 `main` 的 `core/ports` 和 `model` 改到能编译并通过契约测试，再补齐测试。 |
 | 不做 | `PolicySource`、`Registry`、`ScopeSource`（L23）；core 库的表（L08）；迁移程序（L05）；数据库角色与授权（L13）。 |
 | 产出 | `platform/internal/provider/storage/pgstore/`、`pgtest/`；`platform/migrations/`；`schema/core` 的持久化文档结构 v1。 |
 | 验证 | 1. 四套契约测试在真实 PostgreSQL 上通过：`coretest.RequestStoreContract`、`RevisionLogContract`、`TaskStoreContract`、`EventSinkContract`。2. 同一事务：注入 `event_id` 冲突后，状态不变；CAS 冲突时事件不写入。3. 10 个 goroutine 同时 Save 同一申请，只有一个成功，`-race` 通过。4. 用旧版本保存返回 `core.cas_conflict`，记录不变（迟到结果）。5. model → 文档 → model 往返相同；未知字段、未知 SchemaID、非法枚举都返回 `storage.decode_failed`。6. 固定 SQL 清单里每条都能在迁移后的库上 `PREPARE`。7. 对 `audit_records` 执行 UPDATE、DELETE、TRUNCATE 都失败。8. outbox 按 `id` 顺序读取；`MarkDelivered` 后不再返回。9. 同一修订写两次只有一行。10. `core/flowtest` 的一个完整任务场景在 PostgreSQL 存储上再跑一遍。 |
@@ -219,18 +219,20 @@ L02、L03、L04 可以并行。L20、L21 不依赖 M1，可以随时开始。
 
 | 事项 | 现状 | 推荐默认 |
 |---|---|---|
-| M1 和 54 P1 的差别 | P1 含底座最小版（supervisord、节点代理） | M1 用 `docker compose` 部署（11 第 5.4 节已写本地 compose 路径），底座推迟到 M2 之后。54 写明这一取舍 |
-| 进程监听地址与端口 | 文档没写 | core 控制服务 `:8080`（唯一映射到宿主的端口）；Harness `:8081`；模型出口代理 `:8082`，只在 compose 内部网络；PostgreSQL 不映射到宿主 |
+| M1 和 54 P1 的差别 | P1 含底座最小版（supervisord、节点代理）；SDK v0 含 ContextPatch、快照与压缩、ObserverHook 与 BeforeHook | M1 用 `docker compose` 部署（11 第 5.4 节已写本地 compose 路径），底座推迟到 M2 之后；SDK v0 先不做 ContextPatch、压缩、Hook 执行和子 Agent（见 L07"不做"），P1"进入 P2 的条件"里对应的条目随它们推迟。54 写明这两项取舍 |
+| 进程监听地址与端口 | 文档没写 | 核心控制服务 `:8080`（唯一映射到宿主的端口）；Harness `:8081`；模型出口代理 `:8082`，只在 compose 内部网络；PostgreSQL 不映射到宿主 |
+| 配置文件与引导密钥文件 | 11 第 5.3 节只写了目录和内容，没写文件名和格式 | 每个容器一个配置文件，格式和字段在 63 列出；数据库口令、客户端 token 各一个文件，文件名写进 11 第 5.3 节挂载表 |
 | Worker → 模型出口代理的客户端凭证 | 62 留给装配层 | 部署时生成随机 token，写成 `secrets/core/model-proxy-token`（只给 Worker 运行身份）和 `secrets/runtime/model-proxy-token`（只给代理运行身份）。先改 11 第 5.3 节挂载表 |
 | 任务队列协议 | 11 第 4 节只说"版本化、持久保存" | 存在 core 库；Worker 没有数据库账号（53 第 6 节），经核心控制服务的内部 HTTP 接口领取任务和回写结果；领取用租约，租约只用于领取，不用于续跑（13 第 3 节、K-24） |
-| 迁移在 compose 下怎样运行 | 12 第 6.3 节：由底座作为受控执行运行 | 迁移程序放进 runtime 镜像；compose 里定义一次性服务 `migrate`，放在 `profiles: [migrate]` 下，不随 `up` 启动；管理员手动 `docker compose -p devops-agent --profile migrate run --rm migrate`，运行前先备份。启动服务不迁移 |
+| 迁移在 compose 下怎样运行 | 12 第 6.3 节：由底座作为受控执行运行；53 第 4.1 节的 runtime 镜像清单没有 `migrate` | 迁移程序放进 runtime 镜像（先改 53 第 4.1 节的镜像清单）；compose 里定义一次性服务 `migrate`，放在 `profiles: [migrate]` 下，不随 `up` 启动，只挂迁移账号的口令文件；管理员手动 `docker compose -p devops-agent --profile migrate run --rm migrate`，运行前先备份。启动服务不迁移 |
 | 容器内进程管理与运行身份 | 11 第 5.1、5.4 节 | 每个容器一个 Go 写的入口进程，只做三件事：按固定用户启动子进程、给每个子进程准备环境变量、任一子进程退出就整体退出。runtime 入口进程删除模型接入变量后再启动 Harness、调度、执行器（M1 里只启动实际存在的进程） |
-| 12 第 4 节和第 6.2 节的矛盾（容器内不设第二个重启者，又说 Worker 可以单独重启） | 未解决 | M1 不支持单独重启 Worker；重启 core 容器。12 第 6.2 节改为"底座阶段再定" |
+| 12 第 4 节和第 6.2 节的矛盾（容器内不设第二个重启者，又说 Worker 可以单独重启） | 未解决 | M1 不支持单独重启 Worker；重启 core 容器。12 第 6.2 节改为"底座阶段再定"。同时定下 L14 第 6 项"停止 Worker"怎样做（入口进程在子进程退出时就退出，所以不能直接 kill；推荐：向 Worker 发 `SIGSTOP`，或在配置里把 Worker 并发设为 0）。11 第 3 节说 Worker 故障只影响相关任务，但入口进程会让整个 core 容器重启；M1 接受 Worker 崩溃时页面短暂不可用，63 写明 |
 | 核心控制服务的接口 | 31、38、39 只描述功能 | 版本化 HTTP/JSON，前缀 `/api/v1`。M1 只有：登录、项目、会话、消息、模型可用性、健康、恢复报告、内部任务队列 |
 | SDK v0 范围 | 41、42、43 很大 | 只做 Chat Completions、请求管理（42 第 7 节的预算、超时、取消、重试分类）、ModelRole 路由（`MainAgent`、`ContextMaintenance`）、对话与计划、上下文投影的最小版、公开事件枚举、宿主端口。没有 `GatedToolRequestPort` 时工具全部关闭（41 第 2 节）。不引入 Eino 或 Google ADK Go（它们在 51 里只是候选，先要 PoC） |
-| 平台对 SDK 的依赖方式 | 53 第 1 节：不用本地 `replace`；仓库是私有仓库 | 给 SDK 打标签 `sdk/agent/v0.1.0`；平台 `go.mod` 按版本引用；`GOPRIVATE=github.com/LeXwDeX/*`；CI 用 workflow 自带的 `GITHUB_TOKEN` 做 git URL 改写来下载；镜像构建前在仓库外执行 `go mod vendor` 或用 BuildKit secret。打标签前先在 PR 里说明。如果 CI 拿不到私有模块，需要新的 token，停下问用户 |
+| 平台对 SDK 的依赖方式 | 53 第 1 节：不用本地 `replace`；仓库是私有仓库 | 给 SDK 打标签 `sdk/agent/v0.1.0`；平台 `go.mod` 按版本引用；`GOPRIVATE=github.com/LeXwDeX/*`；CI 用 workflow 自带的 `GITHUB_TOKEN` 做 git URL 改写来下载；镜像构建前在仓库外执行 `go mod vendor` 或用 BuildKit secret。打标签前先在 PR 里说明。本地开发可以用不提交的 `go.work` 联调 SDK 和平台（53 第 1 节），CI 和镜像构建一律 `GOWORK=off`，按版本依赖。如果 CI 拿不到私有模块，需要新的 token，停下问用户 |
 | 恢复模式 | 13、K-24 | 核心控制服务启动时调用 `recovery.OnStartup`，生成恢复报告，接口可查询。M1 没有在途执行申请，但要有测试 |
 | 审计骨架 | 54 P1 | 用 L02 的 `AuditSink`；M1 记录登录、ModelProfile 变更、K 的增删改 |
+| M1 最小凭证库放在哪 | 11 第 5.3 节：凭证库在 runtime 的 `data/vault/`，只有执行器能读；M1 没有执行器，识别密钥的是 core 侧 | 由 63 定，先改 11 第 5.3 节。无论放哪：core 没有读出 V 的接口（K-16）；V 加密落盘；L21 要说明怎样迁到完整凭证库 |
 
 ### L05 `cmd/migrate` 迁移程序
 
@@ -302,9 +304,9 @@ L02、L03、L04 可以并行。L20、L21 不依赖 M1，可以随时开始。
 |---|---|
 | 目标 | 用户在对话里粘贴的密钥，在进入模型之前被识别、存成 K，对话里只留 K。 |
 | 依据 | 25 第 2、4、5 节；54 P1；Q10 当前默认；K-16、K-17 |
-| 做 | 内置 mask 规则（25 第 4 节列出的形态）；最小凭证库：只存输入侧自动转 K 的值，加密方式按 63；K 的列出接口只返回 K、备注、状态。 |
+| 做 | 内置 mask 规则（25 第 4 节列出的形态）；最小凭证库：只存输入侧自动转 K 的值，存放位置和加密方式按 63；K 的列出接口只返回 K、备注、状态。 |
 | 验证 | 1. 消息里含 `sk-...`、`password=...`、`Authorization: Bearer ...`、私钥块时，发给 Worker 和模型的内容里只有 K。2. 消息历史、事件、审计、日志里没有原值。3. 没有任何接口返回 V。4. 对 mask 规则做 fuzz。5. 凭证库文件不在镜像里，在挂载目录（11 第 5.3 节）。 |
-| 边界 | 这个凭证库在 core 侧只写不读出。M2 的完整凭证库（L21、L25）可能替换它，替换时要有迁移方案。 |
+| 边界 | core 侧只写入、不读出 V。M2 的完整凭证库（L21、L25）可能替换它，替换时要有迁移方案。 |
 
 ### L12 对话页面
 
@@ -333,7 +335,7 @@ L02、L03、L04 可以并行。L20、L21 不依赖 M1，可以随时开始。
 | 目标 | 在测试机上按 L13 部署，跑完 M1 验收清单。 |
 | 依据 | AGENTS.md 第 7.1 节；54 P1"进入 P2 的条件"中和 M1 有关的条目；55 第 3 节中模型接入变量的三条负例 |
 | 谁来做 | 测试机 `root@192.168.33.110` 只能从用户电脑访问。由用户电脑上的 Agent 执行，或由用户执行。 |
-| 边界 | 只在 `/DATA/AppData/AGENT-OPS` 内建文件：源码 `src/`，数据 `DATA_ROOT=/DATA/AppData/AGENT-OPS/data`，`.env` 放 `deploy/.env`（权限 0600）。只用 `docker compose -p devops-agent`。操作前用 `docker compose -p devops-agent ps` 确认对象属于本项目。不运行 `docker system prune`、`docker rm` 其他容器、`docker compose down -v`。key 由用户填进 `.env`，Agent 不读、不打印它。 |
+| 边界 | 只在 `/DATA/AppData/AGENT-OPS` 内建文件：源码 `src/`，数据 `DATA_ROOT=/DATA/AppData/AGENT-OPS/data`，`.env` 放 `deploy/.env`（权限 0600）。`.env` 不在 compose 文件所在目录，所以每条 compose 命令都加 `--env-file /DATA/AppData/AGENT-OPS/deploy/.env`。只用 `docker compose -p devops-agent`。操作前用 `docker compose -p devops-agent ps` 确认对象属于本项目。不运行 `docker system prune`、`docker rm` 其他容器、`docker compose down -v`。key 由用户填进 `.env`，Agent 不读、不打印它。 |
 
 部署步骤：
 
