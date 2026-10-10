@@ -12,7 +12,7 @@
 |---|---|---|
 | core 层（schema、model、core） | 已合并，PR #2，合并提交 `2fc2551` | `platform/internal/{schema,model,core}`，设计见 `docs/60-design/61-core-layer.md` |
 | core 的已知限制 | 见 61 第 8.3 节、第 11 节"本块不做"，以及 L08 验证第 7 项 | 例如：步骤内容和执行预期由 `Registry` 端口生成，core 不展开模板；`core/request` 的状态转换函数是导出的 |
-| provider 第一块（L01） | 已合并，PR [#6](https://github.com/LeXwDeX/DevOps-Agent/pull/6)；Claude 项目审核完成；评审补修待审核 | 62 设计、错误码、Clock/IDGen、模型出口代理；仅交付 L01。L02/L03 草稿仍在 bundle，见第 3 节 |
+| provider 第一块（L01） | 已合并，PR [#6](https://github.com/LeXwDeX/DevOps-Agent/pull/6)；Claude 项目审核完成；评审补修 [#7](https://github.com/LeXwDeX/DevOps-Agent/pull/7) 待 Claude 正式审核 | 62 设计、错误码、Clock/IDGen、模型出口代理；仅交付 L01。L02/L03 草稿仍在 bundle，见第 3 节 |
 | SDK 模块 | 只有目录骨架和 `go.mod`（`go 1.26`） | `sdk/agent/` |
 | `platform/cmd/*`、`deploy/`、`test/`、`migrations/*` | 空目录 | `platform/` |
 | CI | `scripts/check.sh --vuln`：gofmt、vet、`go test -race`、govulncheck | `.github/workflows/ci.yml` |
@@ -119,7 +119,7 @@ bundle 内的草稿内容（保留交接时状态，当前交付进度以第 4 �
 
 | 编号 | 任务 | 里程碑 | 依赖 | 先写设计 | 状态 |
 |---|---|---|---|---|---|
-| L01 | 恢复草稿：62 设计、错误码、Clock/IDGen、模型出口代理 | M1 | — | 已有（62） | 已合并，PR [#6](https://github.com/LeXwDeX/DevOps-Agent/pull/6)；Claude 正式审核通过；评审补修待审核 |
+| L01 | 恢复草稿：62 设计、错误码、Clock/IDGen、模型出口代理 | M1 | — | 已有（62） | 已合并，PR [#6](https://github.com/LeXwDeX/DevOps-Agent/pull/6)；Claude 正式审核通过；补修 [#7](https://github.com/LeXwDeX/DevOps-Agent/pull/7) 开发、自查、独立会审及终审完成，待 Claude 正式审核 |
 | L02 | PostgreSQL 存储、迁移文件、测试库 | M1 | L01 | 已有（62 第 3 节） | 未开始 |
 | L03 | SDK 协议层：Chat 基础适配器、DeepSeek 派生适配器 | M1 | L01 | 已有（62 第 5.4 节） | 未开始 |
 | L04 | 设计 63：M1 平台骨架 | M1 | L01 | 本任务就是设计 | 未开始 |
