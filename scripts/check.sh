@@ -20,7 +20,7 @@ if [[ "${1:-}" == "--vuln" ]]; then
 fi
 
 export GOWORK=off
-export GOTOOLCHAIN="${GOTOOLCHAIN:-go1.27.1+auto}"
+export GOTOOLCHAIN="${GOTOOLCHAIN:-go1.27.2+auto}"
 
 # macOS 的 /bin/bash 是 3.x，没有 mapfile。read -d '' 可安全处理带空格的路径。
 git rev-parse --is-inside-work-tree >/dev/null

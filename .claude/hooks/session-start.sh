@@ -10,11 +10,11 @@ fi
 cd "${CLAUDE_PROJECT_DIR:-$(pwd)}"
 
 # 平台 Go 版本基线见 docs/50-engineering/51-go-stack.md 第 2 节。
-export GOTOOLCHAIN="go1.27.1+auto"
+export GOTOOLCHAIN="go1.27.2+auto"
 export GOWORK=off
 if [[ -n "${CLAUDE_ENV_FILE:-}" ]]; then
   {
-    echo 'export GOTOOLCHAIN="go1.27.1+auto"'
+    echo 'export GOTOOLCHAIN="go1.27.2+auto"'
     echo 'export GOWORK=off'
   } >> "$CLAUDE_ENV_FILE"
 fi
@@ -22,8 +22,14 @@ fi
 # 下载并缓存工具链（经 proxy.golang.org）。
 go version
 
-# 有 go.mod 的模块先下载依赖。
-while IFS= read -r mod; do
+# 用 Git 枚举模块，排除不在设计范围内的 hermes/ 和测试语料目录。
+git rev-parse --is-inside-work-tree >/dev/null
+while IFS= read -r -d '' go_mod; do
+  if [[ "$go_mod" == "go.mod" ]]; then
+    mod="."
+  else
+    mod="${go_mod%/go.mod}"
+  fi
   echo "go mod download: ${mod#./}"
   (cd "$mod" && go mod download)
-done < <(find . -name go.mod -not -path "./.git/*" -not -path "*/testdata/*" -exec dirname {} \; | sort)
+done < <(git ls-files -z --cached --others --exclude-standard -- go.mod '*/go.mod' ':(exclude)hermes/**' ':(exclude)**/testdata/**')
