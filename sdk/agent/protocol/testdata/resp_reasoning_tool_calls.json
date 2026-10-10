@@ -1,1 +1,0 @@
-{"id":"chatcmpl-12","model":"deepseek","choices":[{"index":0,"message":{"role":"assistant","content":null,"reasoning_content":"I should call the weather tool.","tool_calls":[{"id":"call_w","type":"function","function":{"name":"get_weather","arguments":"{\"city\":\"Paris\"}"}}]},"finish_reason":"tool_calls"}]}

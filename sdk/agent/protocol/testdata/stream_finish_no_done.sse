@@ -1,4 +1,0 @@
-data: {"id":"c7","model":"gpt-x","choices":[{"index":0,"delta":{"role":"assistant","content":"Hi"},"finish_reason":null}]}
-
-data: {"id":"c7","model":"gpt-x","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
-

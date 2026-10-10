@@ -1,1 +1,0 @@
-{"id":"chatcmpl-15","model":"deepseek","choices":[{"index":0,"message":{"role":"assistant","content":"x","reasoning_content":{"a":1}},"finish_reason":"stop"}]}

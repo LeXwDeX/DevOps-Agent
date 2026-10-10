@@ -1,6 +1,0 @@
-data: {"id":"c11","model":"gpt-x","system_fingerprint":"fp_1","choices":[{"index":0,"delta":{"role":"assistant","content":"a","reasoning_content":"r1","refusal":null},"finish_reason":null}]}
-
-data: {"id":"c11","model":"gpt-x","system_fingerprint":"fp_1","choices":[{"index":0,"delta":{"content":"b","reasoning_content":"r2"},"finish_reason":"stop"}]}
-
-data: [DONE]
-

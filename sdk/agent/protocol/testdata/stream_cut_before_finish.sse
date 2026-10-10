@@ -1,4 +1,0 @@
-data: {"id":"c6","model":"gpt-x","choices":[{"index":0,"delta":{"role":"assistant","content":"Hel"},"finish_reason":null}]}
-
-data: {"id":"c6","model":"gpt-x","choices":[{"index":0,"delta":{"content":"lo"},"finish_reason":null}]}
-
