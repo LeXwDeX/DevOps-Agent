@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"mime"
 	"net"
 	"net/http"
@@ -61,7 +62,7 @@ type Proxy struct {
 // New 创建代理。配置不可用时也能创建：所有模型请求返回 503。
 func New(cfg Config, opt Options) (*Proxy, error) {
 	if opt.Timeout < 0 || opt.MaxRequestBytes < 0 || opt.MaxResponseBytes < 0 {
-		return nil, errcode.New(errcode.InvalidArgument, "modelgw options must not be negative")
+		return nil, errcode.New(errcode.InvalidArgument, newMasker(cfg.key).str("modelgw options must not be negative"))
 	}
 	p := &Proxy{
 		cfg:     cfg,
@@ -111,16 +112,16 @@ func New(cfg Config, opt Options) (*Proxy, error) {
 
 // 下面的方法让 Proxy 在格式化时不带出 key。
 
-func (p *Proxy) redacted() string { return "modelgw.Proxy{secrets:redacted}" }
+func (p Proxy) redacted() string { return p.mk.str("modelgw.Proxy{secrets:redacted}") }
 
 // String 返回遮盖后的描述。
-func (p *Proxy) String() string { return p.redacted() }
+func (p Proxy) String() string { return p.redacted() }
 
 // GoString 返回遮盖后的描述。
-func (p *Proxy) GoString() string { return p.redacted() }
+func (p Proxy) GoString() string { return p.redacted() }
 
 // Format 对所有动词输出遮盖后的描述。
-func (p *Proxy) Format(f fmt.State, _ rune) { _, _ = f.Write([]byte(p.redacted())) }
+func (p Proxy) Format(f fmt.State, _ rune) { _, _ = f.Write([]byte(p.redacted())) }
 
 // result 是一次请求的结果，用于日志。
 type result struct {
@@ -159,14 +160,14 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		res = p.fail(w, http.StatusNotFound, errcode.ModelGWBadRequest, "not found")
 	}
 	attrs := []slog.Attr{
-		slog.String("route", route),
+		slog.String("route", p.mk.str(route)),
 		slog.Int("status", res.status),
 		slog.Duration("duration", time.Since(start)),
 	}
 	if res.code != "" {
 		attrs = append(attrs, slog.String("code", p.mk.str(string(res.code))))
 	}
-	p.logger.LogAttrs(r.Context(), slog.LevelInfo, "modelgw request", attrs...)
+	p.logger.LogAttrs(r.Context(), slog.LevelInfo, p.mk.str("modelgw request"), attrs...)
 	if res.abort {
 		panic(http.ErrAbortHandler)
 	}
@@ -290,8 +291,10 @@ func (p *Proxy) chat(w http.ResponseWriter, r *http.Request) result {
 		return p.fail(w, http.StatusBadGateway, errcode.ModelGWRedirectRefused, "upstream returned a redirect")
 	}
 	// 传输层已解压的响应没有这个头。仍有它说明内容是压缩的，无法按 key 遮盖
-	if ce := resp.Header.Get("Content-Encoding"); ce != "" && !strings.EqualFold(ce, "identity") {
-		return p.fail(w, http.StatusBadGateway, errcode.ModelGWUpstreamError, "upstream response encoding is not supported")
+	for _, ce := range resp.Header.Values("Content-Encoding") {
+		if ce != "" && !strings.EqualFold(ce, "identity") {
+			return p.fail(w, http.StatusBadGateway, errcode.ModelGWUpstreamError, "upstream response encoding is not supported")
+		}
 	}
 
 	if wantStream && mediaType(resp.Header.Get("Content-Type")) == "text/event-stream" {
@@ -305,7 +308,11 @@ func (p *Proxy) buffered(w http.ResponseWriter, resp *http.Response, timedOut *a
 	if resp.ContentLength > p.maxResp {
 		return p.fail(w, http.StatusBadGateway, errcode.ModelGWTooLarge, "upstream response too large")
 	}
-	b, err := io.ReadAll(io.LimitReader(resp.Body, p.maxResp+1))
+	limit := p.maxResp
+	if limit < math.MaxInt64 {
+		limit++ // 多读一字节识别超限，不让 MaxInt64 配置溢出。
+	}
+	b, err := io.ReadAll(io.LimitReader(resp.Body, limit))
 	if err != nil {
 		msg := "upstream response read failed"
 		if timedOut.Load() {
@@ -335,6 +342,9 @@ type flushWriter struct {
 
 func (f flushWriter) Write(b []byte) (int, error) {
 	n, err := f.w.Write(b)
+	if err == nil && n != len(b) {
+		err = io.ErrShortWrite
+	}
 	if err == nil {
 		// 不支持 flush 的 writer 不算错
 		if ferr := f.rc.Flush(); ferr != nil && !errors.Is(ferr, http.ErrNotSupported) {
@@ -353,7 +363,9 @@ func (p *Proxy) stream(w http.ResponseWriter, resp *http.Response, timer *time.T
 	}
 	w.WriteHeader(resp.StatusCode)
 	rc := http.NewResponseController(w)
-	_ = rc.Flush() // 先把响应头送出
+	if err := rc.Flush(); err != nil && !errors.Is(err, http.ErrNotSupported) {
+		return result{status: resp.StatusCode, code: errcode.ModelGWUpstreamError}
+	}
 	mw := p.mk.writer(flushWriter{w: w, rc: rc})
 
 	timer.Reset(p.timeout)
@@ -367,7 +379,9 @@ func (p *Proxy) stream(w http.ResponseWriter, resp *http.Response, timer *time.T
 			}
 		}
 		if err == io.EOF {
-			_ = mw.Close()
+			if err := mw.Close(); err != nil {
+				return result{status: resp.StatusCode, code: errcode.ModelGWUpstreamError}
+			}
 			return result{status: resp.StatusCode}
 		}
 		if err != nil {

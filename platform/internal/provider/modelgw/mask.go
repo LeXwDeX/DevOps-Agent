@@ -3,6 +3,7 @@ package modelgw
 import (
 	"bytes"
 	"io"
+	"strings"
 )
 
 // maskWriter 是流式 mask：把写入内容里每个 key 的精确值换成 mask 文本。
@@ -44,7 +45,11 @@ func (m *maskWriter) Write(p []byte) (int, error) {
 	m.held = append(m.held[:0], buf[len(buf)-keep:]...)
 	m.out = out
 	if len(out) > 0 {
-		if _, err := m.w.Write(out); err != nil {
+		n, err := m.w.Write(out)
+		if err == nil && n != len(out) {
+			err = io.ErrShortWrite
+		}
+		if err != nil {
 			return 0, err
 		}
 	}
@@ -58,7 +63,10 @@ func (m *maskWriter) Close() error {
 	}
 	b := m.held
 	m.held = nil
-	_, err := m.w.Write(b)
+	n, err := m.w.Write(b)
+	if err == nil && n != len(b) {
+		err = io.ErrShortWrite
+	}
 	return err
 }
 
@@ -84,7 +92,13 @@ type masker struct {
 }
 
 func newMasker(key string) masker {
-	return masker{key: []byte(key), mask: []byte(MaskText)}
+	mask := MaskText
+	if key != "" && strings.Contains(mask, key) {
+		// 极短 key 可能命中固定标记。MaskText 不含 *，因此备用标记
+		// 不会包含任何命中 MaskText 的 key，也不重新输出被遮盖的值。
+		mask = "*"
+	}
+	return masker{key: []byte(key), mask: []byte(mask)}
 }
 
 func (m masker) bytes(b []byte) []byte {

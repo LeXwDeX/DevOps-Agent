@@ -2,6 +2,7 @@ package system
 
 import (
 	"bytes"
+	"errors"
 	"regexp"
 	"sort"
 	"strings"
@@ -12,6 +13,65 @@ import (
 	"github.com/LeXwDeX/DevOps-Agent/platform/internal/core/coretest"
 	"github.com/LeXwDeX/DevOps-Agent/platform/internal/core/ports"
 )
+
+func TestClockContract(t *testing.T) {
+	t.Run("constructor", func(t *testing.T) {
+		coretest.ClockContract(t, func() ports.Clock { return NewClock() })
+	})
+	t.Run("zero value", func(t *testing.T) {
+		coretest.ClockContract(t, func() ports.Clock { return &Clock{} })
+	})
+}
+
+func TestClockClampsRollbackAndResumes(t *testing.T) {
+	wall := time.Date(2026, 10, 10, 12, 0, 0, 123456789, time.FixedZone("test", 8*3600))
+	c := &Clock{now: func() time.Time { return wall }}
+	first := c.Now()
+	if want := wall.UTC().Truncate(time.Microsecond); first != want {
+		t.Fatalf("first time = %v, want %v", first, want)
+	}
+	wall = wall.Add(-time.Hour)
+	if got := c.Now(); got != first {
+		t.Fatalf("rollback time = %v, want %v", got, first)
+	}
+	wall = first.Add(-time.Nanosecond)
+	if got := c.Now(); got != first {
+		t.Fatalf("sub-microsecond rollback = %v, want %v", got, first)
+	}
+	wall = first.Add(time.Microsecond + 999*time.Nanosecond)
+	if got, want := c.Now(), first.Add(time.Microsecond); got != want {
+		t.Fatalf("after wall clock catches up = %v, want %v", got, want)
+	}
+}
+
+func TestClockConcurrentRollback(t *testing.T) {
+	base := time.Unix(1_700_000_000, 0)
+	reads := 0 // 时间源也在 Clock 的互斥区内读取。
+	c := &Clock{now: func() time.Time {
+		reads++
+		if reads%2 == 0 {
+			return base.Add(-time.Hour)
+		}
+		return base.Add(time.Duration(reads) * time.Microsecond)
+	}}
+	coretest.ClockContract(t, func() ports.Clock { return c })
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			prev := c.Now()
+			for j := 0; j < 100; j++ {
+				now := c.Now()
+				if now.Before(prev) {
+					t.Errorf("time went backwards: %v after %v", now, prev)
+				}
+				prev = now
+			}
+		}()
+	}
+	wg.Wait()
+}
 
 func TestClockIsUTCMicroseconds(t *testing.T) {
 	c := NewClock()
@@ -99,6 +159,21 @@ func TestIDsMonotonicWithinMillisecond(t *testing.T) {
 	}
 }
 
+func TestIDGenInitialEpochUsesRandomness(t *testing.T) {
+	var entropy [randBytes]byte
+	for i := range entropy {
+		entropy[i] = 0x55
+	}
+	g := NewIDGenWith(func() time.Time { return time.UnixMilli(0) }, bytes.NewReader(entropy[:]))
+	first := g.NewID("x")
+	if want := "x_" + encode(0, entropy); first != want {
+		t.Fatalf("first ID at epoch = %s, want %s", first, want)
+	}
+	if next := g.NewID("x"); next <= first {
+		t.Fatalf("second ID at epoch = %s, must be after %s", next, first)
+	}
+}
+
 func TestIDsMonotonicWhenClockGoesBackwards(t *testing.T) {
 	now := time.UnixMilli(1_700_000_000_000)
 	g := NewIDGenWith(func() time.Time { return now }, bytes.NewReader(bytes.Repeat([]byte{0x01}, 4096)))
@@ -120,16 +195,120 @@ func TestIDsOverflowCarriesToNextMillisecond(t *testing.T) {
 	if b <= a {
 		t.Fatalf("overflow broke ordering: %s then %s", a, b)
 	}
+	if c := g.NewID("x"); c <= b {
+		t.Fatalf("logical millisecond broke ordering: %s then %s", b, c)
+	}
 }
 
 func TestIDGenPanicsWithoutRandomness(t *testing.T) {
 	g := NewIDGenWith(time.Now, bytes.NewReader(nil))
+	assertPanic(t, "system: random source failed", func() { g.NewID("x") })
+}
+
+type brokenRandomSource struct{}
+
+func (brokenRandomSource) Read([]byte) (int, error) {
+	return 0, errors.New("mock-sensitive-source-detail")
+}
+
+func TestIDGenRandomFailureIsRedactedAndRetryable(t *testing.T) {
+	for _, phase := range []string{"initial epoch", "new millisecond", "entropy overflow"} {
+		t.Run(phase, func(t *testing.T) {
+			now := time.UnixMilli(0)
+			seed := make([]byte, randBytes)
+			if phase == "entropy overflow" {
+				for i := range seed {
+					seed[i] = 0xff
+				}
+			}
+			g := NewIDGenWith(func() time.Time { return now }, bytes.NewReader(seed))
+			previous := ""
+			if phase != "initial epoch" {
+				previous = g.NewID("x")
+				if phase == "new millisecond" {
+					now = now.Add(time.Millisecond)
+				}
+			}
+			g.rnd = brokenRandomSource{}
+			assertPanic(t, "system: random source failed", func() { g.NewID("x") })
+			// 模拟上层 recover 后恢复随机源；调用必须能结束且生成完整、唯一的新 ID。
+			var recoveredEntropy [randBytes]byte
+			for i := range recoveredEntropy {
+				recoveredEntropy[i] = 0x22
+			}
+			g.rnd = bytes.NewReader(recoveredEntropy[:])
+			next := idWithDeadline(t, g)
+			if previous != "" && next <= previous {
+				t.Fatalf("retry ID %s is not after %s", next, previous)
+			}
+			ms := uint64(now.UnixMilli())
+			if phase == "entropy overflow" {
+				ms++
+			}
+			if want := "x_" + encode(ms, recoveredEntropy); next != want {
+				t.Fatalf("retry ID = %s, want %s", next, want)
+			}
+		})
+	}
+}
+
+func TestIDGenPartialEntropyCannotBecomeAnID(t *testing.T) {
+	rnd := bytes.NewReader([]byte{0x55, 0x66})
+	g := NewIDGenWith(func() time.Time { return time.UnixMilli(0) }, rnd)
+	assertPanic(t, "system: random source failed", func() { g.NewID("x") })
+	var complete [randBytes]byte
+	for i := range complete {
+		complete[i] = 0x77
+	}
+	rnd.Reset(complete[:])
+	if got, want := idWithDeadline(t, g), "x_"+encode(0, complete); got != want {
+		t.Fatalf("retry after partial entropy = %s, want %s", got, want)
+	}
+}
+
+func TestIDGenRejectsUnrepresentableTimes(t *testing.T) {
+	for _, wall := range []time.Time{
+		time.UnixMilli(-1),
+		time.UnixMilli(maxMilliseconds + 1),
+		// UnixMilli 会溢出成很小的正数；实际日期仍然超过 48 位可表示范围。
+		time.Unix(18_446_744_073_709_552, 0),
+	} {
+		g := NewIDGenWith(func() time.Time { return wall }, bytes.NewReader(make([]byte, randBytes)))
+		assertPanic(t, "system: ID time outside 48-bit range", func() { g.NewID("x") })
+	}
+}
+
+func TestIDGenTimestampExhaustionDoesNotWrap(t *testing.T) {
+	g := NewIDGenWith(func() time.Time { return time.UnixMilli(maxMilliseconds) }, bytes.NewReader(bytes.Repeat([]byte{0xff}, randBytes)))
+	if got, want := g.NewID("x"), "x_7"+strings.Repeat("Z", 25); got != want {
+		t.Fatalf("max ID = %s, want %s", got, want)
+	}
+	for i := 0; i < 2; i++ {
+		assertPanic(t, "system: ID timestamp exhausted", func() { g.NewID("x") })
+	}
+}
+
+func assertPanic(t *testing.T, want string, f func()) {
+	t.Helper()
 	defer func() {
-		if recover() == nil {
-			t.Fatal("expected panic when the random source fails")
+		if got := recover(); got != want {
+			t.Errorf("panic = %v, want fixed failure %q", got, want)
 		}
 	}()
-	g.NewID("x")
+	f()
+}
+
+func idWithDeadline(t *testing.T, g *IDGen) string {
+	t.Helper()
+	ids := make(chan string, 1)
+	go func() { ids <- g.NewID("x") }()
+	select {
+	case id := <-ids:
+		return id
+	case <-time.After(2 * time.Second):
+		t.Fatal("ID generation remained locked after a recovered failure")
+		return ""
+	}
 }
 
 func TestIDsUniqueUnderConcurrency(t *testing.T) {

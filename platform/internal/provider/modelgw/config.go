@@ -151,13 +151,13 @@ func (c Config) Status() Status {
 	}
 	add(EnvBaseURL, c.urlState, c.urlWhy)
 	add(EnvAPIKey, c.keyState, c.keyWhy)
-	return Status{State: state, Reason: strings.Join(parts, "; ")}
+	return Status{State: state, Reason: newMasker(c.key).str(strings.Join(parts, "; "))}
 }
 
 // 下面几个方法保证 key 不会经格式化或序列化泄露。
 
 func (c Config) redacted() string {
-	return "modelgw.Config{status:" + c.Status().State + ", secrets:redacted}"
+	return newMasker(c.key).str("modelgw.Config{status:" + c.Status().State + ", secrets:redacted}")
 }
 
 // String 返回遮盖后的描述。

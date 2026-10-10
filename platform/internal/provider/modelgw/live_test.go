@@ -24,10 +24,7 @@ func liveProxy(t *testing.T) (*httptest.Server, string, string) {
 	if !cfg.Available() {
 		t.Skipf("live test needs %s and %s: %s", EnvBaseURL, EnvAPIKey, cfg.Status().Reason)
 	}
-	model := os.Getenv("DEVOPS_LLM_TEST_MODEL")
-	if model == "" {
-		model = "deepseek"
-	}
+	const model = "deepseek"
 	const token = "live-test-token"
 	p, err := New(cfg, Options{ClientAuth: StaticTokenAuth(token), Timeout: 180 * time.Second})
 	if err != nil {
@@ -55,7 +52,7 @@ func TestLiveNonStream(t *testing.T) {
 	resp := liveDo(t, s, token, map[string]any{
 		"model":      model,
 		"messages":   []map[string]string{{"role": "user", "content": "Say hello in one short line."}},
-		"max_tokens": 512,
+		"max_tokens": 4096,
 	})
 	defer resp.Body.Close()
 	b, _ := io.ReadAll(resp.Body)
@@ -80,7 +77,7 @@ func TestLiveStream(t *testing.T) {
 	resp := liveDo(t, s, token, map[string]any{
 		"model":      model,
 		"messages":   []map[string]string{{"role": "user", "content": "Say hello in one short line."}},
-		"max_tokens": 512,
+		"max_tokens": 4096,
 		"stream":     true,
 	})
 	defer resp.Body.Close()

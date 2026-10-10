@@ -13,18 +13,20 @@ import (
 const crockford = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
 const (
-	randBytes = 10 // 80 位随机数
-	idChars   = 26 // 128 位编码为 26 个字符（最高字符只用 3 位）
+	randBytes       = 10 // 80 位随机数
+	idChars         = 26 // 128 位编码为 26 个字符（最高字符只用 3 位）
+	maxMilliseconds = 1<<48 - 1
 )
 
 // IDGen 生成 "<kind>_<26 位 ULID 风格编码>"：前 48 位是毫秒时间，后 80 位来自 crypto/rand。
 // 同一毫秒内把随机部分加一，所以单调递增；时钟回拨时沿用上一次的毫秒。并发安全。
 type IDGen struct {
-	mu     sync.Mutex
-	now    func() time.Time
-	rnd    io.Reader
-	lastMs uint64
-	last   [randBytes]byte
+	mu          sync.Mutex
+	now         func() time.Time
+	rnd         io.Reader
+	initialized bool
+	lastMs      uint64
+	last        [randBytes]byte
 }
 
 var _ ports.IDGen = (*IDGen)(nil)
@@ -34,33 +36,49 @@ func NewIDGen() *IDGen { return NewIDGenWith(time.Now, rand.Reader) }
 
 // NewIDGenWith 注入时间源和随机源，供测试使用。
 func NewIDGenWith(now func() time.Time, rnd io.Reader) *IDGen {
+	if now == nil {
+		panic("system: nil time source")
+	}
+	if rnd == nil {
+		panic("system: nil random source")
+	}
 	return &IDGen{now: now, rnd: rnd}
 }
 
-// NewID 返回新 ID。随机源读取失败时 panic：没有随机数就不能保证唯一，也不能悄悄降级。
+// NewID 返回新 ID。随机源读取失败、时间不可表示或时间戳耗尽时以固定文本 panic。
+// 端口没有 error 返回值；不能用不完整的随机数降级，也不把底层错误写进 panic。
 func (g *IDGen) NewID(kind string) string {
 	if kind == "" {
 		kind = "id"
 	}
 	g.mu.Lock()
-	ms := uint64(g.now().UnixMilli())
+	defer g.mu.Unlock()
+	wall := g.now()
+	// 先检查 time.Time 的范围，避免极远日期的 UnixMilli 算术溢出后被当作合法时间。
+	if wall.Before(time.UnixMilli(0)) || !wall.Before(time.UnixMilli(maxMilliseconds+1)) {
+		panic("system: ID time outside 48-bit range")
+	}
+	ms, r := uint64(wall.UnixMilli()), g.last
 	switch {
-	case ms > g.lastMs:
-		g.lastMs = ms
-		if _, err := io.ReadFull(g.rnd, g.last[:]); err != nil {
-			panic("system: random source failed: " + err.Error())
+	case !g.initialized || ms > g.lastMs:
+		if _, err := io.ReadFull(g.rnd, r[:]); err != nil {
+			panic("system: random source failed")
 		}
 	default:
 		// 同一毫秒（或时钟回拨）：随机部分加一；溢出时进到下一毫秒。
-		if !increment(&g.last) {
-			g.lastMs++
-			if _, err := io.ReadFull(g.rnd, g.last[:]); err != nil {
-				panic("system: random source failed: " + err.Error())
+		ms = g.lastMs
+		if !increment(&r) {
+			if ms == maxMilliseconds {
+				panic("system: ID timestamp exhausted")
+			}
+			ms++
+			if _, err := io.ReadFull(g.rnd, r[:]); err != nil {
+				panic("system: random source failed")
 			}
 		}
 	}
-	ms, r := g.lastMs, g.last
-	g.mu.Unlock()
+	// 随机读取成功后才提交状态；失败后即使上层 recover，也不会复用半成品。
+	g.lastMs, g.last, g.initialized = ms, r, true
 	return kind + "_" + encode(ms, r)
 }
 
