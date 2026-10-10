@@ -37,6 +37,8 @@ depends_on: [KERNEL, DESIGN-CORE, COMPONENTS, STATE-RECOVERY, SECRETS, GO-STACK,
 
 第 9 节审核清单按此映射核对。L01 不装配 `cmd/model-proxy`，不决定客户端凭证文件位置。
 
+HTTP 服务的并发上限、入站请求头与请求体读时限、客户端响应写时限由 L06 装配层设置并验证；具体配置由 L04 定下。L01 的 handler 负责上游超时、取消传播及请求与响应大小限制，不把装配层的资源限制计为已验证。
+
 ## 2. 包结构
 
 ```text
