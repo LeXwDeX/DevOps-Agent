@@ -17,9 +17,10 @@ const (
 
 // allowedLayers 给出每一层可以导入的内部层（标准库总是允许）。
 var allowedLayers = map[string][]string{
-	"schema": {"schema"},
-	"model":  {"schema", "model"},
-	"core":   {"schema", "model", "core"},
+	"schema":   {"schema"},
+	"model":    {"schema", "model"},
+	"core":     {"schema", "model", "core"},
+	"provider": {"schema", "model", "core", "provider"},
 }
 
 // isStdlib：标准库的导入路径第一段不含点。
@@ -62,11 +63,17 @@ func violation(layer, pkgDir string, isTest bool, imp string) string {
 		}
 		return ""
 	}
+	// 模型出口只转发协议，用标准库和集中错误码；不组合其它平台能力。
+	if layer == "provider" && !isTest &&
+		(pkgDir == "provider/modelgw" || strings.HasPrefix(pkgDir, "provider/modelgw/")) &&
+		imp != internalPath+"schema/errcode" {
+		return "modelgw may only import the standard library and schema/errcode"
+	}
 	target := layerOf(imp)
 	if target == "" {
 		return "third-party or non-internal import"
 	}
-	if target == "provider" || target == "module" {
+	if (target == "provider" && layer != "provider") || target == "module" {
 		return "imports internal/" + target
 	}
 	ok := false
@@ -77,6 +84,14 @@ func violation(layer, pkgDir string, isTest bool, imp string) string {
 	}
 	if !ok {
 		return layer + " must not import internal/" + target
+	}
+	// provider 实现端口与事件转换，不能调用 core 的业务规则。仅契约测试能使用 coretest。
+	if layer == "provider" && target == "core" {
+		if imp == internalPath+"core/ports" || imp == internalPath+"core/events" ||
+			(isTest && imp == internalPath+"core/coretest") {
+			return ""
+		}
+		return "provider may only import core/ports and core/events (core/coretest in tests)"
 	}
 	// coretest 只允许自己和 _test.go 导入。
 	if strings.HasPrefix(imp, internalPath+"core/coretest") && pkgDir != "core/coretest" && !isTest {
@@ -178,6 +193,34 @@ func TestViolationRules(t *testing.T) {
 		{"core", "core/coretest", false, "sync", false},
 		{"core", "core/coretest", false, in("core/ports"), false},
 		{"core", "core/coretest", false, in("core/coretest"), false},
+		// provider 的实际 I/O 留在本层；不能导入 core 业务包或 module。
+		{"provider", "provider/system", false, "crypto/rand", false},
+		{"provider", "provider/modelgw", false, "net/http", false},
+		{"provider", "provider/modelgw", false, in("schema/errcode"), false},
+		{"provider", "provider/system", false, in("model/ids"), false},
+		{"provider", "provider/system", false, in("core/ports"), false},
+		{"provider", "provider/storage/pgstore", false, in("core/events"), false},
+		{"provider", "provider/storage/pgstore", false, in("provider/system"), false},
+		{"provider", "provider/modelgw", false, in("provider/system"), true},
+		{"provider", "provider/modelgw", false, in("schema/consts"), true},
+		{"provider", "provider/modelgw", false, in("model/ids"), true},
+		{"provider", "provider/modelgw", false, in("core/ports"), true},
+		{"provider", "provider/modelgw/mask", false, in("provider/system"), true},
+		{"provider", "provider/system", true, in("core/coretest"), false},
+		{"provider", "provider/system", false, in("core/coretest"), true},
+		{"provider", "provider/system", false, in("core/pipeline"), true},
+		{"provider", "provider/system", true, in("core/pipeline"), true},
+		{"provider", "provider/system", false, in("core/request"), true},
+		{"provider", "provider/system", false, in("core/ports_extra"), true},
+		{"provider", "provider/system", false, in("core/ports/private"), true},
+		{"provider", "provider/modelgw", false, in("module/session"), true},
+		{"provider", "provider/modelgw", true, in("module/session"), true},
+		{"provider", "provider/modelgw", false, modulePath + "/cmd/model-proxy", true},
+		// L01 只用标准库和上述平台内部包；第三方库随后续任务准入。
+		{"provider", "provider/modelgw", false, "github.com/google/uuid", true},
+		{"provider", "provider/modelgw", true, "github.com/stretchr/testify/require", true},
+		{"provider", "provider/system", false, "github.com/LeXwDeX/DevOps-Agent/sdk/agent", true},
+		{"provider", "provider/storage/pgstore", false, "github.com/jackc/pgx/v5", true},
 	}
 	for _, c := range cases {
 		got := violation(c.layer, c.dir, c.test, c.imp)

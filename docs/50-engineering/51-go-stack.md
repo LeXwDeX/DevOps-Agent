@@ -19,12 +19,12 @@ depends_on: [KERNEL, COMPONENTS, SQL, SCHEMA-CONST, REPO-LAYOUT]
 
 ## 2. 工具链基线
 
-工具链基线按 2026-10-05 的 Go 官方下载页核对。
+工具链基线按 2026-10-10 的 [Go 官方下载页](https://go.dev/dl/)和[发布记录](https://go.dev/doc/devel/release#go1.27.2)核对，采用修复标准库安全问题的补丁版本。
 
 | 项 | 基线 |
 |---|---|
-| 平台 Go 版本 | 固定 Go 1.27.1 |
-| GoAgent SDK 最低版本 | Go 1.26；在 Go 1.26.8 与 Go 1.27.1 上复测 |
+| 平台 Go 版本 | 固定 Go 1.27.2 |
+| GoAgent SDK 最低版本 | Go 1.26；在 Go 1.26.9 与 Go 1.27.2 上复测 |
 | 目标平台 | linux/amd64、linux/arm64 |
 | CGO | 只在需要 SQL 解析的二进制中启用（pg_query_go，见第 3 节）。SDK 不引入 CGO 依赖。 |
 | 构建输入 | 依赖版本、构建镜像和目标平台写入发布清单（见 [测试与发布](55-testing-and-release.md)）。不使用随时间变化的 `latest` 作为构建输入。 |
@@ -35,7 +35,7 @@ depends_on: [KERNEL, COMPONENTS, SQL, SCHEMA-CONST, REPO-LAYOUT]
 | 职责 | 基线 / 候选 | 使用边界与检验 |
 |---|---|---|
 | 服务与生命周期 | 基线：标准库 `net/http`、`context`、`log/slog`。服务契约用版本化 HTTP/JSON。 | 每个请求有 deadline、取消、输入大小限制和有界并发。核心接口异步提交 Agent 任务，不等待模型调用完成。日志字段先 mask（K-17）。确有契约和性能需要时才加 gRPC，不同时维护两套等价接口。 |
-| 业务状态 | 基线：PostgreSQL；驱动 `pgx/v5`；固定 SQL 用 `sqlc` 生成类型化接口。 | 驱动和生成代码只在存储适配层。平台自身的固定 SQL 在构建期分析和测试，随版本发布（K-23）。平台存储适配层不向 Agent 暴露任意 SQL 的能力。 |
+| 业务状态 | 基线：PostgreSQL；驱动 `pgx/v5`。provider 第一块按 [62](../60-design/62-provider-storage-modelgw.md) 第 3.4 节使用手写固定 SQL 常量及 `PREPARE` 检查；查询规模增大后再评估 `sqlc`。 | 驱动和 SQL 只在存储适配层。平台自身的固定 SQL 在构建期分析和测试，随版本发布（K-23）。平台存储适配层不向 Agent 暴露任意 SQL 的能力。 |
 | 任务队列（核心 ↔ Worker） | 本项目定义的版本化协议，持久保存（见 [组件与边界](../10-architecture/11-components-and-boundaries.md) 第 4 节）。 | 具体实现 P0 定。不为它引入额外中间件；确需引入时走组件准入（第 4 节）。 |
 | 数据库迁移 | 基线：审核后的版本化 SQL 文件。候选：`goose`，通过兼容检验后才可用。 | 迁移文件在构建期分析。迁移的执行是一次受控执行，由底座发起（见 [部署底座](../10-architecture/12-deployment-substrate.md) 第 6.3 节）。服务启动时不自动迁移。不用 Go 回调迁移隐藏动态 SQL。运行账号与迁移账号分开。 |
 | PostgreSQL 方言解析 | 候选：`pg_query_go`，使用 PostgreSQL 自身的解析器源码。 | 依赖 CGO。P0 验证目标数据库主版本、解析器版本、amd64/arm64 构建和镜像运行。语法树只说明结构，不能证明权限、影响范围或数据安全。解析失败或不支持的语法转人工（Q7）。 |
