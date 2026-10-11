@@ -15,7 +15,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/LeXwDeX/DevOps-Agent/platform/internal/schema/errcode"
@@ -26,6 +25,8 @@ const (
 	DefaultTimeout          = 120 * time.Second
 	DefaultMaxRequestBytes  = 4 << 20
 	DefaultMaxResponseBytes = 16 << 20
+	// 独立于正文上限，同时限制原始和遮盖后转发头的字段值合计。
+	maxResponseHeaderBytes = 32 << 10
 )
 
 // Options 是代理的装配参数。
@@ -41,7 +42,7 @@ type Options struct {
 	MaxResponseBytes int64
 	// Transport 可选，主要给测试注入信任。nil 时用 TLS 1.2 以上、默认校验的传输。
 	Transport http.RoundTripper
-	// Logger 可选。只记录路由、状态、耗时和错误码。
+	// Logger 可选。只记录路由、状态、耗时、错误码和客户端取消结果。
 	Logger *slog.Logger
 }
 
@@ -93,13 +94,15 @@ func New(cfg Config, opt Options) (*Proxy, error) {
 	if rt == nil {
 		rt = &http.Transport{
 			// 不读 HTTP(S)_PROXY：程序不读环境变量表之外的变量（K-31）
-			Proxy:               nil,
-			DialContext:         (&net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
-			TLSClientConfig:     &tls.Config{MinVersion: tls.VersionTLS12},
-			TLSHandshakeTimeout: 10 * time.Second,
-			ForceAttemptHTTP2:   true,
-			MaxIdleConns:        32,
-			IdleConnTimeout:     90 * time.Second,
+			Proxy:                  nil,
+			DialContext:            (&net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
+			TLSClientConfig:        &tls.Config{MinVersion: tls.VersionTLS12},
+			TLSHandshakeTimeout:    10 * time.Second,
+			ForceAttemptHTTP2:      true,
+			MaxIdleConns:           32,
+			IdleConnTimeout:        90 * time.Second,
+			MaxResponseHeaderBytes: maxResponseHeaderBytes,
+			DisableCompression:     true,
 		}
 	}
 	p.client = &http.Client{
@@ -125,9 +128,10 @@ func (p Proxy) Format(f fmt.State, _ rune) { _, _ = f.Write([]byte(p.redacted())
 
 // result 是一次请求的结果，用于日志。
 type result struct {
-	status int
-	code   errcode.Code
-	abort  bool // 流中途失败：断开连接，让客户端看到错误而不是被截断的正常结束
+	status          int
+	code            errcode.Code
+	abort           bool // 流中途失败：断开连接，让客户端看到错误而不是被截断的正常结束
+	clientCancelled bool
 }
 
 // ServeHTTP 实现 http.Handler。
@@ -166,6 +170,9 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if res.code != "" {
 		attrs = append(attrs, slog.String("code", p.mk.str(string(res.code))))
+	}
+	if res.clientCancelled {
+		attrs = append(attrs, slog.String("outcome", p.mk.str("client_cancelled")))
 	}
 	p.logger.LogAttrs(r.Context(), slog.LevelInfo, p.mk.str("modelgw request"), attrs...)
 	if res.abort {
@@ -259,9 +266,8 @@ func (p *Proxy) chat(w http.ResponseWriter, r *http.Request) result {
 	// 超时：非流式是总时限，流式在收到响应头后改为空闲时限
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
-	var timedOut atomic.Bool
-	timer := time.AfterFunc(p.timeout, func() { timedOut.Store(true); cancel() })
-	defer timer.Stop()
+	timeout := newUpstreamTimeout(p.timeout, cancel)
+	defer timeout.stop()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.target, bytes.NewReader(body))
 	if err != nil {
@@ -276,10 +282,10 @@ func (p *Proxy) chat(w http.ResponseWriter, r *http.Request) result {
 	resp, err := p.client.Do(req)
 	if err != nil {
 		if r.Context().Err() != nil { // 客户端已断开
-			return result{status: 499, code: errcode.ModelGWUpstreamError}
+			return result{status: 499, clientCancelled: true}
 		}
 		msg := "upstream request failed"
-		if timedOut.Load() {
+		if timeout.timedOut() {
 			msg = "upstream request timed out"
 		}
 		return p.fail(w, http.StatusBadGateway, errcode.ModelGWUpstreamError, msg)
@@ -289,21 +295,29 @@ func (p *Proxy) chat(w http.ResponseWriter, r *http.Request) result {
 	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
 		return p.fail(w, http.StatusBadGateway, errcode.ModelGWRedirectRefused, "upstream returned a redirect")
 	}
-	// 传输层已解压的响应没有这个头。仍有它说明内容是压缩的，无法按 key 遮盖
+	// 压缩内容无法按 key 遮盖。默认传输不协商自动压缩或解压。
 	for _, ce := range resp.Header.Values("Content-Encoding") {
 		if ce != "" && !strings.EqualFold(ce, "identity") {
 			return p.fail(w, http.StatusBadGateway, errcode.ModelGWUpstreamError, "upstream response encoding is not supported")
 		}
 	}
 
-	if wantStream && mediaType(resp.Header.Get("Content-Type")) == "text/event-stream" {
-		return p.stream(w, resp, timer)
+	// 解析媒体类型前先限制原始长度，注入传输也不能造成无界解析分配。
+	if len(resp.Header.Get("Content-Type")) > maxResponseHeaderBytes {
+		return p.fail(w, http.StatusBadGateway, errcode.ModelGWTooLarge, "upstream response headers too large")
 	}
-	return p.buffered(w, resp, &timedOut)
+	if wantStream && mediaType(resp.Header.Get("Content-Type")) == "text/event-stream" {
+		return p.stream(w, resp, timeout, r.Context())
+	}
+	return p.buffered(w, resp, timeout, r.Context())
 }
 
 // buffered 读完整个响应体再 mask 写出，超限时不泄露任何部分内容。
-func (p *Proxy) buffered(w http.ResponseWriter, resp *http.Response, timedOut *atomic.Bool) result {
+func (p *Proxy) buffered(w http.ResponseWriter, resp *http.Response, timeout *upstreamTimeout, clientCtx context.Context) result {
+	headers, ok := p.responseHeaders(resp.Header, false)
+	if !ok {
+		return p.fail(w, http.StatusBadGateway, errcode.ModelGWTooLarge, "upstream response headers too large")
+	}
 	if resp.ContentLength > p.maxResp {
 		return p.fail(w, http.StatusBadGateway, errcode.ModelGWTooLarge, "upstream response too large")
 	}
@@ -312,12 +326,14 @@ func (p *Proxy) buffered(w http.ResponseWriter, resp *http.Response, timedOut *a
 		limit++ // 多读一字节识别超限，不让 MaxInt64 配置溢出。
 	}
 	b, err := io.ReadAll(io.LimitReader(resp.Body, limit))
+	if clientCtx.Err() != nil {
+		return result{status: 499, clientCancelled: true}
+	}
+	if timeout.timedOut() {
+		return p.fail(w, http.StatusBadGateway, errcode.ModelGWUpstreamError, "upstream request timed out")
+	}
 	if err != nil {
-		msg := "upstream response read failed"
-		if timedOut.Load() {
-			msg = "upstream request timed out"
-		}
-		return p.fail(w, http.StatusBadGateway, errcode.ModelGWUpstreamError, msg)
+		return p.fail(w, http.StatusBadGateway, errcode.ModelGWUpstreamError, "upstream response read failed")
 	}
 	if int64(len(b)) > p.maxResp {
 		return p.fail(w, http.StatusBadGateway, errcode.ModelGWTooLarge, "upstream response too large")
@@ -327,14 +343,62 @@ func (p *Proxy) buffered(w http.ResponseWriter, resp *http.Response, timedOut *a
 		return p.fail(w, http.StatusBadGateway, errcode.ModelGWTooLarge, "upstream response too large")
 	}
 	b = masked
+	if clientCtx.Err() != nil {
+		return result{status: 499, clientCancelled: true}
+	}
+	if !timeout.finish() {
+		return p.fail(w, http.StatusBadGateway, errcode.ModelGWUpstreamError, "upstream request timed out")
+	}
 	h := w.Header()
-	if ct := resp.Header.Get("Content-Type"); ct != "" {
-		h.Set("Content-Type", p.mk.str(ct))
+	for _, header := range headers {
+		if header.value != "" {
+			h.Set(header.name, header.value)
+		}
 	}
 	h.Set("Content-Length", strconv.Itoa(len(b)))
 	w.WriteHeader(resp.StatusCode)
-	_, _ = w.Write(b)
+	if n, err := w.Write(b); err != nil || n != len(b) {
+		return clientWriteFailure(clientCtx, resp.StatusCode)
+	}
 	return result{status: resp.StatusCode}
+}
+
+// clientWriteFailure 只处理已提交响应的失败，不追加错误 JSON 或完整结束标记。
+// 日志保留已提交的状态和错误码；原客户端已取消时单独记录 499。
+func clientWriteFailure(clientCtx context.Context, status int) result {
+	if clientCtx.Err() != nil {
+		return result{status: 499, clientCancelled: true, abort: true}
+	}
+	return result{status: status, code: errcode.ModelGWUpstreamError, abort: true}
+}
+
+type forwardedHeader struct {
+	name, value string
+}
+
+// responseHeaders 先校验所有原始和遮盖后长度，再分配任何遮盖文本。
+// 只转发字段的首值，预算同样只计算实际转发的值。
+func (p *Proxy) responseHeaders(h http.Header, streaming bool) ([]forwardedHeader, bool) {
+	headers := []forwardedHeader{{"Content-Type", h.Get("Content-Type")}}
+	if streaming {
+		headers = append(headers, forwardedHeader{"Cache-Control", h.Get("Cache-Control")})
+	}
+	var rawSize, maskedSize int64
+	for _, header := range headers {
+		if int64(len(header.value)) > maxResponseHeaderBytes-rawSize {
+			return nil, false
+		}
+		rawSize += int64(len(header.value))
+		size, ok := p.mk.boundedStringSize(header.value, maxResponseHeaderBytes)
+		if !ok || size > maxResponseHeaderBytes-maskedSize {
+			return nil, false
+		}
+		maskedSize += size
+	}
+	for i := range headers {
+		headers[i].value = p.mk.str(headers[i].value)
+	}
+	return headers, true
 }
 
 // flushWriter 每次写完立即 flush。
@@ -358,32 +422,53 @@ func (f flushWriter) Write(b []byte) (int, error) {
 }
 
 // stream 边收边转，经 maskWriter 遮盖，每块写出后 flush。
-func (p *Proxy) stream(w http.ResponseWriter, resp *http.Response, timer *time.Timer) result {
+func (p *Proxy) stream(w http.ResponseWriter, resp *http.Response, timeout *upstreamTimeout, clientCtx context.Context) result {
+	headers, ok := p.responseHeaders(resp.Header, true)
+	if !ok {
+		return p.fail(w, http.StatusBadGateway, errcode.ModelGWTooLarge, "upstream response headers too large")
+	}
+	if clientCtx.Err() != nil {
+		return result{status: 499, clientCancelled: true}
+	}
+	if !timeout.reset(p.timeout) {
+		return p.fail(w, http.StatusBadGateway, errcode.ModelGWUpstreamError, "upstream request timed out")
+	}
 	h := w.Header()
-	h.Set("Content-Type", p.mk.str(resp.Header.Get("Content-Type")))
-	if cc := resp.Header.Get("Cache-Control"); cc != "" {
-		h.Set("Cache-Control", p.mk.str(cc))
+	for _, header := range headers {
+		if header.value != "" {
+			h.Set(header.name, header.value)
+		}
 	}
 	w.WriteHeader(resp.StatusCode)
 	rc := http.NewResponseController(w)
 	if err := rc.Flush(); err != nil && !errors.Is(err, http.ErrNotSupported) {
-		return result{status: resp.StatusCode, code: errcode.ModelGWUpstreamError}
+		return clientWriteFailure(clientCtx, resp.StatusCode)
 	}
 	mw := p.mk.writer(flushWriter{w: w, rc: rc})
 
-	timer.Reset(p.timeout)
 	buf := make([]byte, 32<<10)
 	for {
 		n, err := resp.Body.Read(buf)
+		if clientCtx.Err() != nil {
+			return result{status: 499, clientCancelled: true, abort: true}
+		}
+		if timeout.timedOut() {
+			return result{status: resp.StatusCode, code: errcode.ModelGWUpstreamError, abort: true}
+		}
 		if n > 0 {
-			timer.Reset(p.timeout)
+			if !timeout.reset(p.timeout) {
+				return result{status: resp.StatusCode, code: errcode.ModelGWUpstreamError, abort: true}
+			}
 			if _, werr := mw.Write(buf[:n]); werr != nil { // 客户端写失败
-				return result{status: resp.StatusCode, code: errcode.ModelGWUpstreamError}
+				return clientWriteFailure(clientCtx, resp.StatusCode)
 			}
 		}
 		if err == io.EOF {
+			if !timeout.finish() {
+				return result{status: resp.StatusCode, code: errcode.ModelGWUpstreamError, abort: true}
+			}
 			if err := mw.Close(); err != nil {
-				return result{status: resp.StatusCode, code: errcode.ModelGWUpstreamError}
+				return clientWriteFailure(clientCtx, resp.StatusCode)
 			}
 			return result{status: resp.StatusCode}
 		}

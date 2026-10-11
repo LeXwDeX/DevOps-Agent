@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -106,6 +107,12 @@ func parseBaseURL(raw string) (target, why string) {
 	}
 	if u.User != nil {
 		return "", "must not contain user info"
+	}
+	if port := u.Port(); port != "" || strings.HasSuffix(u.Host, ":") {
+		n, err := strconv.ParseUint(port, 10, 16)
+		if err != nil || n == 0 {
+			return "", "explicit port must be a decimal number from 1 to 65535"
+		}
 	}
 	esc := strings.TrimRight(u.EscapedPath(), "/")
 	dec := strings.TrimRight(u.Path, "/")

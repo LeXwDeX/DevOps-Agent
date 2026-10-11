@@ -54,7 +54,11 @@ func frontend(t *testing.T, cfg Config, opt Options, u *upstream) *httptest.Serv
 		opt.ClientAuth = StaticTokenAuth(clientToken)
 	}
 	if opt.Transport == nil && u != nil {
-		opt.Transport = u.Client().Transport
+		// 注入传输只添加测试 TLS 信任；保持默认传输不自动协商压缩的行为。
+		tr := u.Client().Transport.(*http.Transport).Clone()
+		tr.DisableCompression = true
+		opt.Transport = tr
+		t.Cleanup(tr.CloseIdleConnections)
 	}
 	p, err := New(cfg, opt)
 	if err != nil {
@@ -135,7 +139,7 @@ func TestForwardInjectsKeyAndFixedHeaders(t *testing.T) {
 	if gotHdr.Get("Content-Type") != "application/json" || gotHdr.Get("Accept") != "application/json" {
 		t.Fatalf("headers: %v", gotHdr)
 	}
-	allowed := map[string]bool{"Authorization": true, "Content-Type": true, "Accept": true, "Content-Length": true, "Accept-Encoding": true}
+	allowed := map[string]bool{"Authorization": true, "Content-Type": true, "Accept": true, "Content-Length": true}
 	for k := range gotHdr {
 		if !allowed[k] {
 			t.Errorf("unexpected outbound header %q: %v", k, gotHdr[k])
@@ -789,10 +793,13 @@ func TestStreamIdleTimeout(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
-	done := make(chan struct{})
-	go func() { _, _ = io.ReadAll(resp.Body); close(done) }()
+	done := make(chan error, 1)
+	go func() { _, err := io.ReadAll(resp.Body); done <- err }()
 	select {
-	case <-done:
+	case err := <-done:
+		if err == nil {
+			t.Fatal("idle stream timeout must surface as a client read error")
+		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("idle stream was not cut off")
 	}
