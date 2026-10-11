@@ -12,10 +12,41 @@
 |---|---|---|
 | core 层（schema、model、core） | 已合并，PR #2，合并提交 `2fc2551` | `platform/internal/{schema,model,core}`，设计见 `docs/60-design/61-core-layer.md` |
 | core 的已知限制 | 见 61 第 8.3 节、第 11 节"本块不做"，以及 L08 验证第 7 项 | 例如：步骤内容和执行预期由 `Registry` 端口生成，core 不展开模板；`core/request` 的状态转换函数是导出的 |
-| provider 第一块（L01） | 已合并，PR [#6](https://github.com/LeXwDeX/DevOps-Agent/pull/6)；Claude 项目审核完成；评审补修 [#7](https://github.com/LeXwDeX/DevOps-Agent/pull/7) 待 Claude 正式审核 | 62 设计、错误码、Clock/IDGen、模型出口代理；仅交付 L01。L02/L03 草稿仍在 bundle，见第 3 节 |
+| provider 第一块（L01） | 已合并：PR [#6](https://github.com/LeXwDeX/DevOps-Agent/pull/6)（`4d3c534`）、评审补修 PR [#7](https://github.com/LeXwDeX/DevOps-Agent/pull/7)（`637e290`）。两次 Claude 审核都通过 | 62 设计、错误码、Clock/IDGen、模型出口代理。L02/L03 草稿仍在 bundle，见第 3 节 |
 | SDK 模块 | 只有目录骨架和 `go.mod`（`go 1.26`） | `sdk/agent/` |
 | `platform/cmd/*`、`deploy/`、`test/`、`migrations/*` | 空目录 | `platform/` |
 | CI | `scripts/check.sh --vuln`：gofmt、vet、`go test -race`、govulncheck | `.github/workflows/ci.yml` |
+
+### 1.1 下一步
+
+L01 已完成。下一步按这个顺序做：
+
+| 顺序 | 任务 | 分支 | 说明 |
+|---|---|---|---|
+| 1 | L02 PostgreSQL 存储 | `codex/L02-pgstore`，从 `main`（`637e290` 或更新）开出 | 主线。L05、L08 依赖它。草稿缺测试，工作量最大。另带 PR #7 的两个遗留小修，见下面"L01 遗留" |
+| 2 | L03 SDK 协议层 | `codex/L03-sdk-protocol`，从 `main` 开出 | 可以和 L02 并行。草稿已能编译，测试已通过，主要是补验证项 |
+| 3 | L04 设计 63 | `codex/L04-design-63`，从 `main` 开出 | L02、L03 的 PR 开出后开工。只写文档。L05 至 L13 都等它 |
+| 4 | 其余 | — | 按第 4 节依赖图。L20、L21 可以随时插入 |
+
+每开一个 PR，把 PR 号告诉用户。用户在 Claude 项目里说"审核 PR #N"（第 2.3 节）。两个并行 PR 都会改第 4 节总表，各改自己那一行；后合并的一方把 `main` 合并进分支解决冲突。
+
+试恢复结果（在 `637e290` 上把 bundle 的文件取出来编译，没有提交）：
+
+| 任务 | 结果 |
+|---|---|
+| L02 | 不能编译。原因有三个，见 L02 卡片"恢复要点"。`pgstore` 没有测试文件。`pgtest` 能在本机用 `initdb` 起临时库，两条测试通过 |
+| L03 | `go build`、`go vet`、`go test` 都通过，159 条测试，0 失败，0 跳过。已有三个 fuzz 目标（`protocol` 两个、`providers` 一个）和 31 个语料文件 |
+
+L01 遗留（PR #7 审核的非阻断问题）：
+
+| # | 问题 | 做法 |
+|---|---|---|
+| 1 | `modelgw/mask.go:183` 每次调用 `strings.Count(s, string(m.key))` 都把 key 转成 string | 放进 L02 的 PR，单独一个提交：`masker` 同时保存 string 形式的 key |
+| 2 | 499 路径返回后，net/http 给已断开的客户端补一个空 200 | 不改。客户端已不在，没有实际影响。写进 L02 审核报告的"已知的非阻断问题" |
+| 3 | `modelgw/config.go` 对带 zone 的 IPv6 地址（例如 `[fe80::1%25eth0]`）把解码后的 `%` 拼进目标地址 | 放进 L02 的 PR，单独一个提交。推荐做法：host 带 zone 时判为 `invalid`，原因里不含值。先改 62 第 5.1 节，再加负例测试 |
+| 4 | 台账里 #7 的状态 | 已改为"已合并" |
+
+当前阶段说明：项目指令写的是"当前阶段只做 core 层"。L02 及以后都属于 provider 及以上的层。用户已让 Codex 做完 L01，本节按继续推进 M1 排定。用户要停在 core 时，停在这里。
 
 ## 2. 每项任务都要遵守的规则
 
@@ -119,7 +150,7 @@ bundle 内的草稿内容（保留交接时状态，当前交付进度以第 4 �
 
 | 编号 | 任务 | 里程碑 | 依赖 | 先写设计 | 状态 |
 |---|---|---|---|---|---|
-| L01 | 恢复草稿：62 设计、错误码、Clock/IDGen、模型出口代理 | M1 | — | 已有（62） | 已合并，PR [#6](https://github.com/LeXwDeX/DevOps-Agent/pull/6)；Claude 正式审核通过；补修 [#7](https://github.com/LeXwDeX/DevOps-Agent/pull/7) 开发、自查、独立会审及终审完成，待 Claude 正式审核 |
+| L01 | 恢复草稿：62 设计、错误码、Clock/IDGen、模型出口代理 | M1 | — | 已有（62） | 已合并 #6、#7 |
 | L02 | PostgreSQL 存储、迁移文件、测试库 | M1 | L01 | 已有（62 第 3 节） | 未开始 |
 | L03 | SDK 协议层：Chat 基础适配器、DeepSeek 派生适配器 | M1 | L01 | 已有（62 第 5.4 节） | 未开始 |
 | L04 | 设计 63：M1 平台骨架 | M1 | L01 | 本任务就是设计 | 未开始 |
@@ -186,11 +217,12 @@ L02、L03、L04 可以并行。L20、L21 不依赖 M1，可以随时开始。
 |---|---|
 | 目标 | core 存储端口的 PostgreSQL 实现：`RequestStore`、`RevisionLog`、`TaskStore`、`EventSink`（outbox）、`AuditSink`。 |
 | 依据 | 62 第 3 节、第 7 至 9 节；61 第 8.2、8.3 节；13 第 3 节；45 第 6.1 节；K-05、K-23 |
-| 做 | 从 `provider-wip` 取回 `pgstore`、`pgtest`、`platform/migrations/{harness,config,audit}` 和 `migrations.go`。草稿写在 core 审核修复之前，先按 `main` 的 `core/ports` 和 `model` 改到能编译并通过契约测试，再补齐测试。 |
+| 做 | 从 `provider-wip` 取回 `pgstore`、`pgtest`、`platform/migrations/{harness,config,audit}` 和 `migrations.go`。草稿写在 core 审核修复之前，先按 `main` 的 `core/ports` 和 `model` 改到能编译并通过契约测试，再补齐测试。另带第 1.1 节"L01 遗留"的第 1、3 项，各一个提交。 |
+| 恢复要点 | 1. 先按第 3 节第 1 步把 bundle 取成本地分支 `provider-wip`。取文件：`git checkout provider-wip -- platform/internal/provider/storage platform/migrations platform/internal/schema/core/docs.go platform/internal/schema/core/core_test.go`。这条命令不删文件：`platform/migrations/{harness,config,audit}/.gitkeep` 要手工 `git rm`。`platform/migrations/migrations_test.go` 也随目录取回。2. `schema/core/core.go` 不整体覆盖：只把 bundle 里新增的两个常量 `TaskDefinitionV1`、`AuditRecordV1` 手工加进 `main` 的文件。`core_test.go` 取 bundle 的整个文件：它检查这两个常量，并检查文档结构的 JSON 名都是 snake_case、不带 omitempty。3. 不取 bundle 里的 `provider/system/*`（`main` 的版本更新），也不取 bundle 的 `go.mod`（它的 go 指令是 1.27.1，`main` 是 1.27.2）。4. 编译错误一：没有 `docs.go` 时有 73 处 `undefined schema.X`，取回 `docs.go` 和两个常量后消失。5. 编译错误二：`pgstore/convert.go:475`、`:498` 用了 `MissingInputs`；`main` 的 `model/task.Run` 已拆成 `MissingParams`、`MissingKeys`（`task.go:279-280`）。`docs.go` 的 `RunDocV1` 也改成两个字段 `missing_params`、`missing_keys`。6. 依赖：`cd platform && GOWORK=off go get github.com/jackc/pgx/v5@v5.11.0 && GOWORK=off go mod tidy`。pgx 是直接依赖，提交 `go.sum`。做完 4 至 6 后 `go build ./...` 和 `go vet ./...` 通过。7. archtest：只给 `provider/storage/pgstore` 和 `provider/storage/pgtest` 放开 `github.com/jackc/pgx/v5` 及其子包；`deps_test.go:223` 的用例改为允许；加负例："`provider/system`、`provider/modelgw` 导入 pgx 仍违规"。同一处还要放开 `platform/migrations`：`pgstore/queries.go` 和 `pgtest` 都导入它，archtest 现在把它判为"非 internal 导入"。62 第 2 节的依赖规则补一句"存储包可以导入 `platform/migrations`"。8. `pgstore` 目前没有测试文件，下面验证 1 至 10 都要新写。 |
 | 不做 | `PolicySource`、`Registry`、`ScopeSource`（L23）；core 库的表（L08）；迁移程序（L05）；数据库角色与授权（L13）。 |
 | 产出 | `platform/internal/provider/storage/pgstore/`、`pgtest/`；`platform/migrations/`；`schema/core` 的持久化文档结构 v1。 |
 | 验证 | 1. 四套契约测试在真实 PostgreSQL 上通过：`coretest.RequestStoreContract`、`RevisionLogContract`、`TaskStoreContract`、`EventSinkContract`。2. 同一事务：注入 `event_id` 冲突后，状态不变；CAS 冲突时事件不写入。3. 10 个 goroutine 同时 Save 同一申请，只有一个成功，`-race` 通过。4. 用旧版本保存返回 `core.cas_conflict`，记录不变（迟到结果）。5. model → 文档 → model 往返相同；未知字段、未知 SchemaID、非法枚举都返回 `storage.decode_failed`。6. 固定 SQL 清单里每条都能在迁移后的库上 `PREPARE`。7. 对 `audit_records` 执行 UPDATE、DELETE、TRUNCATE 都失败。8. outbox 按 `id` 顺序读取；`MarkDelivered` 后不再返回。9. 同一修订写两次只有一行。10. `core/flowtest` 的一个完整任务场景在 PostgreSQL 存储上再跑一遍。 |
-| 测试库 | 按 62 第 3.7 节：先用 `DEVOPS_TEST_PG_DSN`；否则用本机 `initdb` 起临时实例；都没有就跳过并说明原因。CI 里给 `ci.yml` 加 PostgreSQL 16 服务容器并设置 `DEVOPS_TEST_PG_DSN`，让这些测试在 CI 真正运行。 |
+| 测试库 | 按 62 第 3.7 节：先用 `DEVOPS_TEST_PG_DSN`；否则用本机 `initdb` 起临时实例；都没有就跳过并说明原因。CI 里给 `ci.yml` 加 PostgreSQL 16 服务容器并设置 `DEVOPS_TEST_PG_DSN`，让这些测试在 CI 真正运行。CI 另设 `DEVOPS_TEST_PG_REQUIRED=1`：这个变量为 1 时，`pgtest` 拿不到库就失败，不跳过，避免 CI 悄悄跳过存储测试。`pgtest` 草稿还没有这个变量，L02 加上（新决定，写进 62 第 3.7 节，并在 62 第 10 节加一行）。本机：云端会话的 PostgreSQL 16 在 `/usr/lib/postgresql/16/bin`，不在 PATH，`pgtest` 已会查这个目录；以 root 运行时它改用操作系统用户 `postgres` 跑 `initdb`。Debian 和 Ubuntu 开发机的目录相同。macOS 上没有时，用 `DEVOPS_TEST_PG_DSN` 指向一个本地库，或让测试跳过并在输出里说明。 |
 | 边界 | 第三方库只用 `github.com/jackc/pgx/v5`。不拼接 SQL，不接受调用方传入的 SQL。不用 sqlc（62 第 3.4 节的决定）。 |
 
 ### L03 SDK 协议层：Chat 基础适配器、DeepSeek 派生适配器
@@ -200,6 +232,7 @@ L02、L03、L04 可以并行。L20、L21 不依赖 M1，可以随时开始。
 | 目标 | SDK 能把公共模型类型编码成 Chat Completions 请求，并解码普通和流式回复；DeepSeek 的 `reasoning_content` 由派生适配器处理。 |
 | 依据 | 62 第 5.4 节；42 第 2、3、4、5、8、10 节；41 第 13 节；55 第 9 节"协议语料"；K-22、K-28；DeepSeek 思考模式文档 <https://api-docs.deepseek.com/zh-cn/guides/thinking_mode/> |
 | 做 | 从 `provider-wip` 取回 `sdk/agent/protocol/`、`sdk/agent/providers/deepseek.go` 和 testdata，补齐测试。 |
+| 恢复要点 | 1. 先按第 3 节第 1 步把 bundle 取成本地分支 `provider-wip`。取文件：`git checkout provider-wip -- sdk/agent/protocol sdk/agent/providers`，再 `git rm` 这两个目录里的 `.gitkeep`。不改 `sdk/agent/go.mod` 的 go 指令。2. 取回后编译、vet、测试都通过（第 1.1 节）。3. 把下面验证 1 至 9 逐条对照现有测试，在审核报告里写出每条对应的测试名。至少要核对：语料里有没有"取消"和"重复字段"两类；`adapter.go`、`errors.go`、`types.go` 没有自己的测试文件；验证 9 还没有脚本，要新写（可以放进 `scripts/check.sh`）。4. 错误码只用 `goagent.*`。 |
 | 不做 | 其他三种基础协议；GLM 派生；请求管理与重试（L07）；sidecar 持久化。 |
 | 产出 | `sdk/agent/protocol/{types,adapter,chat,errors}.go`；`sdk/agent/providers/deepseek.go`；协议语料 testdata。 |
 | 验证 | 1. `cd sdk/agent && GOWORK=off go test -race ./...` 通过。2. 语料覆盖 55 第 9 节"协议语料"一行：普通与流式、分片的工具参数、多工具关联、错误、取消、缺失用量（记为未知，不填 0）、截断、重复字段、未知字段。3. `reasoning_content` → thinking 块，在文本块之前；流式 `delta.reasoning_content` → thinking 增量。4. 请求带 `tools` 时，历史里带 thinking 的 assistant 消息写回 `reasoning_content`；不带 `tools` 时不写回。5. `finish_reason` 为 `length` 且没有文本和工具调用 → `goagent.model.output_truncated`。6. 未知字段进 `Response.Sidecar`，不丢弃，不获得执行含义。7. 派生准入三项：确实嵌入 `ChatAdapterBase`；未重写的方法输出与父类型相同；重写经最外层对象分派生效。8. 对流式解码做 fuzz（种子语料随测试运行）。9. 在仓库外的临时目录，用 `GOWORK=off` 和无 `replace` 的 `go.mod` 导入 SDK 能构建（41 第 11 节）。 |
