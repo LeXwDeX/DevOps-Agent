@@ -27,7 +27,7 @@ depends_on: [KERNEL, DESIGN-CORE, COMPONENTS, STATE-RECOVERY, SECRETS, GO-STACK,
 
 ### 1.1 按任务交付
 
-本设计按 [开发台账](../../plans/dev-ledger.md) 拆成三项任务。每项只验收自己的实现，后续任务的测试不计为本项通过或跳过。
+本设计按 [任务表](../70-handoff/72-task-board.md) 拆成三项任务（L02、L03 在任务表里再拆成子任务）。每项只验收自己的实现，后续任务的测试不计为本项通过或跳过。
 
 | 任务 | 实现范围 | 对应验证 |
 |---|---|---|
