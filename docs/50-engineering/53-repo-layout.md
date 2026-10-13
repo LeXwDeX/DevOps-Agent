@@ -97,7 +97,7 @@ platform/
 - 每个常驻进程一个二进制。首版打成两个镜像：core 镜像含 `entry`、`core`、`agent-worker`；runtime 镜像含 `entry`、`harness`、`scheduler`、`executor`、`model-proxy`、`migrate`（见 [组件与边界](../10-architecture/11-components-and-boundaries.md) 第 5 节）。同容器的进程使用不同运行身份。
 - `entry` 是容器入口进程，只用标准库（[63](../60-design/63-m1-platform-skeleton.md) 第 4 节）。M1 的 runtime 镜像只有 `entry`、`model-proxy`、`migrate`（63 第 3.1 节）。数据库引导是 `migrate bootstrap`，不另建程序或脚本。
 - 镜像只含二进制和静态文件，不含配置（K-31）。`deploy/` 下的配置模板在部署时写入外部配置目录。
-- `migrate` 不是常驻服务。它在 runtime 镜像里，但入口进程不启动它。它只持有迁移账号。M1 由管理员手动运行一次性 Compose 服务；底座阶段由底座在一次受控执行中调用（见 [部署底座](../10-architecture/12-deployment-substrate.md) 第 6.3 节、[63](../60-design/63-m1-platform-skeleton.md) 第 12 节）。
+- `migrate` 不是常驻服务。它在 runtime 镜像里，但入口进程不启动它。`plan`、`apply` 只持有迁移账号；`bootstrap` 只在 db-init 服务里运行（63 第 12.2 节）。M1 由管理员手动运行一次性 Compose 服务；底座阶段由底座在一次受控执行中调用（见 [部署底座](../10-architecture/12-deployment-substrate.md) 第 6.3 节、[63](../60-design/63-m1-platform-skeleton.md) 第 12 节）。
 - 包内单元测试和 `testdata/` 放在各自包里；`test/` 只放跨二进制的契约测试和语料。
 - 名字说明：`internal/core/` 是代码里的内核层，和"core 容器""核心控制服务"不是一回事。
 
@@ -163,7 +163,7 @@ flowchart LR
 | model-proxy | 启动时收到的模型接入变量（[11](../10-architecture/11-components-and-boundaries.md) 第 5.4 节）；已批准的模型端点 | 凭证库权限；资产凭证；项目目标网络 |
 | substrate | 本机 Docker socket（只在节点代理）；节点通道证书 | 资产凭证；模型 API key |
 | monitor-worker | 监控旁路自己的存储和只读采集配置（见 [监控](../30-features/36-monitoring.md)） | 写操作凭证；依赖核心或 Worker |
-| migrate | `plan`、`apply`：迁移账号。`bootstrap`：只在 db-init 服务里拿到超级用户口令和两个账号口令的副本（63 第 12.2 节） | 运行账号、模型接入变量、代理 token、凭证库主密钥；`plan`、`apply` 不持有迁移账号以外的任何凭证 |
+| migrate | `plan`、`apply`：迁移账号。`bootstrap`：只在 db-init 服务里拿到超级用户口令和两个账号口令的副本（63 第 12.2 节） | 模型接入变量、代理 token、凭证库主密钥；`plan`、`apply` 不持有运行账号，也不持有迁移账号以外的任何凭证 |
 
 容器划分和挂载表见 [组件与边界](../10-architecture/11-components-and-boundaries.md) 第 5 节。凭证库的完整形态随 Q10 定。
 

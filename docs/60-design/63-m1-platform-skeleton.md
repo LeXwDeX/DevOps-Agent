@@ -307,7 +307,9 @@ core、runtime 两个服务：
 - 口令和 token 都是 32 字节随机数的 base64url 编码，不含换行。
 - 准备脚本只在文件不存在时生成。已存在就不覆盖，也不输出值。
 - 两个 token 文件必须同值。轮换时同时替换两份，再重启 core 和 runtime。
-- `secrets/bootstrap/` 的三个文件与原文件必须同值。准备脚本每次运行都核对，不同就退出。轮换口令时同时替换原文件和副本，再运行 db-init。
+- `secrets/bootstrap/` 的三个文件与原文件必须同值。准备脚本每次运行都核对，不同就退出。
+- 轮换 `devops_migrate` 或 `devops_core` 的口令：同时替换原文件和副本，运行 db-init（它用不变的超级用户口令连接，把账号口令设为新值），再重启用到该口令的服务。db-init 失败时数据库里仍是旧口令：把原文件和副本恢复为旧值，或修正原因后重新运行 db-init。
+- M1 不提供超级用户口令轮换。PostgreSQL 初始化之后，`POSTGRES_PASSWORD_FILE` 不再改数据库里的口令，只替换文件会让 db-init 和备份无法连接。所以 `superuser-password` 和它的副本在初始化后不能替换。这是 M1 的已知限制。
 - 代理 token 不是资产凭证，也不是模型 key。它只证明请求来自本实例的 Worker（[53](../50-engineering/53-repo-layout.md) 第 6 节）。
 - 只有模型出口代理（凭 token）能回答模型状态。核心控制服务不读代理 token；页面的模型状态由 Worker 查询代理后报告给核心，报告带时间，过期显示"未知"（K-05）。报告协议由 L04.2 定。
 
@@ -356,9 +358,9 @@ core、runtime 两个服务：
 | `read_header_timeout` | duration | `5s` | `5s` | `5s` | 1s 至 60s，且不大于 `read_timeout` | `http.Server.ReadHeaderTimeout` |
 | `read_timeout` | duration | `15s` | `15s` | `30s` | 1s 至 10m | `http.Server.ReadTimeout`，含请求体 |
 | `max_body_bytes` | int | 1048576 | 4194304 | 无此字段 | 1024 至 67108864 | `http.MaxBytesReader`；超过返回 413，`http.body_too_large`。代理的请求体上限只用 `upstream.max_request_bytes`，由 modelgw 执行 |
-| `write_timeout` | duration | `30s` | `30s` | 无此字段 | 1s 至 10m | `http.Server.WriteTimeout`（socket 写期限，从读完请求头开始计） |
-| `handler_timeout` | duration | `30s` | `30s` | 无此字段 | 1s 至 10m，且不大于 `write_timeout` | 中间件给请求 context 设期限，处理函数必须遵守 context。到期且还没写响应头时返回 503，`core.unavailable` |
-| `write_block_timeout` | duration | 无此字段 | 无此字段 | `30s` | 1s 至 5m | 每次写出和 flush 前 `http.ResponseController.SetWriteDeadline(now+值)`；写出错误按客户端断开处理，取消上游请求 |
+| `write_timeout` | duration | `30s` | `30s` | 无此字段 | 6s 至 10m | `http.Server.WriteTimeout`（socket 写期限，从读完请求头开始计） |
+| `handler_timeout` | duration | `25s` | `25s` | 无此字段 | 1s 至 10m，且 `handler_timeout + 5s ≤ write_timeout` | 最外层中间件一进入就给请求 context 设期限，处理函数必须遵守 context。到期且还没写响应头时返回 503，`http.timeout`；已经写了响应头就只中断连接，不追加错误 |
+| `write_block_timeout` | duration | 无此字段 | 无此字段 | `30s` | 1s 至 5m | 每次写出和 flush 前 `http.ResponseController.SetWriteDeadline(now+值)`；写出失败时中断连接并取消上游请求。失败原因仍按 62 第 5.2 节分类：只有客户端主动取消记 `client_cancelled`，其他写入或 flush 失败（包括写期限到达）记 `modelgw.upstream_error` |
 | `request_max_duration` | duration | 无此字段 | 无此字段 | `10m` | 1m 至 1h，且大于 `upstream.timeout` | 中间件给请求 context 设期限，流式与非流式都适用。到期时 modelgw 按取消处理上游请求（62 第 5.2 节） |
 | `idle_timeout` | duration | `60s` | `60s` | `60s` | 1s 至 10m | `http.Server.IdleTimeout` |
 | `max_in_flight` | int | 128 | 32 | 16 | 1 至 1024 | 信号量，在读请求体之前占用；占不到立即返回 503，`http.busy`，不排队 |
@@ -366,7 +368,8 @@ core、runtime 两个服务：
 
 - 代理的 `http.Server.WriteTimeout` 在代码里固定为 0，不可配置。固定的 socket 写期限会截断合法的流式响应。
 - 代理的时间约束分三层：`upstream.timeout` 约束上游连接与响应间隔（modelgw，62 第 5.2 节第 7 条）；`write_block_timeout` 约束每次向客户端写出的阻塞时间，覆盖客户端写出阶段；`request_max_duration` 约束整个请求。
-- `write_timeout` 是 socket 层期限，不能取消处理函数；`handler_timeout` 是处理期限，让处理函数及时停止。两者都设，前者兜底。
+- `write_timeout` 是 socket 层期限，不能取消处理函数；`handler_timeout` 是处理期限，让处理函数及时停止。两者都从读完请求头附近开始计时（标准库在进入处理函数之前设 socket 写期限；中间件在进入时设处理期限），所以 `handler_timeout` 到期时至少还有 5 秒写出 503。`write_timeout` 兜底。
+- 测试（L08.4）：用真实 HTTP 连接，在默认配置和边界配置（`handler_timeout = write_timeout - 5s`）下，处理函数阻塞超过 `handler_timeout` 时客户端收到 503 `http.timeout`；已写响应头的处理函数超时只中断连接；请求体超过 `max_body_bytes` 收到 413 `http.body_too_large`；越界值、0 值和关系约束违反都拒绝启动。
 - 内部接口如果用长轮询领取任务，单次等待必须小于 `handler_timeout`（L04.2 定）。
 
 ## 10. 启动
@@ -460,7 +463,7 @@ M1 所有服务用 `restart: "no"`。Docker Engine 不自动重启任何容器�
 
 ### 12.3 迁移
 
-迁移程序 `migrate`（L05）只做迁移，只持有迁移账号。它分两步：先生成计划，再按计划执行。
+`migrate plan`、`migrate apply`（L05）只做迁移，只持有迁移账号（`bootstrap` 子命令另见第 12.2 节）。迁移分两步：先生成计划，再按计划执行。
 
 | 命令 | 行为 |
 |---|---|
@@ -493,7 +496,7 @@ M1 所有服务用 `restart: "no"`。Docker Engine 不自动重启任何容器�
 
 1. 核对目标：`docker compose -p devops-agent ps`，确认是本项目的服务。
 2. 停止应用写入：`docker compose -p devops-agent stop core runtime`。postgres 保持运行。
-3. 备份：运行 L13.2 的备份脚本 `backup.sh`。它对每个库 `pg_dump`，成功时以 0 退出，输出备份标识和集群标识 `system_identifier`。退出码非 0 或没有输出备份标识：停止，不继续。
+3. 备份：运行 L13.2 的备份脚本 `backup.sh`。它对每个库 `pg_dump`，成功时以 0 退出，输出备份标识、`instance_id` 和集群标识 `system_identifier`。退出码非 0 或没有输出备份标识：停止，不继续。
 4. 预览：`docker compose -p devops-agent --profile migrate run --rm migrate plan`。
 5. 核对计划：目标身份与备份输出的 `instance_id`、`system_identifier` 相同；库、当前版本、目标版本、待执行文件符合本次发布；可逆性和成功判据已读。不符就停止。
 6. 执行：`docker compose -p devops-agent --profile migrate run --rm migrate apply --plan <摘要> --backup-ref <备份标识>`。
@@ -521,6 +524,7 @@ M1 所有服务用 `restart: "no"`。Docker Engine 不自动重启任何容器�
 | `migrate.locked` | 同一库有其他迁移在执行 | L05 |
 | `migrate.result_mismatch` | 执行后的版本表与计划的成功判据不符 | L05 |
 | `http.body_too_large` | 请求体超过 `max_body_bytes` | L08.4 |
+| `http.timeout` | 处理超过 `handler_timeout`，响应头还没写出 | L08.4 |
 
 入口进程的失败只用退出码和日志表达，不新增错误码。
 
@@ -557,8 +561,8 @@ M1 所有服务用 `restart: "no"`。Docker Engine 不自动重启任何容器�
 |---|---|
 | L13.1 范围 | 第 3.1 节两个镜像 |
 | L13.1 测试 | 任务表 L13.1 的四项。第 4 项改为：业务子进程非 root；入口进程按第 5.1 节的能力集运行 |
-| L13.2 范围 | 第 3.2 节五个服务；第 5.1 节安全选项；第 6 节网络；第 8 节挂载、密钥和环境变量；宿主目录准备脚本 `prepare-host.sh`（含 `secrets/bootstrap/` 副本的生成与同值核对）；备份脚本 `backup.sh`（`pg_dump` 每个库到 `backup/`，成功时输出备份标识和 `system_identifier`，任一库失败就以非 0 退出且不输出备份标识）；`.env.example` |
-| L13.2 测试 | 任务表 L13.2 的四项，另加：1. `docker compose -p devops-agent config` 显示所有服务 `restart: "no"`；只有 core 发布端口且绑定 `127.0.0.1`；`migrate` 没有 `DEVOPS_LLM_*`。2. 准备脚本重复运行不改已有密钥；权限不符时退出。3. 文件可读矩阵（第 5.2 节）在运行的容器里逐项核对。4. `db-init` 重复运行结果相同。5. 发布端口在 `edge` 网络上可访问（第 6.1 节）。6. runtime 能访问外网；只接入 `app` 网络的测试容器不能访问外网（只证明 `app` 网络无出口，不证明 core 无出口；core 经 `edge` 出网是第 6.1 节记录的 M1 例外，不作为通过项）。7. `backup.sh` 在某个库失败时以非 0 退出，不输出备份标识。8. `secrets/bootstrap/` 副本与原文件不同值时准备脚本退出。检查全部用假 key（第 14 节） |
+| L13.2 范围 | 第 3.2 节五个服务；第 5.1 节安全选项；第 6 节网络；第 8 节挂载、密钥和环境变量；宿主目录准备脚本 `prepare-host.sh`（含 `secrets/bootstrap/` 副本的生成与同值核对）；备份脚本 `backup.sh`（`pg_dump` 每个库到 `backup/`，成功时输出备份标识、`instance_id` 和 `system_identifier`，任一库失败就以非 0 退出且不输出备份标识）；`.env.example` |
+| L13.2 测试 | 任务表 L13.2 的四项，另加：1. `docker compose -p devops-agent config` 显示所有服务 `restart: "no"`；只有 core 发布端口且绑定 `127.0.0.1`；`migrate` 没有 `DEVOPS_LLM_*`。2. 准备脚本重复运行不改已有密钥；权限不符时退出。3. 文件可读矩阵（第 5.2 节）在运行的容器里逐项核对。4. `db-init` 重复运行结果相同。5. 发布端口在 `edge` 网络上可访问（第 6.1 节）。6. runtime 能访问外网；只接入 `app` 网络的测试容器不能访问外网（只证明 `app` 网络无出口，不证明 core 无出口；core 经 `edge` 出网是第 6.1 节记录的 M1 例外，不作为通过项）。7. `backup.sh` 在某个库失败时以非 0 退出，不输出备份标识。8. `secrets/bootstrap/` 副本与原文件不同值时准备脚本退出。9. `backup.sh` 成功时输出包含备份标识、`instance_id`、`system_identifier`。10. 按第 8.1 节轮换 `devops_core` 口令后 core 能连接，旧口令不能连接。检查全部用假 key（第 14 节） |
 | L13.3 | 把上述检查写进 `verify.sh`，CI 运行 |
 | 审核 | 镜像只含程序；没有 `latest`；`.env` 不进仓库；没有 Docker socket 挂载；一次性服务不继承 runtime 的环境 |
 
@@ -603,6 +607,8 @@ M1 所有服务用 `restart: "no"`。Docker Engine 不自动重启任何容器�
 | 代理不设 `WriteTimeout`，改用单次写时限和流式总时限 | 固定 `WriteTimeout` 会截断合法的流式响应 |
 | 迁移用 plan/apply 两步，apply 必须带计划摘要和备份标识；摘要绑定目标身份；apply 最后做结果核对 | 只检查已执行文件被改，不能证明执行的就是管理员核对过的计划和目标 |
 | 数据库引导用 runtime 镜像里的 `migrate bootstrap`，不从宿主挂载脚本；db-init 用独立身份和口令副本 | 程序随镜像按 digest 固定；口令文件只给对应身份 |
+| M1 不提供超级用户口令轮换 | 初始化后改文件不改数据库口令；受控轮换流程留到底座阶段 |
+| `handler_timeout` 比 `write_timeout` 至少小 5 秒 | 两个期限计时起点相同，留出写出 503 的时间 |
 | 每进程一个配置文件，而不是推荐默认的每容器一个 | 同容器的进程身份不同，各自只读本职责的配置；文件只读 0444，不含敏感值 |
 | 12 第 6.2 节的 Worker 操作直接统一为按容器操作，而不是推荐默认的"底座阶段再定" | M1 已经确定 Worker 不单独重启，留空会让 L14 第 6 项没有依据 |
 
