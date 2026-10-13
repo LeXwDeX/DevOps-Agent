@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>运维大盘</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=Noto+Sans+SC:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0;background:#F3F4F1;color:#16181D;font-family:"IBM Plex Sans","Noto Sans SC",system-ui,sans-serif}
+a{color:#1F4C99}a:hover{color:#163A78}
+.nav{display:flex;align-items:center;gap:10px;min-height:42px;padding:0 12px;border-radius:7px;color:#C9CED6;text-decoration:none;font-size:14px}
+.nav:hover{background:#222833;color:#fff}
+.nav.on{background:#2C3440;color:#fff;font-weight:500}
+.navh{font-size:11px;letter-spacing:.08em;color:#8A93A1;padding:14px 12px 4px}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
+.card{background:#fff;border:1px solid #DCDED8;border-radius:10px}
+.chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:500;white-space:nowrap;box-sizing:border-box}
+.ok{background:#E3F1E8;color:#1E5C38}.bad{background:#F8E3E0;color:#8E2A20}.wait{background:#FBEBD0;color:#6E4300}.unk{background:#F7F7F5;color:#3F4652;border:1px dashed #7D8490}.run{background:#E2EAF7;color:#1F4C99}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:0 14px;border-radius:7px;font:inherit;font-size:13px;font-weight:500;cursor:pointer;border:1px solid #C9CCC4;background:#fff;color:#16181D;text-decoration:none;box-sizing:border-box}
+.btn:hover{background:#F3F4F1;color:#16181D}
+.btn.go{background:#1E5C38;border-color:#1E5C38;color:#fff}
+.btn.no{color:#8E2A20;border-color:#E2B4AE}
+.muted{color:#5B616B}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.seg{display:inline-flex;border:1px solid #C9CCC4;border-radius:8px;overflow:hidden}
+.seg button{font:inherit;font-size:13px;min-height:36px;padding:0 14px;border:0;background:#fff;color:#3F4652;cursor:pointer}
+.seg button.on{background:#16181D;color:#fff}
+th{font-weight:500;color:#5B616B;font-size:12px;text-align:left;padding:8px 12px;border-bottom:1px solid #E6E7E2;white-space:nowrap}
+td{padding:10px 12px;border-bottom:1px solid #EFF0EC;font-size:13px;white-space:nowrap}
+</style>
+</helmet>
+<div style="display: flex; flex-wrap: wrap; min-height: 1240px; width: 100%">
+  <nav aria-label="主导航" style="flex: 1 1 220px; max-width: 100%; background: #171B22; padding: 18px 12px; display: flex; flex-direction: column; gap: 2px; box-sizing: border-box">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 4px 12px 16px">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#E0A33A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-7 4 14 3-7h4"></path></svg>
+      <span style="font-weight: 600; color: #fff; font-size: 15px">DevOps-Agent</span>
+    </div>
+    <div class="navh">项目</div>
+    <a class="nav on" href="Main.dc.html" aria-current="page"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"></rect><rect x="14" y="3" width="7" height="5" rx="1"></rect><rect x="14" y="12" width="7" height="9" rx="1"></rect><rect x="3" y="16" width="7" height="5" rx="1"></rect></svg>运维大盘<span class="chip wait" style="margin-left: auto; height: 20px">3</span></a>
+    <a class="nav" href="Workbench.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg>项目对话</a>
+    <a class="nav" href="Topology.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="6" cy="6" r="2.5"></circle><circle cx="18" cy="7" r="2.5"></circle><circle cx="12" cy="18" r="2.5"></circle><path d="M8.3 6.3l7.2.6M7.3 8.2l3.6 7.6M16.8 9.3l-3.6 6.6"></path></svg>逻辑拓扑地图</a>
+    <a class="nav" href="Resources.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="7" rx="1.5"></rect><rect x="3" y="13" width="18" height="7" rx="1.5"></rect><path d="M7 7.5h.01M7 16.5h.01"></path></svg>当前资源</a>
+    <a class="nav" href="Sop.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="6" height="5" rx="1"></rect><rect x="15" y="9" width="6" height="5" rx="1"></rect><rect x="3" y="16" width="6" height="5" rx="1"></rect><path d="M6 8v8M9 5.5h3v6h3"></path></svg>Harness 流程</a>
+    <div class="navh">平台</div>
+    <a class="nav" href="#"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="8" cy="15" r="4"></circle><path d="M11 12l9-9M17 6l3 3"></path></svg>凭证 K</a>
+    <a class="nav" href="#"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"></path></svg>策略中心</a>
+    <a class="nav" href="#"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 4h14v16H5zM9 8h6M9 12h6M9 16h4"></path></svg>审计</a>
+  </nav>
+
+  <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; padding: 14px 28px; background: #fff; border-bottom: 1px solid #DCDED8">
+      <label style="display: flex; align-items: center; gap: 8px; font-size: 13px"><span class="muted">项目</span><select style="font: inherit; font-size: 14px; font-weight: 500; min-height: 36px; padding: 0 8px; border: 1px solid #C9CCC4; border-radius: 7px; background: #fff"><option>shop-demo</option><option>data-platform</option></select></label>
+      <div class="seg" role="group" aria-label="环境"><button>dev</button><button class="on">test</button><button>prod</button></div>
+      <div style="display: flex; align-items: center; gap: 8px; font-size: 13px"><span class="muted">会话模式</span>
+        <div class="seg" role="group" aria-label="会话模式"><button class="{{manualCls}}" onClick="{{setManual}}">手工</button><button class="{{autoCls}}" onClick="{{setAuto}}">自动</button></div>
+      </div>
+      <div style="flex: 1"></div>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 12px" aria-label="平台健康">
+        <span><i class="dot" style="background: #2F8F57"></i> core</span>
+        <span><i class="dot" style="background: #2F8F57"></i> runtime</span>
+        <span><i class="dot" style="background: #2F8F57"></i> PostgreSQL</span>
+        <span><i class="dot" style="background: #2F8F57"></i> 监控旁路</span>
+        <span><i class="dot" style="background: #2F8F57"></i> dcg</span>
+        <span><i class="dot" style="background: #C98A1B"></i> 模型 慢</span>
+        <span class="muted">事实采集 10:42</span>
+        <span class="chip unk">示例数据</span>
+      </div>
+    </header>
+
+    <div style="padding: 24px 28px 40px; display: flex; flex-direction: column; gap: 20px">
+      <div style="display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap">
+        <h1 style="margin: 0; font-size: 24px; font-weight: 600">运维大盘</h1>
+        <span class="muted" style="font-size: 13px">只读。能点的只有本来就需要你做的动作；其他操作请在对话里发起。</span>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px">
+        <a href="#todo" class="card" style="padding: 16px 18px; text-decoration: none; color: inherit; display: flex; flex-direction: column; gap: 6px">
+          <span class="muted" style="font-size: 13px">待我处理</span>
+          <span style="font-size: 32px; font-weight: 600; color: #6E4300">3</span>
+          <span class="muted" style="font-size: 12px">审核 1 · 等待输入 1 · 待核对 1</span>
+        </a>
+        <a href="#runs" class="card" style="padding: 16px 18px; text-decoration: none; color: inherit; display: flex; flex-direction: column; gap: 6px">
+          <span class="muted" style="font-size: 13px">运行中任务</span>
+          <span style="font-size: 32px; font-weight: 600; color: #1F4C99">2</span>
+          <span class="muted" style="font-size: 12px">其中 1 个停在等待输入</span>
+        </a>
+        <a href="#runs" class="card" style="padding: 16px 18px; text-decoration: none; color: inherit; display: flex; flex-direction: column; gap: 6px">
+          <span class="muted" style="font-size: 13px">今日异常运行</span>
+          <span style="font-size: 32px; font-weight: 600; color: #8E2A20">2</span>
+          <span class="muted" style="font-size: 12px">与预期不符 1 · 失败 0 · 结果未知 1</span>
+        </a>
+        <a href="#alerts" class="card" style="padding: 16px 18px; text-decoration: none; color: inherit; display: flex; flex-direction: column; gap: 6px">
+          <span class="muted" style="font-size: 13px">活跃告警</span>
+          <span style="font-size: 32px; font-weight: 600">2</span>
+          <span class="muted" style="font-size: 12px">来自监控旁路</span>
+        </a>
+      </div>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start">
+        <div style="flex: 3 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 20px">
+
+          <section id="todo" class="card" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 14px">
+            <div style="display: flex; align-items: center; gap: 10px"><h2 style="margin: 0; font-size: 16px; font-weight: 600">待我处理</h2><span class="chip wait">3</span></div>
+
+            <div style="border: 1px solid #EBD3A6; background: #FFFBF3; border-radius: 9px; padding: 14px 16px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center">
+              <div style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 6px">
+                <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center"><span class="chip wait">待人工审核</span><span class="chip bad">删除 · 不可逆</span><span class="mono muted" style="font-size: 12px">c-7f3a · Rev 2</span></div>
+                <div style="font-size: 15px; font-weight: 500">清理 app-01 上 30 天前的日志</div>
+                <div class="muted" style="font-size: 12px">独立命令 · 目标 <span class="mono">host:vm-demo-01</span> · dcg 命中 <span class="mono">FS-RM-RECURSIVE</span> · 已附原生预演</div>
+              </div>
+              <div style="display: flex; gap: 8px; flex-wrap: wrap">
+                <a class="btn" href="Review.dc.html">查看详情</a>
+              </div>
+            </div>
+
+            <div style="border: 1px solid #E6E7E2; border-radius: 9px; padding: 14px 16px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center">
+              <div style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 6px">
+                <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center"><span class="chip run">等待输入</span><span class="mono muted" style="font-size: 12px">run-0412</span></div>
+                <div style="font-size: 15px; font-weight: 500">部署 order-svc v1.8.2 停在第 2 步「拉取制品」</div>
+                <div class="muted" style="font-size: 12px">缺少密钥 <span class="mono">OSS_READ_AK</span>（状态：缺失）。新增后任务从第 2 步重新检验。</div>
+              </div>
+              <a class="btn" href="#">新增 K</a>
+            </div>
+
+            <div style="border: 1px solid #E6E7E2; border-radius: 9px; padding: 14px 16px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center">
+              <div style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 6px">
+                <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center"><span class="chip unk">结果未知</span><span class="mono muted" style="font-size: 12px">c-6d10 · Rev 1</span></div>
+                <div style="font-size: 15px; font-weight: 500">重启 payment-api</div>
+                <div class="muted" style="font-size: 12px">执行中连接断开。不会自动重做，请先查询目标实际状态。</div>
+              </div>
+              <a class="btn" href="#">核对结果</a>
+            </div>
+          </section>
+
+          <section id="runs" class="card" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 12px">
+            <div style="display: flex; align-items: center; justify-content: space-between"><h2 style="margin: 0; font-size: 16px; font-weight: 600">今日 SOP 运行</h2><a href="Sop.dc.html" style="font-size: 13px">全部 SOP</a></div>
+            <div style="overflow-x: auto">
+              <table style="width: 100%; border-collapse: collapse">
+                <thead><tr><th>SOP</th><th>版本</th><th>触发</th><th>状态</th><th>停在哪一步</th><th>开始</th></tr></thead>
+                <tbody>
+                  <tr><td>order-svc 部署</td><td class="mono">v5</td><td>人工</td><td><span class="chip run">等待输入</span></td><td>2/6 拉取制品</td><td class="mono">10:15</td></tr>
+                  <tr><td>日志清理</td><td class="mono">v2</td><td>告警</td><td><span class="chip bad">与预期不符</span></td><td>3/4 校验剩余空间</td><td class="mono">09:58</td></tr>
+                  <tr><td>payment-api 重启</td><td class="mono">v1</td><td>人工</td><td><span class="chip unk">结果未知</span></td><td>2/3 重启服务</td><td class="mono">09:40</td></tr>
+                  <tr><td>每日磁盘巡检</td><td class="mono">v3</td><td>定时</td><td><span class="chip ok">成功</span></td><td class="muted">—</td><td class="mono">06:00</td></tr>
+                  <tr><td>运维表格日维护</td><td class="mono">v4</td><td>定时</td><td><span class="chip ok">成功</span></td><td class="muted">—</td><td class="mono">00:05</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="card" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 12px">
+            <h2 style="margin: 0; font-size: 16px; font-weight: 600">定时计划</h2>
+            <div style="display: flex; flex-direction: column">
+              <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #EFF0EC"><span style="flex: 1 1 200px">每日磁盘巡检 <span class="mono muted" style="font-size: 12px">0 6 * * * · Asia/Shanghai</span></span><span class="chip ok">正常</span><span class="muted" style="font-size: 12px">漏跑 0</span></div>
+              <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #EFF0EC"><span style="flex: 1 1 200px">运维表格日维护 <span class="mono muted" style="font-size: 12px">项目自然日</span></span><span class="chip ok">正常</span><span class="muted" style="font-size: 12px">漏跑 0</span></div>
+              <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 0"><span style="flex: 1 1 200px">证书到期检查 <span class="mono muted" style="font-size: 12px">0 9 * * 1</span></span><span class="chip wait">恢复后暂停</span><span class="muted" style="font-size: 12px">漏跑 2</span><button class="btn">恢复计划</button></div>
+            </div>
+          </section>
+        </div>
+
+        <div style="flex: 2 1 340px; min-width: 0; display: flex; flex-direction: column; gap: 20px">
+          <section id="alerts" class="card" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 12px">
+            <h2 style="margin: 0; font-size: 16px; font-weight: 600">告警</h2>
+            <div style="display: flex; gap: 12px; align-items: flex-start; padding-bottom: 12px; border-bottom: 1px solid #EFF0EC">
+              <span class="chip bad">P2</span>
+              <div style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; min-width: 0">
+                <span style="font-weight: 500">磁盘使用率 87%</span>
+                <span class="muted mono" style="font-size: 12px">host:vm-demo-01 · 10:31</span>
+                <a href="Workbench.dc.html" style="font-size: 12px">诊断任务 diag-0213</a>
+              </div>
+            </div>
+            <div style="display: flex; gap: 12px; align-items: flex-start">
+              <span class="chip wait">P3</span>
+              <div style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; min-width: 0">
+                <span style="font-weight: 500">order-svc 5xx 比率 2.1%</span>
+                <span class="muted mono" style="font-size: 12px">app:order-svc · 10:22</span>
+                <span class="muted" style="font-size: 12px">未关联诊断任务</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="card" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 12px">
+            <div style="display: flex; align-items: center; justify-content: space-between"><h2 style="margin: 0; font-size: 16px; font-weight: 600">资源健康</h2><a href="Resources.dc.html" style="font-size: 13px">当前资源</a></div>
+            <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+              <div style="border: 1px solid #E6E7E2; border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px"><span class="mono" style="font-size: 12px">vm-demo-01</span><span class="chip ok" style="align-self: flex-start">运行 · 1 告警</span></div>
+              <div style="border: 1px dashed #7D8490; border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px"><span class="mono" style="font-size: 12px">vm-demo-02</span><span class="chip unk" style="align-self: flex-start">未知 · 采集超时</span></div>
+              <div style="border: 1px solid #E6E7E2; border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px"><span class="mono" style="font-size: 12px">vm-demo-03</span><span class="chip ok" style="align-self: flex-start">运行</span></div>
+              <div style="border: 1px solid #E6E7E2; border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px"><span class="mono" style="font-size: 12px">db-test-01</span><span class="chip ok" style="align-self: flex-start">运行</span></div>
+            </div>
+            <span class="muted" style="font-size: 12px">未知不算停机。</span>
+          </section>
+
+          <section class="card" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 10px">
+            <div style="display: flex; align-items: center; justify-content: space-between"><h2 style="margin: 0; font-size: 16px; font-weight: 600">拓扑异常</h2><a href="Topology.dc.html" style="font-size: 13px">拓扑地图</a></div>
+            <div style="font-size: 13px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap"><span class="mono">order-svc → payment-api</span><span class="chip bad">证据冲突</span></div>
+            <div style="font-size: 13px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap"><span class="mono">web → search</span><span class="chip unk">仅候选</span></div>
+            <div style="font-size: 13px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap"><span class="mono">order-svc → mq</span><span class="chip wait">观测已过期</span></div>
+          </section>
+
+          <section class="card" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 12px">
+            <h2 style="margin: 0; font-size: 16px; font-weight: 600">预授权</h2>
+            <div style="display: flex; flex-direction: column; gap: 6px; font-size: 13px">
+              <div style="display: flex; justify-content: space-between; gap: 8px"><span>payment-api 崩溃重启</span><span class="mono">1 / 5</span></div>
+              <div style="height: 6px; background: #EFF0EC; border-radius: 3px"><div style="width: 20%; height: 6px; background: #1F4C99; border-radius: 3px"></div></div>
+              <span class="muted" style="font-size: 12px">有效期至 2026-11-30</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 6px; font-size: 13px">
+              <div style="display: flex; justify-content: space-between; gap: 8px"><span>磁盘超阈值清理旧日志</span><span class="mono">3 / 3</span></div>
+              <div style="height: 6px; background: #EFF0EC; border-radius: 3px"><div style="width: 100%; height: 6px; background: #8E2A20; border-radius: 3px"></div></div>
+              <span style="font-size: 12px; color: #8E2A20">已达上限，已失效。动作不再执行。</span>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1240}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { mode: 'manual' }; }
+  renderVals() {
+    var m = this.state.mode;
+    return {
+      manualCls: m === 'manual' ? 'on' : '',
+      autoCls: m === 'auto' ? 'on' : '',
+      setManual: () => this.setState({ mode: 'manual' }),
+      setAuto: () => this.setState({ mode: 'auto' })
+    };
+  }
+}
+</script>
+</body>
+</html>

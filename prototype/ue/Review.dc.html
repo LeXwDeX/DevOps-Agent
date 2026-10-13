@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>人工审核</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=Noto+Sans+SC:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0;background:#F3F4F1;color:#16181D;font-family:"IBM Plex Sans","Noto Sans SC",system-ui,sans-serif}
+a{color:#1F4C99}a:hover{color:#163A78}
+.nav{display:flex;align-items:center;gap:10px;min-height:42px;padding:0 12px;border-radius:7px;color:#C9CED6;text-decoration:none;font-size:14px}
+.nav:hover{background:#222833;color:#fff}
+.nav.on{background:#2C3440;color:#fff;font-weight:500}
+.navh{font-size:11px;letter-spacing:.08em;color:#8A93A1;padding:14px 12px 4px}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
+.card{background:#fff;border:1px solid #DCDED8;border-radius:10px}
+.chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:500;white-space:nowrap;box-sizing:border-box}
+.ok{background:#E3F1E8;color:#1E5C38}.bad{background:#F8E3E0;color:#8E2A20}.wait{background:#FBEBD0;color:#6E4300}.unk{background:#F7F7F5;color:#3F4652;border:1px dashed #7D8490}.run{background:#E2EAF7;color:#1F4C99}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:0 16px;border-radius:8px;font:inherit;font-size:14px;font-weight:500;cursor:pointer;border:1px solid #C9CCC4;background:#fff;color:#16181D;text-decoration:none;box-sizing:border-box}
+.btn:hover{background:#F3F4F1;color:#16181D}
+.btn.go{background:#1E5C38;border-color:#1E5C38;color:#fff}
+.btn.go:hover{background:#174A2D;color:#fff}
+.btn.no{color:#8E2A20;border-color:#E2B4AE}
+.muted{color:#5B616B}
+.kv{display:grid;grid-template-columns:120px minmax(0,1fr);gap:0;font-size:13px}
+.kv dt{color:#5B616B;padding:9px 0;border-bottom:1px solid #EFF0EC}
+.kv dd{margin:0;padding:9px 0;border-bottom:1px solid #EFF0EC}
+.chk{display:flex;align-items:center;gap:10px;font-size:13px;padding:9px 0;border-bottom:1px solid #EFF0EC}
+.tl{display:flex;align-items:center;gap:10px;font-size:13px;padding:6px 0}
+</style>
+</helmet>
+<div style="display: flex; flex-wrap: wrap; min-height: 1240px; width: 100%">
+  <nav aria-label="主导航" style="flex: 1 1 220px; max-width: 100%; background: #171B22; padding: 18px 12px; display: flex; flex-direction: column; gap: 2px; box-sizing: border-box">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 4px 12px 16px">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#E0A33A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-7 4 14 3-7h4"></path></svg>
+      <span style="font-weight: 600; color: #fff; font-size: 15px">DevOps-Agent</span>
+    </div>
+    <div class="navh">项目</div>
+    <a class="nav on" href="Main.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"></rect><rect x="14" y="3" width="7" height="5" rx="1"></rect><rect x="14" y="12" width="7" height="9" rx="1"></rect><rect x="3" y="16" width="7" height="5" rx="1"></rect></svg>运维大盘<span class="chip wait" style="margin-left: auto; height: 20px">3</span></a>
+    <a class="nav" href="Workbench.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg>项目对话</a>
+    <a class="nav" href="Topology.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="6" cy="6" r="2.5"></circle><circle cx="18" cy="7" r="2.5"></circle><circle cx="12" cy="18" r="2.5"></circle><path d="M8.3 6.3l7.2.6M7.3 8.2l3.6 7.6M16.8 9.3l-3.6 6.6"></path></svg>逻辑拓扑地图</a>
+    <a class="nav" href="Resources.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="7" rx="1.5"></rect><rect x="3" y="13" width="18" height="7" rx="1.5"></rect><path d="M7 7.5h.01M7 16.5h.01"></path></svg>当前资源</a>
+    <a class="nav" href="Sop.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="6" height="5" rx="1"></rect><rect x="15" y="9" width="6" height="5" rx="1"></rect><rect x="3" y="16" width="6" height="5" rx="1"></rect><path d="M6 8v8M9 5.5h3v6h3"></path></svg>Harness 流程</a>
+    <div class="navh">平台</div>
+    <a class="nav" href="#"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="8" cy="15" r="4"></circle><path d="M11 12l9-9M17 6l3 3"></path></svg>凭证 K</a>
+    <a class="nav" href="#"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"></path></svg>策略中心</a>
+    <a class="nav" href="#"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 4h14v16H5zM9 8h6M9 12h6M9 16h4"></path></svg>审计</a>
+  </nav>
+
+  <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 14px 28px; background: #fff; border-bottom: 1px solid #DCDED8; font-size: 13px">
+      <a href="Main.dc.html">运维大盘</a><span class="muted">/</span><span>待人工审核</span>
+      <div style="flex: 1"></div>
+      <span class="chip run">shop-demo · test</span>
+      <span class="muted">会话模式：手工</span>
+      <span class="chip unk">示例数据</span>
+    </header>
+
+    <div style="padding: 22px 28px 40px; display: flex; flex-direction: column; gap: 18px">
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px">
+        <h1 style="margin: 0; font-size: 22px; font-weight: 600">清理 app-01 上 30 天前的日志</h1>
+        <span class="chip {{statusCls}}">{{statusText}}</span>
+        <span class="mono muted" style="font-size: 13px">CallID c-7f3a · Revision {{rev}}</span>
+        <span class="muted" style="font-size: 13px">来源：独立命令 · 会话 s-0921</span>
+      </div>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start">
+        <div style="flex: 3 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 18px">
+
+          <section class="card" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 10px">
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap"><h2 style="margin: 0; font-size: 15px; font-weight: 600">最终内容</h2><span class="muted" style="font-size: 12px">与 Rev 1 的差异</span></div>
+            <div class="mono" style="border-radius: 8px; overflow-x: auto; font-size: 12.5px; line-height: 1.7; border: 1px solid #E6E7E2">
+              <div style="background: #FBEAE7; color: #7A2219; padding: 4px 14px; white-space: pre">- find /var/log/app -type f -mtime +30 -delete</div>
+              <div style="background: #E6F3EA; color: #1A5132; padding: 4px 14px; white-space: pre">+ find /var/log/app -name '*.log' -mtime +30 -delete</div>
+            </div>
+            <span class="muted" style="font-size: 12px">你在 Rev 1 的点评：「只删 .log，保留压缩归档 .gz」</span>
+          </section>
+
+          <section class="card" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 6px">
+            <h2 style="margin: 0 0 4px; font-size: 15px; font-weight: 600">执行预期</h2>
+            <dl class="kv" style="margin: 0">
+              <dt>意图</dt><dd>vm-demo-01 磁盘 87% 告警，清理 30 天前的应用日志释放空间</dd>
+              <dt>目标</dt><dd class="mono">host:vm-demo-01</dd>
+              <dt>读写类别</dt><dd><span class="chip bad">删除</span> <span class="muted" style="font-size: 12px">由 dcg 与解析器确定，不只信模型</span></dd>
+              <dt>预期变更</dt><dd>删除 /var/log/app 下 124 个 *.log 文件，约 3.2 GB</dd>
+              <dt>预期输出</dt><dd>退出码 0；无输出</dd>
+              <dt>成功判据</dt><dd>目录内 *.log 均在 30 天内；磁盘使用率降到 80% 以下</dd>
+              <dt>可逆性</dt><dd><span class="chip bad">不可逆</span></dd>
+              <dt>风险自评</dt><dd>低：路径固定，只匹配 *.log，已有原生预演</dd>
+            </dl>
+          </section>
+
+          <section class="card" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 10px">
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap"><h2 style="margin: 0; font-size: 15px; font-weight: 600">原生预演</h2><span class="mono muted" style="font-size: 12px">find /var/log/app -name '*.log' -mtime +30 -print</span></div>
+            <pre class="mono" style="margin: 0; background: #16181D; color: #E6E8EB; padding: 12px 14px; border-radius: 8px; font-size: 12px; line-height: 1.7; overflow-x: auto">/var/log/app/app-01.2026-08-01.log
+/var/log/app/app-01.2026-08-02.log
+/var/log/app/app-01.2026-08-03.log
+…（共 124 行，已折叠）
+合计 3.2 GB</pre>
+          </section>
+
+          <sc-if value="{{showResult}}" hint-placeholder-val="{{ false }}">
+            <section class="card" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 8px" aria-live="polite">
+              <h2 style="margin: 0 0 4px; font-size: 15px; font-weight: 600">执行过程</h2>
+              <div class="tl"><span class="chip ok">完成</span>冻结 Rev 2，内容不可再改</div>
+              <div class="tl"><span class="chip ok">一致</span>执行前重算指纹 <span class="mono muted" style="font-size: 12px">sha256:9c1e…a07</span></div>
+              <div class="tl"><span class="chip ok">完成</span>执行器注入 <span class="mono">SSH_VM_DEMO</span> 并执行，退出码 0</div>
+              <div class="tl"><span class="chip ok">相符</span>实际 vs 预期：删除 124 个文件；磁盘 87% → 61%</div>
+              <span class="muted" style="font-size: 12px">输出已按 mask 规则遮盖后保存。全过程记入审计。</span>
+            </section>
+          </sc-if>
+        </div>
+
+        <div style="flex: 2 1 340px; min-width: 0; display: flex; flex-direction: column; gap: 18px">
+          <section class="card" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; border-color: #C9CCC4">
+            <h2 style="margin: 0; font-size: 15px; font-weight: 600">你的决定</h2>
+
+            <sc-if value="{{isPending}}" hint-placeholder-val="{{ true }}">
+              <div style="display: flex; flex-direction: column; gap: 12px">
+                <span class="muted" style="font-size: 13px; line-height: 1.6">批准只对 Rev {{rev}} 有效。内容变了要重新批准。</span>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap">
+                  <button class="btn go" onClick="{{approve}}" style="flex: 1 1 120px"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4l13 8-13 8z"></path></svg>执行</button>
+                  <button class="btn no" onClick="{{reject}}" style="flex: 1 1 120px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>拒绝</button>
+                </div>
+                <label for="cmt" style="font-size: 13px; font-weight: 500">点评（退回 Agent 修订）</label>
+                <textarea id="cmt" rows="3" value="{{comment}}" onChange="{{onComment}}" placeholder="例如：先只删 60 天前的，看看效果" style="font: inherit; font-size: 13px; border: 1px solid #DCDED8; border-radius: 7px; padding: 10px 12px; resize: vertical"></textarea>
+                <button class="btn" onClick="{{sendComment}}">发送点评</button>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{isDone}}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-direction: column; gap: 10px; font-size: 13px">
+                <span>你批准了 Rev 2。执行成功，结果与预期相符。</span>
+                <button class="btn" onClick="{{reset}}">重置演示</button>
+              </div>
+            </sc-if>
+            <sc-if value="{{isRejected}}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-direction: column; gap: 10px; font-size: 13px">
+                <span>申请已结束，状态为已拒绝。拒绝记入审计。</span>
+                <button class="btn" onClick="{{reset}}">重置演示</button>
+              </div>
+            </sc-if>
+            <sc-if value="{{isRevising}}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-direction: column; gap: 10px; font-size: 13px">
+                <span>点评已回到 Agent：「{{lastComment}}」</span>
+                <span class="muted">Agent 修订后为 Rev 3，从自审重新开始。Rev 2 的检验结果作废。</span>
+                <button class="btn" onClick="{{reset}}">重置演示</button>
+              </div>
+            </sc-if>
+          </section>
+
+          <section class="card" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 4px">
+            <h2 style="margin: 0 0 6px; font-size: 15px; font-weight: 600">检验结果</h2>
+            <div class="chk"><span style="flex: 1">模型自审</span><span class="chip wait">有风险</span></div>
+            <div class="muted" style="font-size: 12px; padding: 4px 0 8px">原因：不可逆删除。已有原生预演。</div>
+            <div class="chk"><span style="flex: 1">dcg</span><span class="chip bad">命中</span><span class="mono muted" style="font-size: 12px">FS-RM-RECURSIVE</span></div>
+            <div class="chk"><span style="flex: 1">策略判定</span><span class="chip wait">人工</span></div>
+            <div class="muted" style="font-size: 12px; padding: 4px 0 8px">来源层级：转人工条件 · 独立命令（首版）、自审有风险、dcg 命中</div>
+            <div class="chk" style="border-bottom: 0"><span style="flex: 1">独立审核模型</span><span class="muted" style="font-size: 12px">未配置</span></div>
+          </section>
+
+          <section class="card" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 4px">
+            <h2 style="margin: 0 0 6px; font-size: 15px; font-weight: 600">目标与密钥</h2>
+            <div class="chk"><span class="muted" style="width: 72px">环境</span><span>test</span></div>
+            <div class="chk"><span class="muted" style="width: 72px">目标</span><span class="mono">host:vm-demo-01</span></div>
+            <div class="chk"><span class="muted" style="width: 72px">指纹</span><span class="mono" style="font-size: 12px">sha256:9c1e…a07</span><span class="muted" style="font-size: 12px">10:44</span></div>
+            <div class="chk" style="border-bottom: 0"><span class="muted" style="width: 72px">需要的 K</span><span class="mono">SSH_VM_DEMO</span><span class="chip ok">可用</span></div>
+            <span class="muted" style="font-size: 12px">不显示 V。</span>
+          </section>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1240}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { st: 'pending', comment: '', lastComment: '' }; }
+  renderVals() {
+    var st = this.state.st;
+    var map = {
+      pending: ['wait', '待人工'],
+      done: ['ok', '成功'],
+      rejected: ['bad', '已拒绝'],
+      revising: ['run', '待修订']
+    };
+    return {
+      statusCls: map[st][0],
+      statusText: map[st][1],
+      rev: 2,
+      isPending: st === 'pending',
+      isDone: st === 'done',
+      isRejected: st === 'rejected',
+      isRevising: st === 'revising',
+      showResult: st === 'done',
+      comment: this.state.comment,
+      lastComment: this.state.lastComment,
+      onComment: (e) => this.setState({ comment: e.target.value }),
+      approve: () => this.setState({ st: 'done' }),
+      reject: () => this.setState({ st: 'rejected' }),
+      sendComment: () => {
+        var c = (this.state.comment || '').trim();
+        if (!c) return;
+        this.setState({ st: 'revising', lastComment: c, comment: '' });
+      },
+      reset: () => this.setState({ st: 'pending', comment: '', lastComment: '' })
+    };
+  }
+}
+</script>
+</body>
+</html>

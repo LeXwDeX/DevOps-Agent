@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>逻辑拓扑地图</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=Noto+Sans+SC:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0;background:#F3F4F1;color:#16181D;font-family:"IBM Plex Sans","Noto Sans SC",system-ui,sans-serif}
+a{color:#1F4C99}a:hover{color:#163A78}
+.nav{display:flex;align-items:center;gap:10px;min-height:42px;padding:0 12px;border-radius:7px;color:#C9CED6;text-decoration:none;font-size:14px}
+.nav:hover{background:#222833;color:#fff}
+.nav.on{background:#2C3440;color:#fff;font-weight:500}
+.navh{font-size:11px;letter-spacing:.08em;color:#8A93A1;padding:14px 12px 4px}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
+.card{background:#fff;border:1px solid #DCDED8;border-radius:10px}
+.chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:500;white-space:nowrap;box-sizing:border-box}
+.ok{background:#E3F1E8;color:#1E5C38}.bad{background:#F8E3E0;color:#8E2A20}.wait{background:#FBEBD0;color:#6E4300}.unk{background:#F7F7F5;color:#3F4652;border:1px dashed #7D8490}.run{background:#E2EAF7;color:#1F4C99}.guess{background:#EFE9F7;color:#4E3383}
+.muted{color:#5B616B}
+.seg{display:inline-flex;border:1px solid #C9CCC4;border-radius:8px;overflow:hidden}
+.seg button{font:inherit;font-size:13px;min-height:36px;padding:0 14px;border:0;background:#fff;color:#3F4652;cursor:pointer}
+.seg button.on{background:#16181D;color:#fff}
+.node{font:inherit;font-size:14px;font-weight:500;color:#16181D;cursor:pointer;background:#fff;border-radius:9px;display:flex;align-items:center;justify-content:center;gap:8px;box-sizing:border-box;padding:6px}
+.erow{font:inherit;font-size:13px;display:flex;align-items:center;gap:8px;width:100%;min-height:40px;padding:0 10px;border:1px solid transparent;border-radius:7px;background:none;cursor:pointer;color:#16181D;text-align:left}
+.erow:hover{background:#F3F4F1}
+.lbl{position:absolute;font-size:12px;line-height:16px;font-weight:500;text-align:center;border-radius:4px}
+.sel{font:inherit;font-size:13px;min-height:36px;padding:0 8px;border:1px solid #C9CCC4;border-radius:7px;background:#fff}
+</style>
+</helmet>
+<div style="display: flex; flex-wrap: wrap; min-height: 1100px; width: 100%">
+  <nav aria-label="主导航" style="flex: 1 1 220px; max-width: 100%; background: #171B22; padding: 18px 12px; display: flex; flex-direction: column; gap: 2px; box-sizing: border-box">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 4px 12px 16px">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#E0A33A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-7 4 14 3-7h4"></path></svg>
+      <span style="font-weight: 600; color: #fff; font-size: 15px">DevOps-Agent</span>
+    </div>
+    <div class="navh">项目</div>
+    <a class="nav" href="Main.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"></rect><rect x="14" y="3" width="7" height="5" rx="1"></rect><rect x="14" y="12" width="7" height="9" rx="1"></rect><rect x="3" y="16" width="7" height="5" rx="1"></rect></svg>运维大盘<span class="chip wait" style="margin-left: auto; height: 20px">3</span></a>
+    <a class="nav" href="Workbench.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg>项目对话</a>
+    <a class="nav on" href="Topology.dc.html" aria-current="page"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="6" cy="6" r="2.5"></circle><circle cx="18" cy="7" r="2.5"></circle><circle cx="12" cy="18" r="2.5"></circle><path d="M8.3 6.3l7.2.6M7.3 8.2l3.6 7.6M16.8 9.3l-3.6 6.6"></path></svg>逻辑拓扑地图</a>
+    <a class="nav" href="Resources.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="7" rx="1.5"></rect><rect x="3" y="13" width="18" height="7" rx="1.5"></rect><path d="M7 7.5h.01M7 16.5h.01"></path></svg>当前资源</a>
+    <a class="nav" href="Sop.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="6" height="5" rx="1"></rect><rect x="15" y="9" width="6" height="5" rx="1"></rect><rect x="3" y="16" width="6" height="5" rx="1"></rect><path d="M6 8v8M9 5.5h3v6h3"></path></svg>Harness 流程</a>
+    <div class="navh">平台</div>
+    <a class="nav" href="#"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="8" cy="15" r="4"></circle><path d="M11 12l9-9M17 6l3 3"></path></svg>凭证 K</a>
+    <a class="nav" href="#"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"></path></svg>策略中心</a>
+    <a class="nav" href="#"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 4h14v16H5zM9 8h6M9 12h6M9 16h4"></path></svg>审计</a>
+  </nav>
+
+  <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 14px 28px; background: #fff; border-bottom: 1px solid #DCDED8; font-size: 13px">
+      <h1 style="margin: 0; font-size: 18px; font-weight: 600">逻辑拓扑地图</h1>
+      <span class="chip run">shop-demo · test</span>
+      <label style="display: flex; align-items: center; gap: 6px"><span class="muted">供应商</span><select class="sel"><option>全部</option><option>阿里云</option><option>Azure</option></select></label>
+      <label style="display: flex; align-items: center; gap: 6px"><span class="muted">宿主</span><select class="sel"><option>全部</option><option>vm-demo-01</option><option>vm-demo-02</option></select></label>
+      <label style="display: flex; align-items: center; gap: 6px"><span class="muted">应用分组</span><select class="sel"><option>全部</option><option>交易</option><option>支撑</option></select></label>
+      <div style="flex: 1"></div>
+      <span class="muted mono" style="font-size: 12px">TopologyView v1 · 事实版本 f-1182 · 生成 10:42</span>
+      <span class="chip unk">示例数据</span>
+    </header>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 20px; padding: 20px 28px 32px; align-items: flex-start">
+      <section class="card" aria-label="拓扑图" style="flex: 3 1 560px; min-width: 0; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+        <div style="display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 12px; align-items: center" aria-label="图例">
+          <span style="display: flex; align-items: center; gap: 6px"><svg width="34" height="8" aria-hidden="true"><path d="M1 4h32" stroke="#1F4C99" stroke-width="2"></path></svg>实际观测</span>
+          <span style="display: flex; align-items: center; gap: 6px"><svg width="34" height="8" aria-hidden="true"><path d="M1 4h32" stroke="#3F4652" stroke-width="2" stroke-dasharray="7 5"></path></svg>配置声明</span>
+          <span style="display: flex; align-items: center; gap: 6px"><svg width="34" height="8" aria-hidden="true"><path d="M2 4h30" stroke="#3F4652" stroke-width="2.4" stroke-dasharray="0.1 5" stroke-linecap="round"></path></svg>网络策略</span>
+          <span style="display: flex; align-items: center; gap: 6px"><svg width="34" height="8" aria-hidden="true"><path d="M1 4h32" stroke="#A3A8B0" stroke-width="2" stroke-dasharray="3 5"></path></svg>候选（未核验）</span>
+          <span class="muted">三类证据分开显示，不合并成一个结论。缺少观测不等于没有依赖。</span>
+        </div>
+
+        <div style="overflow-x: auto; border-radius: 8px; background: #FAFAF8; border: 1px solid #EBECE7">
+          <div style="position: relative; width: 800px; height: 520px">
+            <svg width="139" height="8" viewBox="0 0 139 8" preserveAspectRatio="none" style="position: absolute; left: 180px; top: 82px; width: 139px; height: 8px; overflow: visible; fill: none; stroke: #1F4C99; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled-1" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#1F4C99" stroke="none" style="stroke: none; fill: #1F4C99; fill: context-stroke"></path></marker></defs><path d="M 0 4 L 135 4" marker-end="url(#dc-arrow-head-filled-1)"></path></svg>
+            <svg width="159" height="8" viewBox="0 0 159 8" preserveAspectRatio="none" style="position: absolute; left: 460px; top: 82px; width: 159px; height: 8px; overflow: visible; fill: none; stroke: #3F4652; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 7 5"><defs><marker id="dc-arrow-head-filled-2" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#3F4652" stroke="none" style="stroke: none; fill: #3F4652; fill: context-stroke; stroke-dasharray: none"></path></marker></defs><path d="M 0 4 L 155 4" marker-end="url(#dc-arrow-head-filled-2)"></path></svg>
+            <svg width="8" height="147" viewBox="0 0 8 147" preserveAspectRatio="none" style="position: absolute; left: 106px; top: 112px; width: 8px; height: 147px; overflow: visible; fill: none; stroke: #A3A8B0; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 3 5"><defs><marker id="dc-arrow-head-filled-3" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#A3A8B0" stroke="none" style="stroke: none; fill: #A3A8B0; fill: context-stroke; stroke-dasharray: none"></path></marker></defs><path d="M 4 0 L 4 143" marker-end="url(#dc-arrow-head-filled-3)"></path></svg>
+            <svg width="8" height="147" viewBox="0 0 8 147" preserveAspectRatio="none" style="position: absolute; left: 386px; top: 112px; width: 8px; height: 147px; overflow: visible; fill: none; stroke: #1F4C99; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled-4" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#1F4C99" stroke="none" style="stroke: none; fill: #1F4C99; fill: context-stroke"></path></marker></defs><path d="M 4 0 L 4 143" marker-end="url(#dc-arrow-head-filled-4)"></path></svg>
+            <svg width="8" height="147" viewBox="0 0 8 147" preserveAspectRatio="none" style="position: absolute; left: 686px; top: 112px; width: 8px; height: 147px; overflow: visible; fill: none; stroke: #3F4652; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 0.1 6"><defs><marker id="dc-arrow-head-filled-5" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#3F4652" stroke="none" style="stroke: none; fill: #3F4652; fill: context-stroke; stroke-dasharray: none"></path></marker></defs><path d="M 4 0 L 4 142" marker-end="url(#dc-arrow-head-filled-5)"></path></svg>
+            <svg width="8" height="127" viewBox="0 0 8 127" preserveAspectRatio="none" style="position: absolute; left: 386px; top: 313px; width: 8px; height: 127px; overflow: visible; fill: none; stroke: #1F4C99; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled-6" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#1F4C99" stroke="none" style="stroke: none; fill: #1F4C99; fill: context-stroke"></path></marker></defs><path d="M 4 127 L 4 4" marker-end="url(#dc-arrow-head-filled-6)"></path></svg>
+
+            <button class="node" onClick="{{pick.web}}" style="position: absolute; left: 40px; top: 60px; width: 140px; height: 52px; border: {{bd.web}}">web</button>
+            <button class="node" onClick="{{pick.order}}" style="position: absolute; left: 320px; top: 60px; width: 140px; height: 52px; border: {{bd.order}}">order-svc</button>
+            <button class="node" onClick="{{pick.pay}}" style="position: absolute; left: 620px; top: 60px; width: 140px; height: 52px; border: {{bd.pay}}">payment-api</button>
+            <button class="node" onClick="{{pick.search}}" style="position: absolute; left: 40px; top: 260px; width: 140px; height: 52px; border: {{bd.search}}">search</button>
+            <button class="node" onClick="{{pick.mq}}" style="position: absolute; left: 320px; top: 260px; width: 140px; height: 52px; border: {{bd.mq}}">mq</button>
+            <button class="node" onClick="{{pick.db}}" style="position: absolute; left: 620px; top: 260px; width: 140px; height: 52px; border: {{bd.db}}">db-order</button>
+            <button class="node" onClick="{{pick.notify}}" style="position: absolute; left: 320px; top: 440px; width: 140px; height: 52px; border: {{bd.notify}}">notify-worker</button>
+
+            <div class="lbl" style="left: 514px; top: 58px; width: 52px; background: #F8E3E0; color: #8E2A20">冲突</div>
+            <div class="lbl" style="left: 122px; top: 177px; width: 40px; background: #EFE9F7; color: #4E3383">候选</div>
+            <div class="lbl" style="left: 402px; top: 177px; width: 40px; background: #FBEBD0; color: #6E4300">过期</div>
+            <div class="lbl" style="left: 702px; top: 177px; width: 56px; background: #ECEDEF; color: #3F4652">仅网络</div>
+          </div>
+        </div>
+        <span class="muted" style="font-size: 12px">地图由事实生成，不由 Agent 生成。Agent 推测的关系只能作为候选写入事实库。</span>
+      </section>
+
+      <aside style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+        <section class="card" style="padding: 16px 18px; display: flex; flex-direction: column; gap: 10px" aria-live="polite">
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap"><h2 style="margin: 0; font-size: 15px; font-weight: 600">{{d.title}}</h2><span class="chip {{d.cls}}">{{d.badge}}</span></div>
+          <sc-for list="{{d.rows}}" as="r" hint-placeholder-count="4">
+            <div style="display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 8px; font-size: 13px; padding: 6px 0; border-bottom: 1px solid #EFF0EC"><span class="muted">{{r.k}}</span><span>{{r.v}}</span></div>
+          </sc-for>
+          <sc-if value="{{d.isNode}}" hint-placeholder-val="{{ false }}">
+            <a href="Resources.dc.html" style="font-size: 13px">在当前资源中查看运行实例</a>
+          </sc-if>
+          <span class="muted" style="font-size: 12px">{{d.note}}</span>
+        </section>
+
+        <section class="card" style="padding: 12px 10px; display: flex; flex-direction: column; gap: 2px">
+          <h2 style="margin: 4px 8px 6px; font-size: 15px; font-weight: 600">连线</h2>
+          <button class="erow" onClick="{{pick.e1}}"><span class="mono" style="flex: 1">web → order-svc</span><span class="chip ok">观测</span></button>
+          <button class="erow" onClick="{{pick.e2}}"><span class="mono" style="flex: 1">order-svc → payment-api</span><span class="chip bad">冲突</span></button>
+          <button class="erow" onClick="{{pick.e3}}"><span class="mono" style="flex: 1">web → search</span><span class="chip guess">候选</span></button>
+          <button class="erow" onClick="{{pick.e4}}"><span class="mono" style="flex: 1">order-svc → mq</span><span class="chip wait">过期</span></button>
+          <button class="erow" onClick="{{pick.e5}}"><span class="mono" style="flex: 1">payment-api → db-order</span><span class="chip unk">网络</span></button>
+          <button class="erow" onClick="{{pick.e6}}"><span class="mono" style="flex: 1">notify-worker → mq</span><span class="chip ok">观测</span></button>
+        </section>
+      </aside>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1100}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { sel: 'e2' }; }
+  renderVals() {
+    var D = {
+      web: { title: 'web', badge: '应用', cls: 'run', isNode: true, rows: [{k:'app_id',v:'app:web'}, {k:'实例',v:'2 个 · vm-demo-01、vm-demo-03'}, {k:'上游',v:'无'}, {k:'下游',v:'order-svc（观测）、search（候选）'}], note: '核验状态：已核验 · 10:42' },
+      order: { title: 'order-svc', badge: '应用', cls: 'run', isNode: true, rows: [{k:'app_id',v:'app:order-svc'}, {k:'实例',v:'2 个 · vm-demo-01、vm-demo-02'}, {k:'上游',v:'web（观测）'}, {k:'下游',v:'payment-api（冲突）、mq（过期）'}], note: 'vm-demo-02 上的实例状态未知（采集超时）。' },
+      pay: { title: 'payment-api', badge: '应用', cls: 'run', isNode: true, rows: [{k:'app_id',v:'app:payment-api'}, {k:'实例',v:'1 个 · vm-demo-02'}, {k:'上游',v:'order-svc（冲突）'}, {k:'下游',v:'db-order（仅网络）'}], note: '核验状态：部分未知' },
+      search: { title: 'search', badge: '应用', cls: 'guess', isNode: true, rows: [{k:'app_id',v:'app:search'}, {k:'实例',v:'未知'}, {k:'上游',v:'web（候选）'}, {k:'下游',v:'无记录'}], note: '只来自候选关系，尚未采集到实例。' },
+      mq: { title: 'mq', badge: '应用', cls: 'run', isNode: true, rows: [{k:'app_id',v:'app:mq'}, {k:'实例',v:'1 个 · vm-demo-03'}, {k:'上游',v:'order-svc（过期）、notify-worker（观测）'}, {k:'下游',v:'无记录'}], note: '核验状态：已核验 · 10:42' },
+      db: { title: 'db-order', badge: '数据库', cls: 'run', isNode: true, rows: [{k:'资产',v:'db:pg-test-order'}, {k:'类型',v:'PostgreSQL 16'}, {k:'上游',v:'payment-api（仅网络）'}, {k:'下游',v:'无'}], note: '核验状态：已核验 · 10:40' },
+      notify: { title: 'notify-worker', badge: '应用', cls: 'run', isNode: true, rows: [{k:'app_id',v:'app:notify-worker'}, {k:'实例',v:'1 个 · vm-demo-03'}, {k:'上游',v:'无'}, {k:'下游',v:'mq（观测）'}], note: '核验状态：已核验 · 10:42' },
+      e1: { title: 'web → order-svc', badge: '实际观测', cls: 'ok', rows: [{k:'证据',v:'网关访问日志'}, {k:'观测窗口',v:'10-12 09:00 ~ 10-13 09:00'}, {k:'覆盖范围',v:'全部 2 个实例'}, {k:'事实版本',v:'f-1182'}], note: '核验状态：已核验' },
+      e2: { title: 'order-svc → payment-api', badge: '证据冲突', cls: 'bad', rows: [{k:'配置声明',v:'application.yaml 中的 payment.url'}, {k:'实际观测',v:'7 天内无调用记录'}, {k:'覆盖范围',v:'只有 vm-demo-01 有日志采集'}, {k:'事实版本',v:'f-1182'}], note: '两类证据分别列出。观测覆盖不全，缺少观测不等于没有依赖。' },
+      e3: { title: 'web → search', badge: '候选', cls: 'guess', rows: [{k:'来源',v:'模型根据 README 推测'}, {k:'观测窗口',v:'无'}, {k:'覆盖范围',v:'无'}, {k:'事实版本',v:'f-1180'}], note: '未核验。不能写成已核验事实。' },
+      e4: { title: 'order-svc → mq', badge: '观测已过期', cls: 'wait', rows: [{k:'证据',v:'调用链采样'}, {k:'最近观测',v:'3 天前'}, {k:'覆盖范围',v:'采样率 10%'}, {k:'事实版本',v:'f-1171'}], note: '超过新鲜度期限，等待重新采集。' },
+      e5: { title: 'payment-api → db-order', badge: '网络策略', cls: 'unk', rows: [{k:'证据',v:'安全组允许 5432 入站'}, {k:'观测窗口',v:'无'}, {k:'覆盖范围',v:'安全组规则'}, {k:'事实版本',v:'f-1182'}], note: '网络规则允许连通，不证明真的有调用。' },
+      e6: { title: 'notify-worker → mq', badge: '实际观测', cls: 'ok', rows: [{k:'证据',v:'mq 连接日志'}, {k:'观测窗口',v:'10-12 09:00 ~ 10-13 09:00'}, {k:'覆盖范围',v:'全部实例'}, {k:'事实版本',v:'f-1182'}], note: '核验状态：已核验' }
+    };
+    var sel = this.state.sel;
+    var pick = {}, bd = {};
+    Object.keys(D).forEach((k) => {
+      pick[k] = () => this.setState({ sel: k });
+      bd[k] = sel === k ? '2px solid #16181D' : (D[k].cls === 'guess' ? '1px dashed #8A73B8' : '1px solid #C9CCC4');
+    });
+    var d = D[sel];
+    if (!d.isNode) d.isNode = false;
+    return { pick: pick, bd: bd, d: d };
+  }
+}
+</script>
+</body>
+</html>

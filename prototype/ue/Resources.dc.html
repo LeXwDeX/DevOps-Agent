@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>当前资源</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=Noto+Sans+SC:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0;background:#F3F4F1;color:#16181D;font-family:"IBM Plex Sans","Noto Sans SC",system-ui,sans-serif}
+a{color:#1F4C99}a:hover{color:#163A78}
+.nav{display:flex;align-items:center;gap:10px;min-height:42px;padding:0 12px;border-radius:7px;color:#C9CED6;text-decoration:none;font-size:14px}
+.nav:hover{background:#222833;color:#fff}
+.nav.on{background:#2C3440;color:#fff;font-weight:500}
+.navh{font-size:11px;letter-spacing:.08em;color:#8A93A1;padding:14px 12px 4px}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
+.card{background:#fff;border:1px solid #DCDED8;border-radius:10px}
+.chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:500;white-space:nowrap;box-sizing:border-box}
+.ok{background:#E3F1E8;color:#1E5C38}.bad{background:#F8E3E0;color:#8E2A20}.wait{background:#FBEBD0;color:#6E4300}.unk{background:#F7F7F5;color:#3F4652;border:1px dashed #7D8490}.run{background:#E2EAF7;color:#1F4C99}
+.muted{color:#5B616B}
+.sel{font:inherit;font-size:13px;min-height:36px;padding:0 8px;border:1px solid #C9CCC4;border-radius:7px;background:#fff}
+.vm{display:grid;grid-template-columns:44px minmax(150px,1.4fr) 90px 120px 110px 120px minmax(150px,1fr);align-items:center;gap:0 12px;padding:10px 16px;font-size:13px;min-width:900px}
+.exp{font:inherit;width:36px;height:36px;border:1px solid #DCDED8;border-radius:7px;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#3F4652}
+.src{font-size:11px;color:#5B616B;font-family:"IBM Plex Mono",ui-monospace,monospace}
+th{font-weight:500;color:#5B616B;font-size:12px;text-align:left;padding:8px 12px;border-bottom:1px solid #E6E7E2;white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid #EFF0EC;font-size:13px;white-space:nowrap}
+</style>
+</helmet>
+<div style="display: flex; flex-wrap: wrap; min-height: 1100px; width: 100%">
+  <nav aria-label="主导航" style="flex: 1 1 220px; max-width: 100%; background: #171B22; padding: 18px 12px; display: flex; flex-direction: column; gap: 2px; box-sizing: border-box">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 4px 12px 16px">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#E0A33A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-7 4 14 3-7h4"></path></svg>
+      <span style="font-weight: 600; color: #fff; font-size: 15px">DevOps-Agent</span>
+    </div>
+    <div class="navh">项目</div>
+    <a class="nav" href="Main.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"></rect><rect x="14" y="3" width="7" height="5" rx="1"></rect><rect x="14" y="12" width="7" height="9" rx="1"></rect><rect x="3" y="16" width="7" height="5" rx="1"></rect></svg>运维大盘<span class="chip wait" style="margin-left: auto; height: 20px">3</span></a>
+    <a class="nav" href="Workbench.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg>项目对话</a>
+    <a class="nav" href="Topology.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="6" cy="6" r="2.5"></circle><circle cx="18" cy="7" r="2.5"></circle><circle cx="12" cy="18" r="2.5"></circle><path d="M8.3 6.3l7.2.6M7.3 8.2l3.6 7.6M16.8 9.3l-3.6 6.6"></path></svg>逻辑拓扑地图</a>
+    <a class="nav on" href="Resources.dc.html" aria-current="page"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="7" rx="1.5"></rect><rect x="3" y="13" width="18" height="7" rx="1.5"></rect><path d="M7 7.5h.01M7 16.5h.01"></path></svg>当前资源</a>
+    <a class="nav" href="Sop.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="6" height="5" rx="1"></rect><rect x="15" y="9" width="6" height="5" rx="1"></rect><rect x="3" y="16" width="6" height="5" rx="1"></rect><path d="M6 8v8M9 5.5h3v6h3"></path></svg>Harness 流程</a>
+    <div class="navh">平台</div>
+    <a class="nav" href="#"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="8" cy="15" r="4"></circle><path d="M11 12l9-9M17 6l3 3"></path></svg>凭证 K</a>
+    <a class="nav" href="#"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"></path></svg>策略中心</a>
+    <a class="nav" href="#"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 4h14v16H5zM9 8h6M9 12h6M9 16h4"></path></svg>审计</a>
+  </nav>
+
+  <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 14px 28px; background: #fff; border-bottom: 1px solid #DCDED8; font-size: 13px">
+      <h1 style="margin: 0; font-size: 18px; font-weight: 600">当前资源</h1>
+      <span class="chip run">shop-demo · test</span>
+      <label style="display: flex; align-items: center; gap: 6px"><span class="muted">视图</span><select class="sel"><option>虚拟机模式</option></select></label>
+      <label style="display: flex; align-items: center; gap: 6px"><span class="muted">供应商</span><select class="sel"><option>全部</option><option>阿里云</option><option>Azure</option></select></label>
+      <div style="flex: 1"></div>
+      <span class="chip unk">示例数据</span>
+    </header>
+
+    <div style="padding: 20px 28px 32px; display: flex; flex-direction: column; gap: 16px">
+      <div style="display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; font-size: 13px">
+        <span><b>4</b> 台宿主</span><span class="chip ok">运行 3</span><span class="chip bad">异常 0</span><span class="chip unk">未知 1</span>
+        <span class="muted">每个字段带来源和采集时间。未知就显示未知，不显示成停机或 0。</span>
+      </div>
+
+      <section class="card" style="overflow-x: auto">
+        <div class="vm" style="color: #5B616B; font-size: 12px; font-weight: 500; border-bottom: 1px solid #E6E7E2">
+          <span></span><span>宿主</span><span>供应商</span><span>区域</span><span>状态</span><span>规格</span><span>采集</span>
+        </div>
+        <sc-for list="{{vms}}" as="v" hint-placeholder-count="4">
+          <div style="border-bottom: 1px solid #EFF0EC">
+            <div class="vm">
+              <button class="exp" onClick="{{v.toggle}}" aria-label="展开 {{v.name}}" aria-expanded="{{v.open}}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true" style="{{v.rot}}"><path d="M9 6l6 6-6 6"></path></svg></button>
+              <span style="display: flex; flex-direction: column; gap: 2px"><b style="font-weight: 500">{{v.name}}</b><span class="mono muted" style="font-size: 12px">{{v.id}}</span></span>
+              <span>{{v.vendor}}</span>
+              <span class="mono" style="font-size: 12px">{{v.region}}</span>
+              <span><span class="chip {{v.cls}}">{{v.state}}</span></span>
+              <span class="mono" style="font-size: 12px">{{v.spec}}</span>
+              <span class="src">{{v.src}}</span>
+            </div>
+            <sc-if value="{{v.open}}" hint-placeholder-val="{{ false }}">
+              <div style="padding: 4px 16px 16px 72px; background: #FAFAF8; min-width: 900px; box-sizing: border-box">
+                <table style="width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #E6E7E2; border-radius: 8px">
+                  <thead><tr><th>APP 实例</th><th>版本</th><th>端口</th><th>启动方式</th><th>健康</th><th>来源 · 时间</th><th></th></tr></thead>
+                  <tbody>
+                    <sc-for list="{{v.apps}}" as="a" hint-placeholder-count="2">
+                      <tr><td class="mono">{{a.app}}</td><td class="mono">{{a.ver}}</td><td class="mono">{{a.port}}</td><td>{{a.boot}}</td><td><span class="chip {{a.cls}}">{{a.health}}</span></td><td class="src">{{a.src}}</td><td><a href="Topology.dc.html">在拓扑中查看</a></td></tr>
+                    </sc-for>
+                  </tbody>
+                </table>
+                <div class="muted" style="font-size: 12px; margin-top: 8px">{{v.note}}</div>
+              </div>
+            </sc-if>
+          </div>
+        </sc-for>
+      </section>
+
+      <div class="card" style="padding: 14px 18px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 13px">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3F4652" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5M12 16h.01"></path></svg>
+        <span style="flex: 1 1 300px">页面只读，不提供重启、扩容等按钮。需要操作资源时，在对话中让 Agent 发起，走执行门禁。</span>
+        <a href="Workbench.dc.html">去对话</a>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1100}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { open: { 'vm-demo-01': true } }; }
+  renderVals() {
+    var VMS = [
+      { name: 'vm-demo-01', id: 'host:vm-demo-01', vendor: '阿里云', region: 'cn-hangzhou-h', state: '运行', cls: 'ok', spec: '4C8G · ecs.c7', src: 'ECS API · 10:42',
+        note: '磁盘 87%，关联告警 P2（监控旁路 10:31）。',
+        apps: [
+          { app: 'app-01', ver: 'v1.8.1', port: '8080', boot: 'systemd', health: '健康', cls: 'ok', src: 'systemd · 10:42' },
+          { app: 'order-svc', ver: 'v1.8.1', port: '8081', boot: 'systemd', health: '健康', cls: 'ok', src: 'systemd · 10:42' },
+          { app: 'web', ver: 'v3.2.0', port: '443', boot: 'docker', health: '健康', cls: 'ok', src: 'docker · 10:42' }
+        ] },
+      { name: 'vm-demo-02', id: 'host:vm-demo-02', vendor: '阿里云', region: 'cn-hangzhou-h', state: '未知', cls: 'unk', spec: '4C8G · ecs.c7', src: '采集超时 · 10:40',
+        note: '最近一次采集超时。未知不算停机；上次成功采集 09:40。',
+        apps: [
+          { app: 'order-svc', ver: '未知', port: '8081', boot: 'systemd', health: '未知', cls: 'unk', src: '上次 09:40' },
+          { app: 'payment-api', ver: '未知', port: '9000', boot: 'systemd', health: '未知', cls: 'unk', src: '上次 09:40' }
+        ] },
+      { name: 'vm-demo-03', id: 'host:vm-demo-03', vendor: 'Azure', region: 'eastasia', state: '运行', cls: 'ok', spec: 'D2s_v5', src: 'Azure API · 10:41',
+        note: '无关联告警。',
+        apps: [
+          { app: 'web', ver: 'v3.2.0', port: '443', boot: 'docker', health: '健康', cls: 'ok', src: 'docker · 10:41' },
+          { app: 'mq', ver: '3.13', port: '5672', boot: 'docker', health: '健康', cls: 'ok', src: 'docker · 10:41' },
+          { app: 'notify-worker', ver: 'v0.9.4', port: '—', boot: 'docker', health: '重启 2 次', cls: 'wait', src: 'docker · 10:41' }
+        ] },
+      { name: 'db-test-01', id: 'host:db-test-01', vendor: '阿里云', region: 'cn-hangzhou-h', state: '运行', cls: 'ok', spec: 'RDS pg.n2.medium', src: 'RDS API · 10:40',
+        note: '数据库资产：db:pg-test-order（PostgreSQL 16）。',
+        apps: [
+          { app: 'db-order', ver: 'PostgreSQL 16.4', port: '5432', boot: '托管', health: '健康', cls: 'ok', src: 'RDS API · 10:40' }
+        ] }
+    ];
+    var open = this.state.open;
+    var vms = VMS.map((v) => Object.assign({}, v, {
+      open: !!open[v.name],
+      rot: open[v.name] ? 'transform: rotate(90deg)' : '',
+      toggle: () => { var o = Object.assign({}, this.state.open); o[v.name] = !o[v.name]; this.setState({ open: o }); }
+    }));
+    return { vms: vms };
+  }
+}
+</script>
+</body>
+</html>
