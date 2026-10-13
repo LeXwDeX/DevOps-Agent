@@ -21,7 +21,7 @@
 
 ## 当前阶段
 
-项目按层实现中，目标是 1.0 版：本地用 Docker 部署，LLM 的 URL 和 key 通过 Docker 环境变量传入，支持 OpenAI Chat Completions 格式。设计文档不代表功能已经实现。协作约定见 [AGENTS.md](AGENTS.md)，下一步任务见 [开发台账](plans/dev-ledger.md)。不处理 Hermes 源码。
+项目按层实现中，目标是 1.0 版：本地用 Docker 部署，LLM 的 URL 和 key 通过 Docker 环境变量传入，支持 OpenAI Chat Completions 格式。设计文档不代表功能已经实现。协作约定见 [AGENTS.md](AGENTS.md)，下一步任务见 [任务表](docs/70-handoff/72-task-board.md)。不处理 Hermes 源码。
 
 ## License
 

@@ -73,6 +73,9 @@ depends_on: []
 | **60 详细设计** | | | |
 | [61-core-layer](60-design/61-core-layer.md) | core 层详细设计：状态机、检验流水线、策略解析、修订冻结、编排引擎、端口与测试 | 开发或审核 core 层 | 已定 |
 | [62-provider-storage-modelgw](60-design/62-provider-storage-modelgw.md) | provider 第一块：PostgreSQL 存储、outbox、审计、系统时钟与 ID、模型出口代理 | 开发或审核存储、模型出口代理 | 已定 |
+| **70 交接（不是设计）** | | | |
+| [71-handoff-guide](70-handoff/71-handoff-guide.md) | 当前进度、开工步骤、完成标准、审核与合并、草稿代码取回 | 接手开发、开始任何任务前 | 持续维护 |
+| [72-task-board](70-handoff/72-task-board.md) | core 之后的全部任务与子任务：依赖、做什么、验证、状态 | 选下一个任务、开工或交付时 | 持续维护 |
 
 ## 任务路由
 
@@ -80,6 +83,7 @@ depends_on: []
 
 | 任务 | 加载 |
 |---|---|
+| 接手开发、选下一个任务 | 71、72，再按任务卡片的"依据"加载 |
 | 开始项目起底开发 | 56、53、54、11、51 |
 | 开发 core 层 | 61、21、22、23、53、52 |
 | 开发 provider 存储或模型出口代理 | 62、61、11、13、25、51 |
@@ -108,6 +112,6 @@ depends_on: []
 - `status` 取值：已定 / 雏形 / 草案 / 结构预留 / 持续维护。
 - 规则用 `K-xx` 引用；待定项用 `Qn` 引用。
 - 图用 Mermaid 写在 Markdown 里。
-- 只记录当前设计，不记录更新日志。
+- 只记录当前设计，不记录更新日志。进度和任务只写在 70 交接目录。
 - 用短句和常用词。
 - 改规则先改 [内核规则](00-overview/03-kernel-rules.md)，再改引用处；新增术语先加进 [术语表](00-overview/02-glossary.md)。
