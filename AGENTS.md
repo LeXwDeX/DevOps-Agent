@@ -129,7 +129,7 @@
 
 - 只记录当前确定的设计，不记录更新日志。实现进度不写进设计文档。
 - 进度和任务只写在交接文档 `docs/70-handoff/`。它不是设计文档，不另建同类的台账或计划文件。
-- 使用 SpecGit（文末区块）时，GitHub Issue 只写子任务的规格摘要（Why / Scope / Approach / Acceptance），并链接任务表里的子任务号。任务状态只在任务表维护，Issue 不另记进度。SpecGit 区块里"Issue 承载工作台账"一句按此理解。
+- 使用 SpecGit（文末区块）时，GitHub Issue 只写子任务的规格摘要（Why / Scope / Approach / Acceptance），并链接任务表里的子任务号。任务状态只在任务表维护，Issue 不另记进度。本条同时适用于文末 SpecGit 区块和 specgit-native Skill，其中"Issue 承载工作台账"等说法按此理解。
 - 改规则先改 `03-kernel-rules.md`，再改引用处；新术语先加进 `02-glossary.md`。
 - 待定项有结论后，把结论写进对应文档，并从 `04-open-questions.md` 删除。
 - 每篇文档保留 YAML front matter（id、title、status、summary、load_when、depends_on），并同步更新 `docs/README.md` 的目录和任务路由。
