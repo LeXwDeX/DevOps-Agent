@@ -40,7 +40,7 @@ depends_on: [HANDOFF-GUIDE, PHASES]
 | L03.2 | Chat 基础适配器：请求编码与普通回复 | M1 | L03.1 | 未开始 |
 | L03.3 | Chat 基础适配器：流式解码 | M1 | L03.2 | 未开始 |
 | L03.4 | DeepSeek 派生适配器 | M1 | L03.3 | 未开始 |
-| L04.1 | 设计 63：部署与进程 | M1 | L01 | 进行中（`claude/L04.1-deploy-process`） |
+| L04.1 | 设计 63：部署与进程 | M1 | L01 | 待审核 [#12](https://github.com/LeXwDeX/DevOps-Agent/pull/12) |
 | L04.2 | 设计 63：核心控制服务与任务队列 | M1 | L04.1 | 未开始 |
 | L04.3 | 设计 63：SDK v0 与平台依赖方式 | M1 | L04.1 | 未开始 |
 | L04.4 | 设计 63：账号、凭证库最小版、页面 | M1 | L04.2 | 未开始 |
