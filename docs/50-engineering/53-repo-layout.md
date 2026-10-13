@@ -1,8 +1,8 @@
 ---
 id: REPO-LAYOUT
 title: 仓库与模块布局
-status: 已定（模块发布路径在实现启动前固定）
-summary: 仓库里有哪些 Go 模块、目录怎么放；SDK 独立模块；平台模块的 cmd 与 internal 目录；登记资产目录；"传输接口 → 应用用例 → 业务规则"依赖方向；各二进制只拿本职责凭证。
+status: 已定
+summary: 仓库里有哪些 Go 模块、目录怎么放；SDK 独立模块；平台模块的 cmd 与 internal 目录；登记资产目录；"传输接口 → 应用用例 → 业务规则"依赖方向；各二进制只拿本职责凭证。模块发布路径在实现启动前固定。
 load_when: 创建目录、模块或新二进制前；决定代码放在哪个包、能依赖谁时；新增登记资产时
 depends_on: [KERNEL, COMPONENTS, SUBSTRATE, SCHEMA-CONST]
 ---
@@ -68,7 +68,7 @@ go.work                  # 只在本地使用，不作为构建输入
 platform/
   go.mod
   cmd/                     # 每个二进制一个目录，只做装配：把 provider 接到 core 的端口上
-    core/  agent-worker/  harness/  scheduler/  executor/  model-proxy/
+    entry/  core/  agent-worker/  harness/  scheduler/  executor/  model-proxy/
     substrate/  monitor-worker/  migrate/
   internal/
     schema/                # 常量、枚举、错误码、配置结构、对外契约
@@ -94,9 +94,10 @@ platform/
 说明：
 
 - `cmd/<二进制>/` 只做装配：决定这个二进制拿哪些 provider、哪些凭证、启用哪些 module。业务逻辑不写在 `cmd` 里。
-- 每个常驻进程一个二进制。首版打成两个镜像：core 镜像含 `core`、`agent-worker`；runtime 镜像含 `harness`、`scheduler`、`executor`、`model-proxy`（见 [组件与边界](../10-architecture/11-components-and-boundaries.md) 第 5 节）。同容器的进程使用不同运行身份。
+- 每个常驻进程一个二进制。首版打成两个镜像：core 镜像含 `entry`、`core`、`agent-worker`；runtime 镜像含 `entry`、`harness`、`scheduler`、`executor`、`model-proxy`、`migrate`（见 [组件与边界](../10-architecture/11-components-and-boundaries.md) 第 5 节）。同容器的进程使用不同运行身份。
+- `entry` 是容器入口进程，只用标准库（[63](../60-design/63-m1-platform-skeleton.md) 第 4 节）。M1 的 runtime 镜像只有 `entry`、`model-proxy`、`migrate`（63 第 3.1 节）。数据库引导是 `migrate bootstrap`，不另建程序或脚本。
 - 镜像只含二进制和静态文件，不含配置（K-31）。`deploy/` 下的配置模板在部署时写入外部配置目录。
-- `migrate` 不是常驻服务。它只持有迁移账号，由底座在一次受控执行中调用（见 [部署底座](../10-architecture/12-deployment-substrate.md) 第 6.3 节）。
+- `migrate` 不是常驻服务。它在 runtime 镜像里，但入口进程不启动它。`plan`、`apply` 只持有迁移账号；`bootstrap` 只在 db-init 服务里运行（63 第 12.2 节）。M1 由管理员手动运行一次性 Compose 服务；底座阶段由底座在一次受控执行中调用（见 [部署底座](../10-architecture/12-deployment-substrate.md) 第 6.3 节、[63](../60-design/63-m1-platform-skeleton.md) 第 12 节）。
 - 包内单元测试和 `testdata/` 放在各自包里；`test/` 只放跨二进制的契约测试和语料。
 - 名字说明：`internal/core/` 是代码里的内核层，和"core 容器""核心控制服务"不是一回事。
 
@@ -153,15 +154,16 @@ flowchart LR
 
 | 二进制 | 可以持有 | 不能持有 |
 |---|---|---|
-| core | 核心业务库和事实库账号；审计库只读账号（审计页面）；调用 Harness 的接口凭证 | 任何 V；Docker socket；Harness 库和审计库的写权限；模型 API key |
-| agent-worker | 任务队列访问；调用 Harness 和模型出口代理的接口凭证 | 任何 V；Docker socket；宿主 shell；数据库账号 |
+| core | 核心业务库和事实库账号；审计库只读权限（审计页面）；M1 另有 `audit_records` 的 `INSERT` 权限，只写平台管理事件（[63](../60-design/63-m1-platform-skeleton.md) 第 12.1 节）；调用 Harness 的接口凭证 | 任何 V；Docker socket；Harness 库写权限；审计库的 `UPDATE`、`DELETE`、`TRUNCATE`；写执行审计；模型 API key |
+| entry | 无。只有切换运行身份和向子进程发信号的能力（[63](../60-design/63-m1-platform-skeleton.md) 第 5.1 节）。它能切换到任一身份，是受信组件 | 不读取密钥文件，不把环境变量的值写进日志。例外：runtime 入口进程的初始环境里有模型接入变量，只原样传给代理（63 第 4.3 节） |
+| agent-worker | 任务队列访问；调用 Harness 和模型出口代理的接口凭证（模型出口代理的客户端 token 不是资产凭证，也不是模型 key） | 任何 V；Docker socket；宿主 shell；数据库账号 |
 | harness | Harness 库账号；审计库追加写账号；调用执行器的接口凭证 | 任何 V；Docker socket |
 | scheduler | 调度服务库账号；向 Harness 提交触发的接口凭证 | 任何 V；直接调用执行器 |
 | executor | 按 K 读取 V 的凭证库权限；审计库追加写账号；项目目标网络 | 模型 API key 和模型接入变量；修改策略或登记资产 |
 | model-proxy | 启动时收到的模型接入变量（[11](../10-architecture/11-components-and-boundaries.md) 第 5.4 节）；已批准的模型端点 | 凭证库权限；资产凭证；项目目标网络 |
 | substrate | 本机 Docker socket（只在节点代理）；节点通道证书 | 资产凭证；模型 API key |
 | monitor-worker | 监控旁路自己的存储和只读采集配置（见 [监控](../30-features/36-monitoring.md)） | 写操作凭证；依赖核心或 Worker |
-| migrate | 迁移账号 | 运行期业务账号以外的任何凭证 |
+| migrate | `plan`、`apply`：迁移账号。`bootstrap`：只在 db-init 服务里拿到超级用户口令和两个账号口令的副本（63 第 12.2 节） | 模型接入变量、代理 token、凭证库主密钥；`plan`、`apply` 不持有运行账号，也不持有迁移账号以外的任何凭证 |
 
 容器划分和挂载表见 [组件与边界](../10-architecture/11-components-and-boundaries.md) 第 5 节。凭证库的完整形态随 Q10 定。
 

@@ -17,7 +17,7 @@ depends_on: [KERNEL, DESIGN-CORE, COMPONENTS, STATE-RECOVERY, SECRETS, GO-STACK,
 |---|---|
 | `RequestStore`、`RevisionLog`、`TaskStore`、`EventSink`（outbox）、`AuditSink` 的 PostgreSQL 实现 | dcg、凭证库、执行通道（provider 第二块） |
 | outbox 的读取与标记已投递（供以后的投递服务用） | `PolicySource`、`Registry`、`ScopeSource`：数据来自登记中心和会话模块，随 module 块实现 |
-| 三个库的版本化迁移文件，以及测试用的迁移执行函数 | 迁移的受控执行（由底座发起，K-23） |
+| 三个库的版本化迁移文件，以及测试用的迁移执行函数 | 迁移的受控执行（K-23，见 [12](../10-architecture/12-deployment-substrate.md) 第 6.3 节、[63](63-m1-platform-skeleton.md) 第 12 节） |
 | `Clock`、`IDGen` 的标准实现 | `cmd/*` 装配、HTTP 接口、任务队列 |
 | 模型出口代理：读取模型接入变量、端点限制、key 注入、mask、流式转发、可用性状态 | GoAgent SDK 的其余部分：运行循环、上下文、工具、`AuthenticatedTransportPort` 适配（SDK 块） |
 | SDK 的 Chat Completions 基础适配器和 DeepSeek 派生适配器（支持 `reasoning_content`，第 5.4 节） | 其他三种基础协议、GLM 派生适配器、请求管理、sidecar 持久化 |
@@ -35,9 +35,9 @@ depends_on: [KERNEL, DESIGN-CORE, COMPONENTS, STATE-RECOVERY, SECRETS, GO-STACK,
 | L02 | 第 3 节 PostgreSQL 存储、迁移文件和测试库 | 第 7 节及第 8 节的存储、事务、并发、迟到结果、文档、固定 SQL、审计、outbox、修订日志 |
 | L03 | 第 5.4 节 SDK 协议层 | 第 8 节协议适配器及台账 L03 的独立宿主构建验证 |
 
-第 9 节审核清单按此映射核对。L01 不装配 `cmd/model-proxy`，不决定客户端凭证文件位置。
+第 9 节审核清单按此映射核对。L01 不装配 `cmd/model-proxy`，不决定客户端凭证文件位置。文件位置见 63 第 8.1 节。
 
-HTTP 服务的并发上限、入站请求头与请求体读时限、客户端响应写时限由 L06 装配层设置并验证；具体配置由 L04 定下。L01 的 handler 负责上游超时、取消传播及请求与响应大小限制，不把装配层的资源限制计为已验证。
+HTTP 服务的并发上限、入站请求头与请求体读时限、客户端响应写时限由 L06 装配层设置并验证；具体值见 63 第 9 节。L01 的 handler 负责上游超时、取消传播及请求与响应大小限制，不把装配层的资源限制计为已验证。
 
 ## 2. 包结构
 
@@ -123,7 +123,7 @@ platform/
 ### 3.6 迁移
 
 - 迁移文件是审核过的 SQL 文件，按文件名顺序执行。服务启动时不执行迁移（[Go 技术选型](../50-engineering/51-go-stack.md) 第 3 节）。
-- `migrations.go` 用 `embed` 提供文件。本块只有测试用的执行函数（`pgtest`）。以后 `cmd/migrate` 复用同一组文件。
+- `migrations.go` 用 `embed` 提供文件。本块只有测试用的执行函数（`pgtest`）。`cmd/migrate` 复用同一组文件（63 第 12.3 节）。
 
 ### 3.7 测试数据库
 

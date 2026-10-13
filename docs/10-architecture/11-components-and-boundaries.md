@@ -67,7 +67,8 @@ flowchart TB
 ## 3. 关键规则
 
 - 权限边界按独立进程或容器划分，不靠代码约定。
-- 核心接口不等待模型调用完成。Worker 故障只影响相关任务，核心页面和记录仍可用。
+- 核心接口不等待模型调用完成。Worker 停止领取任务时（例如并发设为 0），核心页面和记录仍可用。
+- Worker 进程崩溃时，入口进程停止整个 core 容器（第 5.1 节）。重启后进入恢复模式，相关任务按恢复即停止处理（K-24）。
 - Worker 与核心控制服务同在 core 容器，但是两个进程、两个运行身份。Worker 有自己的并发、队列和内存上限，积压不能耗尽核心资源。
 - 一个项目只归属一个核心实例。不同 VM 上的核心实例使用不同的实例 ID 和数据边界。
 - 项目归属限定工作范围，不代替环境策略和执行门禁。切换项目或环境时重新核验范围。
@@ -95,10 +96,11 @@ flowchart TB
 | runtime | Harness、持久调度服务、执行器、模型出口代理 | 持有凭证库，只有执行器能读其中的 V；模型 API key 只在模型出口代理的内存里 | 执行侧 |
 
 - Agent 和凭证分在两个容器，K-18 由容器边界保证。
-- 容器内的入口进程启动全部子进程。任一子进程退出，入口进程即退出，由 Docker Engine 重启整个容器。容器内不再设第二个重启者（单一重启责任方，见 [部署底座](12-deployment-substrate.md)）。重启按恢复处理（K-24）。
+- M1 的实际进程见 [63](../60-design/63-m1-platform-skeleton.md) 第 3.3 节。M1 的 runtime 只启动入口进程和模型出口代理；Harness、持久调度服务、执行器在 M2 之后启动。
+- 容器内的入口进程启动全部子进程。任一子进程退出，入口进程即退出，由 Docker Engine 重启整个容器。容器内不再设第二个重启者（单一重启责任方，见 [部署底座](12-deployment-substrate.md)）。重启按恢复处理（K-24）。M1 不自动重启容器，由管理员手动重启（63 第 11.1 节）。入口进程的启动、信号、退出和环境白名单见 63 第 4 节。
 - PostgreSQL 单独部署（独立容器或托管数据库），不在这两个容器内。core、Harness、审计使用不同的库或 schema 和不同账号。
 - 监控旁路是独立节点（K-25），不在这两个容器内。
-- 底座在宿主上，由 supervisord 托管底座控制服务和节点代理。
+- 底座在宿主上，由 supervisord 托管底座控制服务和节点代理。M1 用 docker compose 部署，不含底座和监控旁路（63 第 2 节）。
 - 首版面向单人，core、runtime、PostgreSQL 可以在同一台 VM 上；监控旁路在另一台。高可用不在首版范围内。
 
 ### 5.2 运算与数据分离（K-31）
@@ -117,14 +119,14 @@ flowchart TB
 
 ### 5.3 挂载表
 
-宿主路径统一放在 `${DATA_ROOT}/${instance_id}/` 下，`DATA_ROOT` 默认 `/srv/devops-agent`。容器内路径固定，代码只认容器内路径。
+宿主路径统一放在 `${DATA_ROOT}/${instance_id}/` 下，`DATA_ROOT` 默认 `/srv/devops-agent`。`instance_id` 在 M1 由 Compose 变量 `INSTANCE_ID` 给出，默认 `local`。容器内路径固定，代码只认容器内路径。
 
 **core 容器**
 
 | 容器内路径 | 宿主路径 | 方式 | 内容 | 备份 |
 |---|---|---|---|---|
-| `/etc/devops-agent` | `config/core/` | 只读 | 核心控制服务和 Worker 的配置：监听地址、数据库地址与账号名、runtime 地址、模型路由（指向模型出口代理） | 随配置版本保存 |
-| `/run/secrets/devops-agent` | `secrets/core/` | 只读，0400 | core 数据库口令（只给核心控制服务的运行身份） | 离线保存 |
+| `/etc/devops-agent` | `config/core/` | 只读 | 核心控制服务和 Worker 的配置：监听地址、数据库地址与账号名、runtime 地址、模型路由（指向模型出口代理）。文件格式和字段见 [63](../60-design/63-m1-platform-skeleton.md) 第 7 节 | 随配置版本保存 |
+| `/run/secrets/devops-agent` | `secrets/core/` | 只读；每个运行身份一个子目录（属主为该身份，0500），文件 0400 | `core-service/db-password`：core 数据库口令（只给核心控制服务）；`agent-worker/model-proxy-token`：Worker 访问模型出口代理的客户端 token（只给 Worker） | 离线保存 |
 | `/var/lib/devops-agent` | `data/core/` | 读写 | 项目上传的资料文件、知识索引文件 | 是 |
 | `/var/tmp/devops-agent` | `tmp/core/` | 读写 | 临时文件 | 否 |
 
@@ -132,19 +134,28 @@ flowchart TB
 
 | 容器内路径 | 宿主路径 | 方式 | 内容 | 备份 |
 |---|---|---|---|---|
-| `/etc/devops-agent` | `config/runtime/` | 只读 | Harness、调度、执行器、模型出口代理的配置：数据库地址与账号名、跳板与网络出口、超时与并发；dcg 配置文件。模型端点不写在这里（第 5.4 节） | 随配置版本保存 |
-| `/run/secrets/devops-agent` | `secrets/runtime/` | 只读，0400 | runtime 各账号的数据库口令、凭证库主密钥（各文件只给对应运行身份） | 离线保存 |
+| `/etc/devops-agent` | `config/runtime/` | 只读 | Harness、调度、执行器、模型出口代理的配置：数据库地址与账号名、跳板与网络出口、超时与并发；dcg 配置文件。模型端点不写在这里（第 5.4 节）。文件格式和字段见 63 第 7 节 | 随配置版本保存 |
+| `/run/secrets/devops-agent` | `secrets/runtime/` | 只读；每个运行身份一个子目录（属主为该身份，0500），文件 0400 | `model-proxy/client-token`：模型出口代理校验客户端 token（只给代理）。M2 起另有 runtime 各账号的数据库口令、凭证库主密钥，各放在对应身份的子目录 | 离线保存 |
 | `/var/lib/devops-agent/vault` | `data/vault/` | 读写，0700 | 凭证库存储（V，加密保存）。只有执行器的运行身份能访问 | 是，加密备份 |
 | `/var/lib/devops-agent/artifacts` | `data/artifacts/` | 读写 | 部署制品的版本化暂存（例如从 OSS 下载的制品） | 可选 |
 | `/var/lib/devops-agent/workspaces` | `data/workspaces/` | 读写 | 工具工作区与任务临时空间（Q24） | 否 |
 | `/opt/devops-agent/assets` | `assets/<版本>/` | 只读 | 出厂资产包：内置 dcg 规则包、内置 mask 规则、内置命令模板。导入后仍需登记（K-20） | 随发布清单保存 |
 | `/var/tmp/devops-agent` | `tmp/runtime/` | 读写 | 临时文件 | 否 |
 
+**一次性服务**（详见 [63](../60-design/63-m1-platform-skeleton.md) 第 8 节）
+
+| 服务 | 容器内路径 | 宿主路径 | 方式 | 内容 | 备份 |
+|---|---|---|---|---|---|
+| migrate | `/etc/devops-agent` | `config/migrate/` | 只读 | 迁移程序的配置 | 随配置版本保存 |
+| migrate | `/run/secrets/devops-agent` | `secrets/migrate/` | 只读 | 迁移账号口令 | 离线保存 |
+| db-init | `/etc/devops-agent` | `config/bootstrap/` | 只读 | 数据库引导的配置 | 随配置版本保存 |
+| db-init | `/run/secrets/devops-agent` | `secrets/bootstrap/` | 只读；属主 10021，0500，文件 0400 | 超级用户口令、迁移账号口令、core 数据库口令的副本（与原文件同值，准备脚本核对） | 离线保存 |
+
 **容器外**
 
 | 组件 | 外部数据 | 备份 |
 |---|---|---|
-| PostgreSQL | 数据目录放在外部磁盘 `${DATA_ROOT}/${instance_id}/pgdata/`（或托管数据库） | 是，按库定期备份 |
+| PostgreSQL | 数据目录放在外部磁盘 `${DATA_ROOT}/${instance_id}/pgdata/`（或托管数据库）。超级用户口令 `secrets/postgres/superuser-password`（只挂进 postgres；db-init 用 `secrets/bootstrap/` 里的副本）。备份文件在 `backup/` | 是，按库定期备份 |
 | 监控旁路 | 自己节点上的外部磁盘（Prometheus 数据、告警记录） | 按旁路设计 |
 | 底座 | 宿主上的配置和底座门禁的本地追加日志（见 [部署底座](12-deployment-substrate.md) 第 6.1 节） | 是 |
 | 模型接入变量文件（用底座部署时） | `env/runtime.env`，权限 0400，只给节点代理读，不挂进任何容器（第 5.4 节） | 离线保存 |
@@ -152,7 +163,7 @@ flowchart TB
 规则：
 
 - 挂载表就是部署契约。新增任何需要落盘的内容，先改这张表。
-- 部署时由底座按受控环境模板创建宿主目录，核对属主和权限，再启动容器。目录缺失或权限不对就不启动。
+- 部署时按受控环境模板创建宿主目录，核对属主和权限，再启动容器（底座阶段由底座做；M1 由宿主目录准备脚本做，见 63 第 8.2 节）。目录缺失或权限不对就不启动。
 - 模型 API key 不放在挂载目录里，由环境变量传入（第 5.4 节）。凭证库的完整设计见 Q10。
 
 ### 5.4 环境变量表
@@ -163,6 +174,8 @@ flowchart TB
 |---|---|---|---|---|
 | `DEVOPS_LLM_BASE_URL` | runtime | 模型出口代理 | 模型端点的基础地址。接口格式为 OpenAI Chat Completions | 是 |
 | `DEVOPS_LLM_API_KEY` | runtime | 模型出口代理 | 模型 API key | 是 |
+
+本项目的程序只读这两个变量。第三方镜像自己的变量（例如 PostgreSQL 官方镜像的 `POSTGRES_PASSWORD_FILE`，值是文件路径）和 Compose 插值变量见 [63](../60-design/63-m1-platform-skeleton.md) 第 8.3 节，它们不进入 core、runtime 容器。
 
 ```mermaid
 flowchart LR
@@ -190,9 +203,9 @@ flowchart LR
 **约束**
 
 - core 容器不接收这两个变量。core 容器启动时发现任一变量，就拒绝启动并报错。这样部署配置写错时会立即暴露。
-- key 只在模型出口代理的内存里。代理不把 key 写进凭证库、数据库、日志、事件或错误信息。代理对自己的所有输出按 key 的精确值做 mask（K-17）。
+- key 的业务使用和保存只在模型出口代理的内存里（入口进程初始环境和 `docker inspect` 的暴露面见下文）。代理不把 key 写进凭证库、数据库、日志、事件或错误信息。代理对自己的所有输出按 key 的精确值做 mask（K-17）。
 - 入口进程和模型出口代理的初始环境里仍有这两个变量。删除变量只保证其他进程启动时不继承；隔离靠运行身份。
-- runtime 的四个子进程都不用 root 运行，各用独立运行身份。执行器及其子进程不和入口进程、模型出口代理共用运行身份。这样它们读不到这两个进程的环境。
+- runtime 的子进程（M1 只有模型出口代理）都不用 root 运行，各用独立运行身份。入口进程以受限 root 运行，只有切换身份和发信号的能力（63 第 5.1 节）。执行器及其子进程不和入口进程、模型出口代理共用运行身份。这样它们读不到这两个进程的环境。
 - 模型出口代理不启动任何子进程。
 - 变量缺失或检查不通过时，代理不退出。它拒绝所有模型请求，把 K `DEVOPS_LLM_API_KEY` 的状态记为"缺失"或"无效"，并把模型可用性报告为不可用。原因里只写变量名，不写值。其他服务照常运行，对话入口显示模型不可用。
 - 配置文件里不写模型端点。模型端点只有 `DEVOPS_LLM_BASE_URL` 一个来源。

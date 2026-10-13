@@ -20,7 +20,7 @@ depends_on: [HANDOFF-GUIDE, PHASES]
 
 里程碑：
 
-- **M1 本地 Docker 能对话**：两容器加 PostgreSQL 用 `docker compose` 起来；用户经页面或 API 和 Agent 对话；模型请求经模型出口代理发往 `DEVOPS_LLM_BASE_URL`；工具执行全部关闭。范围是 54 P1 的子集（取舍由 L04.1 写进 54）。
+- **M1 本地 Docker 能对话**：两容器加 PostgreSQL 用 `docker compose` 起来；用户经页面或 API 和 Agent 对话；模型请求经模型出口代理发往 `DEVOPS_LLM_BASE_URL`；工具执行全部关闭。范围是 54 P1 的子集，取舍见 54 第 3 节"P1 的 M1 子集"。
 - **M2 门禁与执行器最小闭环**：一条命令模板按策略自动执行，一条独立命令经人工 ▶ 执行。范围是 54 P2 的子集。
 - **M3 以后**：54 P3 至 P6。只列方向，开工前再拆。
 
@@ -40,7 +40,7 @@ depends_on: [HANDOFF-GUIDE, PHASES]
 | L03.2 | Chat 基础适配器：请求编码与普通回复 | M1 | L03.1 | 未开始 |
 | L03.3 | Chat 基础适配器：流式解码 | M1 | L03.2 | 未开始 |
 | L03.4 | DeepSeek 派生适配器 | M1 | L03.3 | 未开始 |
-| L04.1 | 设计 63：部署与进程 | M1 | L01 | 未开始 |
+| L04.1 | 设计 63：部署与进程 | M1 | L01 | 已合并 [#12](https://github.com/LeXwDeX/DevOps-Agent/pull/12) |
 | L04.2 | 设计 63：核心控制服务与任务队列 | M1 | L04.1 | 未开始 |
 | L04.3 | 设计 63：SDK v0 与平台依赖方式 | M1 | L04.1 | 未开始 |
 | L04.4 | 设计 63：账号、凭证库最小版、页面 | M1 | L04.2 | 未开始 |
@@ -208,7 +208,7 @@ L02、L03、L04 三条线可以并行。L20、L21 不依赖 M1，可以随时开
 
 #### L04.1 部署与进程
 
-供下游：L05、L06、L13。
+供下游：L05、L06、L13。结果见 63 第 2 至 17 节。与下表推荐默认的差异：重启策略改为 `restart: "no"`（63 第 11.1 节）；M1 的 runtime 只启动入口进程和代理，8081 只预留；迁移改为 plan/apply 两步并绑定计划摘要（63 第 12.3 节）；核心内部接口放在容器回环 `127.0.0.1:8090`；每进程一个配置文件；数据库引导用 `migrate bootstrap`；M1 的 core 有外网出口（63 第 6.1 节例外）；core 可向审计库追加平台管理事件（63 第 12.1 节）。
 
 | 事项 | 现状 | 推荐默认 |
 |---|---|---|
@@ -262,10 +262,10 @@ L02、L03、L04 三条线可以并行。L20、L21 不依赖 M1，可以随时开
 |---|---|
 | 目标 | 一个只做迁移的命令行程序。 |
 | 依据 | 63；12 第 6.3 节；53 第 4.1、6 节；K-23 |
-| 做 | 读取 `platform/migrations` 内嵌的文件，按库、按文件名顺序执行；记录已执行的版本和摘要；支持 `--dry-run`，只列出将要执行的文件和摘要，不写库。使用说明写进 63。 |
+| 做 | 63 第 12.2 节的 `bootstrap` 子命令；63 第 12.3 节的 `plan`、`apply` 两条命令：读取 `platform/migrations` 内嵌的文件，按库、按文件名顺序执行；执行预期、计划摘要（绑定目标身份）和结果核对；版本表 `schema_migrations`；`apply` 必须带计划摘要和备份标识；迁移文件构建期扫描。63 第 13 节的 `config.*`、`migrate.*` 错误码。 |
 | 产出 | `platform/cmd/migrate/`；迁移版本表。 |
-| 验证 | 1. 空库执行一次后，所有表存在。2. 再执行一次，没有变化，退出码 0。3. `--dry-run` 不改库（执行前后比对 `pg_catalog`）。4. 已执行的迁移文件内容被改（摘要不符）时拒绝执行。5. 连不上数据库时退出码非 0，错误里不含口令。 |
-| 边界 | 只持有迁移账号。不被任何服务在启动时调用。不自动回滚。 |
+| 验证 | 63 第 15.1 节的 17 项测试。 |
+| 边界 | `plan`、`apply` 只持有迁移账号；`bootstrap` 只在 db-init 服务里运行。不被任何服务在启动时调用。不自动回滚。 |
 
 ### L06 runtime 入口进程与 `cmd/model-proxy`
 
@@ -281,14 +281,14 @@ L02、L03、L04 三条线可以并行。L20、L21 不依赖 M1，可以随时开
 |---|---|
 | 做 | 读模型接入变量、读客户端凭证文件、按 63 监听并设置 HTTP 资源限制、装配 `modelgw`。 |
 | 产出 | `platform/cmd/model-proxy/`。 |
-| 验证 | 1. 变量缺失时代理照常运行，`GET /v1/status` 返回 `missing`，聊天请求返回 503 `modelgw.unavailable`。2. 客户端凭证文件缺失或为空时拒绝启动，错误只含文件名。3. 63 定下的资源限制都有测试（慢请求头、超大请求体、慢客户端）。4. 用假 key 跑一遍完整请求后，日志输出里搜不到 key。 |
+| 验证 | 1. 变量缺失时代理照常运行，`GET /v1/status` 返回 `missing`，聊天请求返回 503 `modelgw.unavailable`。2. 客户端凭证文件缺失或为空时拒绝启动，错误只含文件名。3. 63 定下的资源限制都有测试（慢请求头、超大请求体、慢客户端）。4. 用假 key 跑一遍完整请求后，日志输出里搜不到 key。5. 63 第 15.2 节 L06.1 的追加测试（并发上限、流式写时限、未知配置字段）。 |
 
 #### L06.2 runtime 入口进程
 
 | 项 | 内容 |
 |---|---|
-| 做 | 按 63 启动子进程：固定用户、各自的环境变量、任一退出整体退出。目录按 63。 |
-| 验证 | 1. 入口进程启动的非代理子进程，`/proc/<pid>/environ` 里没有 `DEVOPS_LLM_`（用测试子进程验证；非 Linux 跳过并说明）。2. 代理不是 root 运行。3. 任一子进程退出，入口进程以非 0 退出。4. 入口进程收到 SIGTERM 时把信号转给子进程，等待后退出。 |
+| 做 | `platform/cmd/entry`：63 第 4 节的入口进程，`core`、`runtime` 两张进程表。 |
+| 验证 | 63 第 15.2 节 L06.2 的 6 项测试。 |
 
 ### L07 SDK v0 运行循环与第二宿主样例
 
@@ -331,7 +331,7 @@ L02、L03、L04 三条线可以并行。L20、L21 不依赖 M1，可以随时开
 
 | 项 | 内容 |
 |---|---|
-| 目标 | core 容器里的核心控制服务能管理项目、会话和消息，把对话交给 Worker，并在 Worker 停止时照常提供页面和记录。 |
+| 目标 | core 容器里的核心控制服务能管理项目、会话和消息，把对话交给 Worker，并在 Worker 停止领取任务时照常提供页面和记录。 |
 | 依据 | 63；11 第 2、3、5 节；13；31 第 1 至 3 节；45 第 6 节；K-24、K-31 |
 | 不做 | 事实、运维表格、SOP、审核界面（M2 及以后）。 |
 | 边界 | 核心控制服务不持有模型 key 和任何 V；不直接调用模型；不执行命令或 SQL。 |
@@ -362,7 +362,7 @@ L02、L03、L04 三条线可以并行。L20、L21 不依赖 M1，可以随时开
 | 项 | 内容 |
 |---|---|
 | 做 | `/api/v1` 接口；`cmd/core` 装配；启动时 `ForbidInCore` 检查和 `recovery.OnStartup`；健康与恢复报告接口。 |
-| 验证 | 1. 环境里有 `DEVOPS_LLM_BASE_URL` 或 `DEVOPS_LLM_API_KEY` 时，`cmd/core` 以非 0 退出，输出只含变量名。2. 发消息的接口立即返回，不等模型（11 第 3 节）。3. 没有 Worker 时，项目、会话、历史消息接口照常可用，新消息显示"等待处理"。4. 重启后未完成的对话任务标为"已停止（恢复中断）"，不自动重发；恢复报告接口能看到它们。 |
+| 验证 | 1. 环境里有 `DEVOPS_LLM_BASE_URL` 或 `DEVOPS_LLM_API_KEY` 时，`cmd/core` 以非 0 退出，输出只含变量名。2. 发消息的接口立即返回，不等模型（11 第 3 节）。3. Worker 停止领取任务时（测试里不启动 Worker 或并发为 0），项目、会话、历史消息接口照常可用，新消息显示"等待处理"。Worker 进程退出导致 core 容器停止，由 L06.2 第 2 项验证，不在本项。4. 重启后未完成的对话任务标为"已停止（恢复中断）"，不自动重发；恢复报告接口能看到它们。5. 63 第 9 节列出的 HTTP 资源限制测试（超时返回 503 `http.timeout`、请求体超限 413 `http.body_too_large`、并发超限 503 `http.busy`、配置越界拒绝启动）。 |
 
 ### L09 `cmd/agent-worker`
 
@@ -465,14 +465,14 @@ L02、L03、L04 三条线可以并行。L20、L21 不依赖 M1，可以随时开
 | 项 | 内容 |
 |---|---|
 | 做 | `platform/deploy/` 下两个 Dockerfile：core 镜像含 `core`、`agent-worker` 和 core 入口进程；runtime 镜像含 `model-proxy`、`migrate` 和 runtime 入口进程。 |
-| 验证 | 1. 两个镜像都能构建。2. 镜像里没有配置文件和密钥（检查写成脚本）。3. 基础镜像按 digest 固定，不用 `latest`。4. 进程不以 root 运行。 |
+| 验证 | 1. 两个镜像都能构建。2. 镜像里没有配置文件和密钥（检查写成脚本）。3. 基础镜像按 digest 固定，不用 `latest`。4. 业务子进程不以 root 运行；入口进程按 63 第 5.1 节的能力集运行。 |
 
 #### L13.2 compose、宿主目录与数据库角色脚本
 
 | 项 | 内容 |
 |---|---|
-| 做 | `compose.yaml`（含 `migrate` profile）；`.env.example`（只有变量名）；宿主目录准备脚本（按挂载表建目录、设属主和权限，不对就退出）；数据库角色与授权脚本（每个服务一个账号，迁移账号单独）。 |
-| 验证 | 1. `docker compose -p devops-agent config` 显示：只有 runtime 有 `DEVOPS_LLM_*`；只有 core 映射端口到宿主；PostgreSQL 不映射端口。2. 把 `DEVOPS_LLM_API_KEY` 错误地加给 core 时，core 拒绝启动。3. 删除并重建容器后，项目、会话、消息都还在。4. 每个服务的数据库账号只能访问自己的库。 |
+| 做 | 63 第 15.3 节 L13.2 的范围：`compose.yaml`（`migrate`、`bootstrap` 两个 profile）；`.env.example`（只有变量名）；`prepare-host.sh`；`backup.sh`。数据库引导程序是 L05 的 `migrate bootstrap`，这里只定义 `db-init` 服务。 |
+| 验证 | 1. `docker compose -p devops-agent config` 显示：只有 runtime 有 `DEVOPS_LLM_*`；只有 core 映射端口到宿主；PostgreSQL 不映射端口。2. 把 `DEVOPS_LLM_API_KEY` 错误地加给 core 时，core 拒绝启动。3. 删除并重建容器后，项目、会话、消息都还在。4. 每个服务的数据库账号只能访问自己的库。5. 63 第 15.3 节 L13.2 的追加测试。 |
 
 #### L13.3 部署检查脚本与 CI 镜像构建
 
@@ -496,24 +496,24 @@ L02、L03、L04 三条线可以并行。L20、L21 不依赖 M1，可以随时开
 2. 运行宿主目录准备脚本，`DATA_ROOT=/DATA/AppData/AGENT-OPS/data`。
 3. 用户在 `/DATA/AppData/AGENT-OPS/deploy/.env` 写入 `DEVOPS_LLM_BASE_URL=https://llms.ycgame.com/v1` 和 `DEVOPS_LLM_API_KEY=<key>`。
 4. `docker compose -p devops-agent build`。
-5. `docker compose -p devops-agent up -d postgres`，再按 63 手动运行迁移。
+5. `docker compose -p devops-agent up -d postgres`，按 63 第 12.2 节运行 `db-init`，再按 63 第 12.4 节备份和迁移。
 6. `docker compose -p devops-agent up -d runtime core`。
-7. 跑下面的验收清单，把结果写进 PR。
+7. 跑下面的验收清单，把结果写进 PR。检查写成脚本，只输出结论，不打印环境变量和 `docker compose config` 的完整输出（63 第 14 节）。
 
 M1 验收清单：
 
 | # | 检查 | 期望 |
 |---|---|---|
 | 1 | 页面登录，新建项目和会话，用模型别名 `deepseek` 发一条消息 | 收到回复 |
-| 2 | `docker compose -p devops-agent exec core env` | 没有 `DEVOPS_LLM_` 开头的变量 |
-| 3 | runtime 里除代理以外的进程的环境 | 没有 `DEVOPS_LLM_` 开头的变量 |
-| 4 | 临时给 core 加 `DEVOPS_LLM_API_KEY=x` 再启动 | core 拒绝启动；改回后正常 |
-| 5 | 把 `.env` 里的地址改成 `http://...`，重建 runtime | 页面显示模型不可用，原因只写变量名；其他页面照常 |
-| 6 | 停止 Worker（按 63 的方式） | 项目、会话、历史消息照常可看 |
+| 2 | core 容器的环境（脚本检查，只输出结论） | 没有 `DEVOPS_LLM_` 开头的变量 |
+| 3 | runtime 里的进程 | 只有入口进程和代理；入口进程的初始环境有模型接入变量是已知例外（63 第 4.3 节） |
+| 4 | 临时给 core 加 `DEVOPS_LLM_API_KEY=x` 再启动 | core 拒绝启动；去掉后重建 core，确认正常 |
+| 5 | 把 `.env` 里的地址改成 `http://...`，重建 runtime | 页面显示模型不可用，原因只写变量名；其他页面照常。改回原地址，重建 runtime，确认模型恢复可用 |
+| 6 | 停止 Worker：按 63 第 11.3 节把并发设为 0 并重启 core | 项目、会话、历史消息照常可看；新消息显示"等待处理"。改回原并发，重启 core，确认新消息被处理 |
 | 7 | 重启 core 容器 | 进入恢复模式；未完成的对话任务为"已停止（恢复中断）"；没有自动续跑 |
 | 8 | 删除并重建 core、runtime 容器 | 数据都在 |
 | 9 | 在对话里粘贴一个假的 `sk-...` | 回复和历史里只有 K |
-| 10 | `docker compose -p devops-agent logs` 全文搜索 key | 搜不到 |
+| 10 | `docker compose -p devops-agent logs` 全文搜索 key：脚本从 `.env` 读入 key，用字面量匹配（`grep -cF`，key 经标准输入或文件传入，不出现在命令行参数里），不回显 | 计数为 0。读取日志或搜索命令失败时输出"检查失败"，不算计数为 0 |
 | 11 | Agent 回复里请求执行工具 | 执行次数为零，显示工具关闭 |
 
 ## 4. M2 任务卡片
