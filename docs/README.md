@@ -73,6 +73,7 @@ depends_on: []
 | **60 详细设计** | | | |
 | [61-core-layer](60-design/61-core-layer.md) | core 层详细设计：状态机、检验流水线、策略解析、修订冻结、编排引擎、端口与测试 | 开发或审核 core 层 | 已定 |
 | [62-provider-storage-modelgw](60-design/62-provider-storage-modelgw.md) | provider 第一块：PostgreSQL 存储、outbox、审计、系统时钟与 ID、模型出口代理 | 开发或审核存储、模型出口代理 | 已定 |
+| [63-m1-platform-skeleton](60-design/63-m1-platform-skeleton.md) | M1 平台骨架：部署与进程（镜像、Compose、入口进程、身份、端口、配置、密钥、HTTP 限制、重启、受控迁移）；后续补核心服务、SDK v0、账号与页面 | 开发或审核 M1 的 cmd 装配、镜像、compose | 已定 |
 | **70 交接（不是设计）** | | | |
 | [71-handoff-guide](70-handoff/71-handoff-guide.md) | 当前进度、开工步骤、完成标准、审核与合并、草稿代码取回 | 接手开发、开始任何任务前 | 持续维护 |
 | [72-task-board](70-handoff/72-task-board.md) | core 之后的全部任务与子任务：依赖、做什么、验证、状态 | 选下一个任务、开工或交付时 | 持续维护 |
@@ -101,7 +102,8 @@ depends_on: []
 | 开发 GoAgent SDK | 41、42、43、44、45、52 |
 | 新增模型厂商适配器 | 42、41、55 |
 | 开发 Hook 或事件 | 45、43、41 |
-| 部署平台自身 | 12、11、13 |
+| 部署平台自身 | 12、11、13；M1 另加 63 |
+| 开发 M1 的入口进程、迁移程序、代理装配、镜像或 compose | 63、11、12、53、62 |
 | 开发模型出口代理或模型接入 | 11、25、42、41 |
 | 开发平台管理模块 | 38、22、25 |
 | 定义 schema、类型或常量 | 52、53 |

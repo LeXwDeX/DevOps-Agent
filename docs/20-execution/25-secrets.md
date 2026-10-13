@@ -81,7 +81,7 @@ mask 作用于：
 |---|---|
 | 来源 | runtime 容器的环境变量 `DEVOPS_LLM_API_KEY`，只交给模型出口代理（[组件与边界](../10-architecture/11-components-and-boundaries.md) 第 5.4 节） |
 | K | 名称为 `DEVOPS_LLM_API_KEY`，来源"环境变量"。状态为可用、缺失或无效 |
-| V 存放 | 只在模型出口代理的内存里。不写进凭证库、数据库、日志、事件或错误信息 |
+| V 存放 | 业务使用和保存只在模型出口代理的内存里。不写进凭证库、数据库、日志、事件或错误信息。runtime 入口进程的初始环境和 `docker inspect` 仍能看到它，见 [组件与边界](../10-architecture/11-components-and-boundaries.md) 第 5.4 节 |
 | 增、删、改 | 不在平台里操作。管理员修改部署环境里的变量，再重建 runtime 容器 |
 | 列出 | 和其他 K 一样，只返回 K、备注和状态 |
 | mask | 模型出口代理按 V 的精确值遮盖自己的所有输出；其他组件按内置规则遮盖（第 4 节） |

@@ -34,10 +34,10 @@ depends_on: [KERNEL, COMPONENTS, SQL, SCHEMA-CONST, REPO-LAYOUT]
 
 | 职责 | 基线 / 候选 | 使用边界与检验 |
 |---|---|---|
-| 服务与生命周期 | 基线：标准库 `net/http`、`context`、`log/slog`。服务契约用版本化 HTTP/JSON。 | 每个请求有 deadline、取消、输入大小限制和有界并发。核心接口异步提交 Agent 任务，不等待模型调用完成。日志字段先 mask（K-17）。确有契约和性能需要时才加 gRPC，不同时维护两套等价接口。 |
+| 服务与生命周期 | 基线：标准库 `net/http`、`context`、`log/slog`。服务契约用版本化 HTTP/JSON。 | 每个请求有 deadline、取消、输入大小限制和有界并发。核心接口异步提交 Agent 任务，不等待模型调用完成。日志字段先 mask（K-17）。确有契约和性能需要时才加 gRPC，不同时维护两套等价接口。配置文件用 JSON 和标准库 `encoding/json`，拒绝未知字段；容器入口进程用标准库实现（见 [63](../60-design/63-m1-platform-skeleton.md) 第 4、7 节）。 |
 | 业务状态 | 基线：PostgreSQL；驱动 `pgx/v5`。provider 第一块按 [62](../60-design/62-provider-storage-modelgw.md) 第 3.4 节使用手写固定 SQL 常量及 `PREPARE` 检查；查询规模增大后再评估 `sqlc`。 | 驱动和 SQL 只在存储适配层。平台自身的固定 SQL 在构建期分析和测试，随版本发布（K-23）。平台存储适配层不向 Agent 暴露任意 SQL 的能力。 |
 | 任务队列（核心 ↔ Worker） | 本项目定义的版本化协议，持久保存（见 [组件与边界](../10-architecture/11-components-and-boundaries.md) 第 4 节）。 | 具体实现 P0 定。不为它引入额外中间件；确需引入时走组件准入（第 4 节）。 |
-| 数据库迁移 | 基线：审核后的版本化 SQL 文件。候选：`goose`，通过兼容检验后才可用。 | 迁移文件在构建期分析。迁移的执行是一次受控执行，由底座发起（见 [部署底座](../10-architecture/12-deployment-substrate.md) 第 6.3 节）。服务启动时不自动迁移。不用 Go 回调迁移隐藏动态 SQL。运行账号与迁移账号分开。 |
+| 数据库迁移 | 基线：审核后的版本化 SQL 文件。候选：`goose`，通过兼容检验后才可用。 | 迁移文件在构建期分析。迁移的执行是一次受控执行（见 [部署底座](../10-architecture/12-deployment-substrate.md) 第 6.3 节）：M1 由管理员按 [63](../60-design/63-m1-platform-skeleton.md) 第 12 节的 plan/apply 流程手动运行，底座阶段由底座发起。服务启动时不自动迁移。不用 Go 回调迁移隐藏动态 SQL。运行账号与迁移账号分开。 |
 | PostgreSQL 方言解析 | 候选：`pg_query_go`，使用 PostgreSQL 自身的解析器源码。 | 依赖 CGO。P0 验证目标数据库主版本、解析器版本、amd64/arm64 构建和镜像运行。语法树只说明结构，不能证明权限、影响范围或数据安全。解析失败或不支持的语法转人工（Q7）。 |
 | MySQL 系方言解析 | 候选：TiDB parser（纯 Go）。 | MySQL 兼容不等于每个 MySQL、TiDB 或云派生产品完全等价。按产品、确切版本、SQL mode 和语句特性建立覆盖矩阵。不支持、多语句漏解析、动态 SQL 未展开或分析不完整，都按"读写类别无法确定"转人工（K-08、Q7）。每个派生数据库类型用独立的 Go 文件（见 [云服务商](../30-features/35-cloud-providers.md) 第 9、11 节）。 |
 | 既定任务编排 | 基线：平台自带的限域状态机，通过平台的 `WorkflowPort` 隔离编排实现。 | 只运行已登记的任务定义：固定步骤、类型化分支和兜底分支（见 [既定任务](../20-execution/23-harness-tasks.md)）。不开放任意流程图编排。"开始执行"先落盘再执行；状态变更用 CAS；迟到的结果不覆盖较新的记录；结果未知先查询实际状态，不盲目重做。恢复即停止（K-24），不做租约续跑或断点自动恢复。 |

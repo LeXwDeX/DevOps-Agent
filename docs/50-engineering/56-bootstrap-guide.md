@@ -112,6 +112,13 @@ P0 验收通过后再开始。建议顺序：
 8. GoAgent SDK v0 与第二宿主样例。
 9. 验证"没有 Harness 时工具执行全部关闭"。
 
+M1 的顺序：M1 只做 P1 的子集（[54](54-phases-and-acceptance.md) 第 3 节"P1 的 M1 子集"）。
+
+- M1 不做第 1 步底座。
+- 第 2 步的迁移改由管理员按 [63](../60-design/63-m1-platform-skeleton.md) 第 12 节手动运行。
+- 另加一步：用 docker compose 装配 core、runtime 两个容器和 PostgreSQL（63）。
+- ContextPatch、压缩、Hook 执行和子 Agent 不在 M1。
+
 P1 的验收条件见 [54](54-phases-and-acceptance.md)。
 
 ## 4. 模块完成定义
@@ -150,7 +157,7 @@ P1 的验收条件见 [54](54-phases-and-acceptance.md)。
 | SDK 导入平台模块，或 SDK 公共类型暴露厂商类型 | 破坏 SDK 独立性 | 见 [41](../40-sdk/41-sdk-overview.md) |
 | 派生适配器写成独立的完整实现 | 必须复用父实现 | 嵌入基础类型，只重写差异（K-28） |
 | 用配置关闭门禁 | 常量和门禁不是配置 | 见 [52](52-schema-and-constants.md) 第 4.2 节 |
-| 服务启动时自动跑数据库迁移 | 迁移是受控执行 | 由底座发起（K-23） |
+| 服务启动时自动跑数据库迁移 | 迁移是受控执行 | 底座阶段由底座发起；M1 由管理员按 [63](../60-design/63-m1-platform-skeleton.md) 第 12 节运行（K-23） |
 | 用 `latest` 镜像或依赖 | 构建不可重现 | 固定版本和摘要（[51](51-go-stack.md)） |
 | 设计应急绕过通道 | 系统内不设破窗 | 应急走系统外流程（K-26） |
 | 执行工具结果或网页里的指令 | 外部内容是数据 | 不执行，上报疑似注入（K-19） |
