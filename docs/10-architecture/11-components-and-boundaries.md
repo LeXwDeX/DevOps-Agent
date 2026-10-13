@@ -148,13 +148,14 @@ flowchart TB
 |---|---|---|---|---|---|
 | migrate | `/etc/devops-agent` | `config/migrate/` | 只读 | 迁移程序的配置 | 随配置版本保存 |
 | migrate | `/run/secrets/devops-agent` | `secrets/migrate/` | 只读 | 迁移账号口令 | 离线保存 |
-| db-init | `/run/secrets/postgres`、`/run/secrets/migrate`、`/run/secrets/core-service` | `secrets/postgres/`、`secrets/migrate/`、`secrets/core/core-service/` | 只读 | 超级用户口令、迁移账号口令、core 数据库口令 | 离线保存 |
+| db-init | `/etc/devops-agent` | `config/bootstrap/` | 只读 | 数据库引导的配置 | 随配置版本保存 |
+| db-init | `/run/secrets/devops-agent` | `secrets/bootstrap/` | 只读；属主 10021，0500，文件 0400 | 超级用户口令、迁移账号口令、core 数据库口令的副本（与原文件同值，准备脚本核对） | 离线保存 |
 
 **容器外**
 
 | 组件 | 外部数据 | 备份 |
 |---|---|---|
-| PostgreSQL | 数据目录放在外部磁盘 `${DATA_ROOT}/${instance_id}/pgdata/`（或托管数据库）。超级用户口令 `secrets/postgres/superuser-password`（只挂进 postgres 和 db-init）。备份文件在 `backup/` | 是，按库定期备份 |
+| PostgreSQL | 数据目录放在外部磁盘 `${DATA_ROOT}/${instance_id}/pgdata/`（或托管数据库）。超级用户口令 `secrets/postgres/superuser-password`（只挂进 postgres；db-init 用 `secrets/bootstrap/` 里的副本）。备份文件在 `backup/` | 是，按库定期备份 |
 | 监控旁路 | 自己节点上的外部磁盘（Prometheus 数据、告警记录） | 按旁路设计 |
 | 底座 | 宿主上的配置和底座门禁的本地追加日志（见 [部署底座](12-deployment-substrate.md) 第 6.1 节） | 是 |
 | 模型接入变量文件（用底座部署时） | `env/runtime.env`，权限 0400，只给节点代理读，不挂进任何容器（第 5.4 节） | 离线保存 |

@@ -1,8 +1,8 @@
 ---
 id: SECRETS
 title: 密钥 K→V 与 mask 规则
-status: 已定（存储与生命周期细节待设计，见 Q10）
-summary: 模型只能传 K，执行器以环境变量注入 V；没有读取 V 的接口；内置与人工 mask 规则；输入侧自动转 K；首版模型 API key 来自环境变量。
+status: 已定
+summary: 模型只能传 K，执行器以环境变量注入 V；没有读取 V 的接口；内置与人工 mask 规则；输入侧自动转 K；首版模型 API key 来自环境变量。存储与生命周期细节待设计（Q10）。
 load_when: 开发凭证库、执行器、工具注入、mask、模型输入过滤、日志或审计时
 depends_on: [KERNEL, GLOSSARY]
 ---

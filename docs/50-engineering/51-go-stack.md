@@ -1,8 +1,8 @@
 ---
 id: GO-STACK
 title: Go 技术选型与组件准入
-status: 已定（候选未经 PoC；Q11、Q15 待定）
-summary: Go 工具链基线；按职责列出的依赖选型、使用边界和检验要求；第三方组件准入的统一标准（K-23）；P0 需要做的 PoC。
+status: 已定
+summary: Go 工具链基线；按职责列出的依赖选型、使用边界和检验要求；第三方组件准入的统一标准（K-23）；P0 需要做的 PoC。候选未经 PoC；Q11、Q15 待定。
 load_when: 搭建工程、引入或升级依赖、评估第三方组件（Temporal、Grafana、dcg 等）、选择解析器或云 SDK 时
 depends_on: [KERNEL, COMPONENTS, SQL, SCHEMA-CONST, REPO-LAYOUT]
 ---

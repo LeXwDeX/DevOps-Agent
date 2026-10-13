@@ -103,7 +103,7 @@ flowchart TB
 | 恢复报告 | 恢复后停止的任务、结果未知的执行、暂停的调度计划（见 [状态与恢复](../10-architecture/13-state-and-recovery.md)）。 |
 | 会话模式 | 手工 / 自动，切换记入审计。 |
 
-工作台属于核心容器。核心不等待模型调用完成；Agent Worker 故障时，页面和记录仍可用（见 [组件与边界](../10-architecture/11-components-and-boundaries.md)）。
+工作台属于核心容器。核心不等待模型调用完成；Agent Worker 停止领取任务时，页面和记录仍可用（见 [组件与边界](../10-architecture/11-components-and-boundaries.md) 第 3 节）。Worker 进程退出时整个 core 容器停止，人工重启后进入恢复模式（[63](../60-design/63-m1-platform-skeleton.md) 第 11.2 节）。
 
 ## 4. 项目 Agent 生成与启用
 
