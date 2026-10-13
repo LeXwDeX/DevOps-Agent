@@ -129,6 +129,7 @@
 
 - 只记录当前确定的设计，不记录更新日志。实现进度不写进设计文档。
 - 进度和任务只写在交接文档 `docs/70-handoff/`。它不是设计文档，不另建同类的台账或计划文件。
+- 使用 SpecGit（文末区块）时，GitHub Issue 只写子任务的规格摘要（Why / Scope / Approach / Acceptance），并链接任务表里的子任务号。任务状态只在任务表维护，Issue 不另记进度。SpecGit 区块里"Issue 承载工作台账"一句按此理解。
 - 改规则先改 `03-kernel-rules.md`，再改引用处；新术语先加进 `02-glossary.md`。
 - 待定项有结论后，把结论写进对应文档，并从 `04-open-questions.md` 删除。
 - 每篇文档保留 YAML front matter（id、title、status、summary、load_when、depends_on），并同步更新 `docs/README.md` 的目录和任务路由。
@@ -140,3 +141,36 @@
 - 用短句和常用词，每句只说一件事。同一个概念始终用同一个名称。
 - 操作按步骤写。复杂关系配图，文档中用 Mermaid。
 - 查源码结构时，有代码知识图就优先用它，并检查索引覆盖。
+
+<!-- specgit:v2:start -->
+## SpecGit 2
+
+Runtime: 2.8.0. Declaration: `.specgit.yaml` (v2, local configuration).
+
+新任务和已有 PR/MR 的 CI/评审修复都加载 specgit-native Skill。
+完整流程和恢复步骤见 Skill；二进制可选，但不得绕过项目 guard/checkpoint 约束。
+在授权范围内主动使用原生 gh/glab；只读环境探查和验证要求见 Skill。
+Milestone 可选；Issue 承载规格和工作台账；PR/MR 集成变更，不代表版本；Release 需要独立授权。
+使用共享 CLI 时，以已安装的 `specgit --help` 和 `specgit --schema` 为契约。
+修改已跟踪的产品输入前，先查重并选择完整相关 Issue：Why / Scope / Approach / Acceptance（原因、范围、方案、验收要求）。
+只读检查、审计和评审不需要 Issue checkpoint；纯文档遵循仓库规则及已安装 hooks。
+写入（包括将请求标记为 ready）需要已有用户授权；授权在其范围内持续有效。
+声明、`--dry-run` 预览和 Hook 通知都不产生授权。
+GitHub/GitLab 负责 CI、评审、保护和实际合并。
+按用户目标收尾：评审、修复或跟踪报告已验证结果及限制。
+平台交付须原生回读确认目标分支合并及全部应关闭的关联 Issue 关闭。
+能力缺失或 SpecGit 故障时，按 Skill 的恢复步骤处理。
+
+Declared rules: `{"agent":{"close_issues_after_merge":false,"native_auto_merge":false},"issue_template":"builtin","language":"zh","pr_template":"builtin","validation":{"bodies":false,"labels":"off","titles":false}}`
+<!-- specgit:v2:sha256 be42ed842c48a7fc635e32f57a4764e6affda612b383f1bc135b092daddb61fb -->
+<!-- specgit:v2:end -->
+
+
+<!-- specgit:project:v2:start -->
+## SpecGit 2
+
+Project integration (setup, hooks, observation state and guidance) stays project-only.
+Use specgit-native Skill alongside this project's AGENTS.md and `.specgit.yaml`.
+Installed hooks check local context; they are not a general file-write sandbox.
+Refresh preserves manual text and other tools' content; only recorded, unedited project assets and blocks can change.
+<!-- specgit:project:v2:end -->
